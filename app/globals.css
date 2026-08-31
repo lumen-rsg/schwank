@@ -1157,6 +1157,270 @@ h1 span {
 .expense-list b {
   font-size: 11px;
 }
+.spending-wheel-layout {
+  display: grid;
+  grid-template-columns: 178px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+.spending-wheel {
+  position: relative;
+  width: 178px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.spending-wheel::after {
+  content: '';
+  position: absolute;
+  inset: 29px;
+  border-radius: 50%;
+  background: #fffdf9;
+  box-shadow: 0 0 0 1px rgba(81, 80, 72, 0.05);
+}
+.spending-wheel > span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  color: #8b8d85;
+  font-size: 8px;
+  text-align: center;
+}
+.spending-wheel > span b {
+  color: #4b4e47;
+  font-size: 23px;
+}
+.spending-wheel-legend {
+  display: grid;
+  gap: 5px;
+}
+.spending-wheel-legend button {
+  min-width: 0;
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #6d7069;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.spending-wheel-legend button:hover,
+.spending-wheel-legend button.active {
+  border-color: #ddd8ce;
+  background: #f6f3ed;
+}
+.spending-wheel-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.spending-wheel-legend span {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spending-wheel-legend b {
+  color: #4c4f48;
+  font-size: 9px;
+}
+.recurring-panel {
+  margin-top: 18px;
+}
+.recurring-heading,
+.expense-controls,
+.payment-card header,
+.payment-card footer,
+.payment-amount-row {
+  display: flex;
+  align-items: center;
+}
+.recurring-heading,
+.payment-amount-row {
+  justify-content: space-between;
+}
+.recurring-heading > div:first-child {
+  max-width: 650px;
+}
+.commitment-total {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+.commitment-total small {
+  color: #8a8c84;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.commitment-total strong {
+  color: #52564f;
+  font-size: 18px;
+}
+.recurring-form {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.recurring-form .primary-button {
+  justify-content: center;
+}
+.payment-card-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.payment-card {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid #e5e0d7;
+  border-radius: 13px;
+  background: #fffdfa;
+}
+.payment-card.overdue {
+  border-color: #deb6a9;
+  box-shadow: inset 0 3px #c9846e;
+}
+.payment-card.paused {
+  opacity: 0.62;
+}
+.payment-card header {
+  gap: 9px;
+}
+.payment-card header > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  flex: 1;
+}
+.payment-card header small {
+  color: #93958d;
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.payment-card header strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.payment-kind-icon {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #6e8269;
+  background: #eaf0e7;
+}
+.payment-amount-row {
+  margin: 16px 0 10px;
+  gap: 8px;
+}
+.payment-amount-row strong {
+  font-size: 19px;
+}
+.payment-amount-row span,
+.payment-meta {
+  color: #898c84;
+  font-size: 8px;
+}
+.payment-meta {
+  min-height: 36px;
+  display: grid;
+  gap: 5px;
+}
+.payment-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.payment-card footer {
+  margin-top: 13px;
+  gap: 7px;
+}
+.compact-button {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 10px;
+  justify-content: center;
+  font-size: 8px;
+}
+.expense-controls {
+  gap: 10px;
+}
+.expense-controls label {
+  display: grid;
+  gap: 4px;
+}
+.expense-controls label > span {
+  color: #8b8d86;
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.expense-controls select {
+  min-width: 125px;
+  height: 32px;
+  padding: 0 28px 0 9px;
+  border: 1px solid #ded9d0;
+  border-radius: 8px;
+  background: #fff;
+  color: #5b5e57;
+  font: inherit;
+  font-size: 9px;
+}
+@media (max-width: 1050px) {
+  .recurring-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .payment-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 680px) {
+  .spending-wheel-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .spending-wheel-legend {
+    width: 100%;
+  }
+  .recurring-heading,
+  .panel-heading:has(.expense-controls) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .commitment-total {
+    text-align: left;
+  }
+  .recurring-form,
+  .payment-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .expense-controls {
+    width: 100%;
+  }
+  .expense-controls label {
+    min-width: 0;
+    flex: 1;
+  }
+  .expense-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+}
 .organiser-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

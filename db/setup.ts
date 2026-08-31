@@ -29,6 +29,9 @@ export async function ensureDatabase() {
       "CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, visibility TEXT NOT NULL DEFAULT 'private', label TEXT NOT NULL, amount REAL NOT NULL, category TEXT NOT NULL, paid_by TEXT NOT NULL, spent_on TEXT NOT NULL)",
     ),
     db.prepare(
+      "CREATE TABLE IF NOT EXISTS recurring_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, visibility TEXT NOT NULL DEFAULT 'private', kind TEXT NOT NULL CHECK (kind IN ('subscription','loan','rent')), label TEXT NOT NULL, amount REAL NOT NULL, billing_cycle TEXT NOT NULL DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly','yearly')), next_due_on TEXT NOT NULL, remaining_amount REAL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)",
+    ),
+    db.prepare(
       "CREATE TABLE IF NOT EXISTS organiser_items (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, visibility TEXT NOT NULL DEFAULT 'private', list TEXT NOT NULL, label TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0)",
     ),
     db.prepare(
@@ -110,6 +113,9 @@ export async function ensureDatabase() {
     ),
     db.prepare(
       'CREATE INDEX IF NOT EXISTS idx_expenses_user_visibility_date ON expenses(user_id, visibility, spent_on)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_recurring_payments_user_visibility_due ON recurring_payments(user_id, visibility, next_due_on)',
     ),
     db.prepare(
       'CREATE INDEX IF NOT EXISTS idx_organisers_user_visibility ON organiser_items(user_id, visibility)',

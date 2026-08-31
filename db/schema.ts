@@ -125,6 +125,30 @@ export const expenses = sqliteTable(
   ],
 );
 
+export const recurringPayments = sqliteTable(
+  'recurring_payments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    visibility: text('visibility').notNull().default('private'),
+    kind: text('kind').notNull(),
+    label: text('label').notNull(),
+    amount: real('amount').notNull(),
+    billingCycle: text('billing_cycle').notNull().default('monthly'),
+    nextDueOn: text('next_due_on').notNull(),
+    remainingAmount: real('remaining_amount'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_recurring_payments_user_visibility_due').on(
+      table.userId,
+      table.visibility,
+      table.nextDueOn,
+    ),
+  ],
+);
+
 export const organiserItems = sqliteTable(
   'organiser_items',
   {

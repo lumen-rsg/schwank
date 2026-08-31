@@ -43,6 +43,56 @@ const cleanOptionalDate = (value: unknown) => {
     throw new DataError('Enter a valid expiry date.');
   return date;
 };
+const cleanPaymentDate = (value: unknown) => {
+  const date = cleanText(value, 10);
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== date
+  )
+    throw new DataError('Enter a valid payment date.');
+  return date;
+};
+const expenseCategories = [
+  'groceries',
+  'housing',
+  'rent',
+  'utilities',
+  'subscriptions',
+  'loan',
+  'furniture',
+  'transport',
+  'health',
+  'leisure',
+  'other',
+] as const;
+type ExpenseCategory = (typeof expenseCategories)[number];
+const cleanExpenseCategory = (value: unknown): ExpenseCategory =>
+  expenseCategories.includes(value as ExpenseCategory)
+    ? (value as ExpenseCategory)
+    : 'other';
+const paymentKinds = ['subscription', 'loan', 'rent'] as const;
+type PaymentKind = (typeof paymentKinds)[number];
+const cleanPaymentKind = (value: unknown): PaymentKind | null =>
+  paymentKinds.includes(value as PaymentKind)
+    ? (value as PaymentKind)
+    : null;
+function advancePaymentDate(date: string, cycle: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const monthOffset = cycle === 'yearly' ? 12 : 1;
+  const targetMonth = month - 1 + monthOffset;
+  const targetYear = year + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(
+    Date.UTC(targetYear, normalizedMonth + 1, 0),
+  ).getUTCDate();
+  return new Date(
+    Date.UTC(targetYear, normalizedMonth, Math.min(day, lastDay)),
+  )
+    .toISOString()
+    .slice(0, 10);
+}
 const recipeCourses = [
   'breakfast',
   'starter',
@@ -139,6 +189,7 @@ export async function readHouseholdData(user: AuthUser) {
     nutrition,
     tasks,
     expenses,
+    recurringPayments,
     organisers,
     messages,
     habits,
@@ -180,6 +231,12 @@ export async function readHouseholdData(user: AuthUser) {
     db
       .prepare(
         "SELECT id,label,amount,category,spent_on AS spentOn,visibility,(user_id=?) AS owned FROM expenses WHERE user_id=? OR visibility='shared' ORDER BY id DESC",
+      )
+      .bind(user.id, user.id)
+      .all(),
+    db
+      .prepare(
+        "SELECT id,kind,label,amount,billing_cycle AS billingCycle,next_due_on AS nextDueOn,remaining_amount AS remainingAmount,active,visibility,(user_id=?) AS owned FROM recurring_payments WHERE user_id=? OR visibility='shared' ORDER BY active DESC,next_due_on,id DESC",
       )
       .bind(user.id, user.id)
       .all(),
@@ -246,6 +303,7 @@ export async function readHouseholdData(user: AuthUser) {
     nutrition: nutrition.results,
     tasks: tasks.results,
     expenses: expenses.results,
+    recurringPayments: recurringPayments.results,
     organisers: organisers.results,
     messages: messages.results,
     habits: habits.results,
@@ -326,11 +384,113 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
         cleanVisibility(body.visibility),
         label,
         amount,
-        cleanText(body.category, 40, 'Other') || 'Other',
+        cleanExpenseCategory(body.category),
         legacyId,
         today(),
       )
       .run();
+  }
+  if (body.type === 'recurring-payment') {
+    const kind = cleanPaymentKind(body.kind);
+    const label = cleanText(body.label, 100);
+    const amount = cleanNumber(body.amount);
+    const billingCycle = body.billingCycle === 'yearly' ? 'yearly' : 'monthly';
+    const nextDueOn = cleanPaymentDate(body.nextDueOn);
+    const remainingAmount =
+      kind === 'loan' && cleanNumber(body.remainingAmount) > 0
+        ? cleanNumber(body.remainingAmount)
+        : null;
+    if (!kind || !label || amount <= 0)
+      throw new DataError('Payment name, type, amount, and due date are required.');
+    return db
+      .prepare(
+        'INSERT INTO recurring_payments (user_id,visibility,kind,label,amount,billing_cycle,next_due_on,remaining_amount,active,created_at) VALUES (?,?,?,?,?,?,?,?,1,?)',
+      )
+      .bind(
+        userId,
+        cleanVisibility(body.visibility),
+        kind,
+        label,
+        amount,
+        billingCycle,
+        nextDueOn,
+        remainingAmount,
+        new Date().toISOString(),
+      )
+      .run();
+  }
+  if (body.type === 'recurring-payment-pay') {
+    const payment = await db
+      .prepare(
+        'SELECT id,visibility,kind,label,amount,billing_cycle AS billingCycle,next_due_on AS nextDueOn,remaining_amount AS remainingAmount,active FROM recurring_payments WHERE id=? AND user_id=?',
+      )
+      .bind(cleanNumber(body.id), userId)
+      .first<{
+        id: number;
+        visibility: string;
+        kind: PaymentKind;
+        label: string;
+        amount: number;
+        billingCycle: string;
+        nextDueOn: string;
+        remainingAmount: number | null;
+        active: number;
+      }>();
+    if (!payment || !payment.active)
+      throw new DataError('That payment cannot be recorded.', 403);
+    const scheduledAmount = Number(payment.amount);
+    const amount =
+      payment.kind === 'loan' && payment.remainingAmount !== null
+        ? Math.min(scheduledAmount, Number(payment.remainingAmount))
+        : scheduledAmount;
+    const remainingAmount =
+      payment.kind === 'loan' && payment.remainingAmount !== null
+        ? Math.max(0, Number(payment.remainingAmount) - amount)
+        : payment.remainingAmount;
+    const active = remainingAmount !== null && remainingAmount <= 0 ? 0 : 1;
+    const category: ExpenseCategory =
+      payment.kind === 'subscription'
+        ? 'subscriptions'
+        : payment.kind === 'loan'
+          ? 'loan'
+          : 'rent';
+    return db.batch([
+      db
+        .prepare(
+          'INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on) VALUES (?,?,?,?,?,?,?)',
+        )
+        .bind(
+          userId,
+          payment.visibility,
+          payment.label,
+          amount,
+          category,
+          legacyId,
+          today(),
+        ),
+      db
+        .prepare(
+          'UPDATE recurring_payments SET next_due_on=?,remaining_amount=?,active=? WHERE id=? AND user_id=?',
+        )
+        .bind(
+          advancePaymentDate(payment.nextDueOn, payment.billingCycle),
+          remainingAmount,
+          active,
+          payment.id,
+          userId,
+        ),
+    ]);
+  }
+  if (body.type === 'recurring-payment-toggle') {
+    const result = await db
+      .prepare(
+        'UPDATE recurring_payments SET active=? WHERE id=? AND user_id=?',
+      )
+      .bind(body.active ? 1 : 0, cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That payment cannot be changed.', 403);
+    return result;
   }
   if (body.type === 'organiser') {
     const label = cleanText(body.label, 100);

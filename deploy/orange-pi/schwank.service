@@ -1,0 +1,29 @@
+[Unit]
+Description=schwank household server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orangepi
+Group=orangepi
+WorkingDirectory=/home/orangepi/schwank-server
+Environment=NODE_ENV=production
+Environment=HOME=/home/orangepi
+Environment=PATH=/home/orangepi/.local/node-v22.14.0-linux-arm64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/home/orangepi/.local/node-v22.14.0-linux-arm64/bin/npm start
+Restart=on-failure
+RestartSec=5
+
+# Keep the LAN service private and limit what a compromised process can change.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/orangepi/schwank-server/.wrangler
+ReadWritePaths=/home/orangepi/schwank-server/dist/server/.wrangler
+ReadWritePaths=/home/orangepi/schwank-server/node_modules/.mf
+ReadWritePaths=/home/orangepi/.config/.wrangler
+
+[Install]
+WantedBy=multi-user.target

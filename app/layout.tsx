@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://schwank.cvtps2dq.chatgpt.site'),
+  metadataBase: new URL(process.env.PUBLIC_APP_URL ?? 'http://localhost:3000'),
   title: 'schwank — Our shared home',
   description: 'One cozy place for meals, money, tasks, lists, and household chat.',
   openGraph: {

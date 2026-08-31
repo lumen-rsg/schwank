@@ -36,4 +36,5 @@ AI_MODEL=deepseek-v4-pro
 ```
 
 Enter the key directly on the board, then restart `schwank`. Never commit or
-transfer the populated file.
+transfer the populated file. The server runtime passes this file explicitly to
+Wrangler because the compiled configuration lives under `dist/server`.

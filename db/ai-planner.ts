@@ -202,34 +202,47 @@ function validateProposal(value: unknown, preferences: Preferences) {
     )
       throw new AiPlannerError('The AI returned an invalid recipe.', 502);
   }
-  for (const meal of proposal.schedule) {
+  const validSuggestions = proposal.schedule.filter((meal) => {
     const recipe = recipeByKey.get(meal.recipeKey);
-    if (
-      !Number.isInteger(meal.dayIndex) ||
-      meal.dayIndex < 0 ||
-      meal.dayIndex > 6 ||
-      !courses.includes(meal.course) ||
-      !recipe ||
-      recipe.course !== meal.course
-    )
-      throw new AiPlannerError('The AI returned an invalid schedule.', 502);
-  }
-  if (
-    new Set(proposal.schedule.map((meal) => `${meal.dayIndex}:${meal.course}`))
-      .size !== proposal.schedule.length
-  )
-    throw new AiPlannerError('The AI returned duplicate scheduled meals.', 502);
+    return (
+      Number.isInteger(meal.dayIndex) &&
+      meal.dayIndex >= 0 &&
+      meal.dayIndex <= 6 &&
+      courses.includes(meal.course) &&
+      recipe?.course === meal.course
+    );
+  });
+  const schedule: AiMealPlanProposal['schedule'] = [];
   for (const course of courses) {
-    const count = proposal.schedule.filter(
-      (meal) => meal.course === course,
-    ).length;
-    if (count !== preferences.frequencies[course])
+    const frequency = preferences.frequencies[course];
+    if (!frequency) continue;
+    const recipeKeys = proposal.recipes
+      .filter((recipe) => recipe.course === course)
+      .map((recipe) => recipe.key);
+    if (!recipeKeys.length)
       throw new AiPlannerError(
-        'The AI did not follow the requested meal frequencies.',
+        `The AI returned no ${course} recipe for the requested plan.`,
         502,
       );
+    const suggestedKeys = validSuggestions
+      .filter((meal) => meal.course === course)
+      .map((meal) => meal.recipeKey);
+    const days =
+      frequency === 1
+        ? [3]
+        : Array.from({ length: frequency }, (_, index) =>
+            Math.round((index * 6) / (frequency - 1)),
+          );
+    days.forEach((dayIndex, index) => {
+      schedule.push({
+        dayIndex,
+        course,
+        recipeKey:
+          suggestedKeys[index] || recipeKeys[index % recipeKeys.length],
+      });
+    });
   }
-  return proposal;
+  return { ...proposal, schedule };
 }
 
 export async function generateAiMealPlan(userId: number, input: unknown) {
@@ -324,7 +337,10 @@ export async function generateAiMealPlan(userId: number, input: unknown) {
     body: JSON.stringify({
       model: ai.model,
       store: false,
-      reasoning: { effort: 'low' },
+      // DeepSeek's thinking mode can spend the entire response budget before
+      // emitting a large structured plan. The schema and validation below are
+      // the guardrails for this task, so request direct JSON from DeepSeek.
+      reasoning: { effort: ai.provider === 'deepseek' ? 'none' : 'low' },
       max_output_tokens: 16000,
       input: [
         { role: 'developer', content: developerPrompt },
@@ -372,7 +388,9 @@ export async function generateAiMealPlan(userId: number, input: unknown) {
     ) as { text?: string } | undefined;
   if (!outputText?.text)
     throw new AiPlannerError(
-      `${ai.providerName} returned no usable meal plan.`,
+      body.status === 'incomplete'
+        ? `${ai.providerName} could not finish the meal plan within the response limit.`
+        : `${ai.providerName} returned no usable meal plan.`,
       502,
     );
   let parsed: unknown;

@@ -11,6 +11,11 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 const localBindingConfig = {
   main: 'vinext/server/fetch-handler',
   compatibility_flags: ['nodejs_compat'],
+  // Declare the provider settings as local secret bindings so the compiled
+  // Wrangler runtime can load them from the explicitly supplied env file.
+  secrets: {
+    required: ['AI_PROVIDER', 'AI_API_KEY', 'AI_MODEL'],
+  },
   d1_databases: [
     {
       binding: 'DB',

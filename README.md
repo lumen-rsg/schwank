@@ -42,7 +42,7 @@ Copy the example and add a server-side API key:
 cp .dev.vars.example .dev.vars
 ```
 
-`AI_PROVIDER` supports `deepseek` and `openai`. The checked-in example selects DeepSeek with `deepseek-v4-pro`; use the provider's corresponding model name when selecting OpenAI. Restart the local server after changing `.dev.vars`. Keep `.dev.vars` private when moving the app to the Orange Pi; it is ignored by Git.
+`AI_PROVIDER` supports `deepseek` and `openai`. The checked-in example selects DeepSeek with `deepseek-v4-pro`; use the provider's corresponding model name when selecting OpenAI. DeepSeek generation uses the provider's full 384K output-token ceiling and a longer streaming window so large structured plans are not cut off at the former 16K limit. Restart the local server after changing `.dev.vars`. Keep `.dev.vars` private when moving the app to the Orange Pi; it is ignored by Git.
 
 ## Nutrition calculator
 

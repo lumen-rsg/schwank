@@ -15,6 +15,13 @@
       "when": 1788186361323,
       "tag": "0001_short_rocket_racer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788200086550,
+      "tag": "0002_lazy_blur",
+      "breakpoints": true
     }
   ]
 }

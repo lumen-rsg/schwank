@@ -1,10 +1,10 @@
 # schwank
 
-A local-first shared-home dashboard for nutrition, hydration, habit reduction, Kanban tasks, spending, organisers, and household chat.
+A local-first shared-home dashboard for food and recipe storage, nutrition, hydration, habit reduction, Kanban tasks, spending, organisers, and household chat.
 
 ## Data layer
 
-All household records are stored in a durable local D1/SQLite database through `db/data.ts`. The browser only keeps temporary interface state; accounts, sessions, meals, water, habit activity, tasks, expenses, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
+All household records are stored in a durable local D1/SQLite database through `db/data.ts`. The browser only keeps temporary interface state; accounts, sessions, food batches, recipes, meals, water, habit activity, tasks, expenses, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
 
 The schema lives in `db/schema.ts`, generated migrations live in `drizzle/`, and the API is exposed at `/api/schwank`.
 
@@ -12,7 +12,11 @@ The schema lives in `db/schema.ts`, generated migrations live in `drizzle/`, and
 
 Open `/register` to create the first account. Passwords are stored as salted PBKDF2-SHA-256 hashes and authentication uses seven-day, HTTP-only, same-site session cookies.
 
-Nutrition entries, tasks, general spending, and organiser items can be private or shared. Nutrition entries are offered as shared when logging a meal, while the server still defaults missing visibility values to private. Water intake is always private to its owner. Vaping and alcohol activity, including money spent on those habits, is always visible to every signed-in housemate and cannot be made private. Nutrition calculator measurements and plans are private and never included in household-member responses. The API enforces these rules independently of the interface; a housemate can view a shared item but only its owner can change it. Household chat and the household profile are shared by design. No demo or mock records are seeded into the application. All money values are displayed in Russian rubles.
+Nutrition entries, tasks, general spending, and organiser items can be private or shared. Nutrition entries are offered as shared when logging a meal, while the server still defaults missing visibility values to private. Water intake is always private to its owner. Vaping and alcohol activity, including money spent on those habits, is always visible to every signed-in housemate and cannot be made private. Nutrition calculator measurements and plans are private and never included in household-member responses. The API enforces these rules independently of the interface; a housemate can view a shared item but only its owner can change it. Food inventory and recipes are household resources, so every signed-in housemate can view and maintain them. Household chat and the household profile are shared by design. No demo or mock records are seeded into the application. All money values are displayed in Russian rubles.
+
+## Food storage and recipes
+
+Inventory is stored as individual batches, allowing the same product to have different units or expiry dates. Housemates can search stock, adjust quantities, and see expired or soon-to-expire food. Recipes contain servings, instructions, and one or more ingredients. Recipe cards compare every ingredient with the combined non-expired household inventory and show exact missing amounts; mass (`g`/`kg`) and volume (`ml`/`l`) units are converted automatically. Ingredient names are matched after whitespace and case normalization, and the recipe editor suggests names already in inventory.
 
 ## Nutrition calculator
 

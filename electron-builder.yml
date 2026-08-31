@@ -30,7 +30,7 @@ nsis:
 linux:
   category: Utility
   icon: icon.png
+  syncDesktopName: true
   target:
     - AppImage
-    - deb
 publish: null

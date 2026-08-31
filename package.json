@@ -18,7 +18,7 @@
     "desktop:check": "node --test desktop/*.test.mjs",
     "desktop:pack": "electron-builder --dir",
     "desktop:dist:mac": "electron-builder --mac --arm64",
-    "desktop:dist:linux": "electron-builder --linux --x64",
+    "desktop:dist:linux": "electron-builder --linux AppImage --x64",
     "desktop:dist:windows": "electron-builder --win --x64",
     "lint": "oxlint",
     "format": "oxfmt",

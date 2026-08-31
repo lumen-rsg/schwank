@@ -47,7 +47,6 @@ jobs:
             release/desktop/*.dmg
             release/desktop/*.zip
             release/desktop/*.AppImage
-            release/desktop/*.deb
             release/desktop/*.exe
           if-no-files-found: error
           retention-days: 14

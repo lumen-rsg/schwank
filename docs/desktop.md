@@ -50,7 +50,7 @@ The installers contain only the desktop shell; the Orange Pi server is deployed 
 # Apple Silicon macOS: DMG and ZIP
 npm run desktop:dist:mac
 
-# x86-64 Linux: AppImage and DEB
+# x86-64 Linux: AppImage
 npm run desktop:dist:linux
 
 # x86-64 Windows: NSIS installer

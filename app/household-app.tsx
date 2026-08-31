@@ -179,6 +179,37 @@ type WeeklyMeal = {
   recipeId: number;
   servings: number;
 };
+type AiMealPlanProposal = {
+  summary: string;
+  nutritionRationale: string;
+  recipes: Array<{
+    key: string;
+    sourceRecipeId: number;
+    name: string;
+    course: RecipeCourse;
+    description: string;
+    caloriesPerServing: number;
+    proteinPerServing: number;
+    carbsPerServing: number;
+    fatPerServing: number;
+    ingredients: Array<{
+      name: string;
+      quantity: number;
+      unit: FoodUnit;
+    }>;
+    instructions: string;
+  }>;
+  schedule: Array<{
+    dayIndex: number;
+    course: RecipeCourse;
+    recipeKey: string;
+  }>;
+};
+type AiPlanResult = {
+  proposal: AiMealPlanProposal;
+  model: string;
+  nutritionContributors: number;
+};
 type Data = {
   currentUser: AuthUser;
   members: Member[];
@@ -193,6 +224,8 @@ type Data = {
   foods: FoodItem[];
   recipes: Recipe[];
   weeklyPlan: WeeklyMeal[];
+  aiConfigured: boolean;
+  aiConsentingMembers: number;
 };
 type Post = (payload: Record<string, unknown>) => Promise<boolean>;
 type T = (key: CopyKey, variables?: Record<string, string | number>) => string;
@@ -223,6 +256,8 @@ const empty = (user: AuthUser): Data => ({
   foods: [],
   recipes: [],
   weeklyPlan: [],
+  aiConfigured: false,
+  aiConsentingMembers: 0,
 });
 
 function Avatar({
@@ -1739,12 +1774,25 @@ function WeeklyMealPlanner({
   data,
   post,
   t,
+  language,
 }: {
   data: Data;
   post: Post;
   t: T;
+  language: Language;
 }) {
   const [frequencies, setFrequencies] = useState(defaultMealFrequencies);
+  const [includeFoods, setIncludeFoods] = useState('');
+  const [excludeFoods, setExcludeFoods] = useState('');
+  const [cuisines, setCuisines] = useState('');
+  const [cookNotes, setCookNotes] = useState('');
+  const [useInventoryFirst, setUseInventoryFirst] = useState(true);
+  const [includeNutrition, setIncludeNutrition] = useState(
+    Boolean(data.currentUser.aiConsent),
+  );
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiResult, setAiResult] = useState<AiPlanResult | null>(null);
   const weekStart = localWeekStart();
   const plan = data.weeklyPlan.filter((meal) => meal.weekStart === weekStart);
   const recipeById = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
@@ -1760,8 +1808,254 @@ function WeeklyMealPlanner({
     await post({ type: 'meal-plan-save', weekStart, entries });
   }
 
+  async function generateAiMenu() {
+    setAiBusy(true);
+    setAiError('');
+    setAiResult(null);
+    try {
+      const response = await fetch('/api/ai/meal-plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          includeFoods,
+          excludeFoods,
+          cuisines,
+          notes: cookNotes,
+          useInventoryFirst,
+          includeNutrition,
+          language,
+          frequencies,
+        }),
+      });
+      const result = (await response.json()) as AiPlanResult & {
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(result.error || t('aiGenerationFailed'));
+      setAiResult(result);
+    } catch (error) {
+      setAiError(
+        error instanceof Error ? error.message : t('aiGenerationFailed'),
+      );
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function applyAiMenu() {
+    if (!aiResult) return;
+    if (
+      await post({
+        type: 'ai-plan-apply',
+        weekStart,
+        proposal: aiResult.proposal,
+      })
+    )
+      setAiResult(null);
+  }
+
   return (
     <div className="meal-planner">
+      <article className="panel ai-planner-panel">
+        <div className="ai-planner-heading">
+          <div className="ai-orb">
+            <Sparkles size={22} />
+          </div>
+          <div>
+            <span className="ai-badge">ChatGPT</span>
+            <h2>{t('aiPlanner')}</h2>
+            <p>{t('aiPlannerCopy')}</p>
+          </div>
+        </div>
+        {!data.aiConfigured && (
+          <div className="ai-config-warning">
+            <Info size={17} />
+            <div>
+              <strong>{t('aiNotConfigured')}</strong>
+              <span>{t('aiSetupHint')}</span>
+            </div>
+          </div>
+        )}
+        <div className="ai-preferences-grid">
+          <label className="form-field">
+            <span>{t('includeFoods')}</span>
+            <input
+              value={includeFoods}
+              onChange={(event) => setIncludeFoods(event.target.value)}
+              placeholder={t('includeFoodsPlaceholder')}
+              maxLength={500}
+            />
+          </label>
+          <label className="form-field">
+            <span>{t('excludeFoods')}</span>
+            <input
+              value={excludeFoods}
+              onChange={(event) => setExcludeFoods(event.target.value)}
+              placeholder={t('excludeFoodsPlaceholder')}
+              maxLength={500}
+            />
+          </label>
+          <label className="form-field">
+            <span>{t('cuisines')}</span>
+            <input
+              value={cuisines}
+              onChange={(event) => setCuisines(event.target.value)}
+              placeholder={t('cuisinesPlaceholder')}
+              maxLength={400}
+            />
+          </label>
+          <label className="form-field ai-notes-field">
+            <span>{t('cookNotes')}</span>
+            <textarea
+              value={cookNotes}
+              onChange={(event) => setCookNotes(event.target.value)}
+              placeholder={t('cookNotesPlaceholder')}
+              maxLength={1200}
+            />
+          </label>
+        </div>
+        <div className="frequency-grid ai-frequency-grid">
+          {recipeCourses.map((course) => (
+            <label key={course}>
+              <span>{t(recipeCourseCopy[course])}</span>
+              <input
+                type="number"
+                min="0"
+                max="7"
+                value={frequencies[course]}
+                onChange={(event) =>
+                  setFrequencies((current) => ({
+                    ...current,
+                    [course]: Math.max(
+                      0,
+                      Math.min(7, Number(event.target.value) || 0),
+                    ),
+                  }))
+                }
+              />
+            </label>
+          ))}
+        </div>
+        <div className="ai-toggles">
+          <label>
+            <input
+              type="checkbox"
+              aria-label={t('prioritizeInventory')}
+              checked={useInventoryFirst}
+              onChange={(event) => setUseInventoryFirst(event.target.checked)}
+            />
+            <span>
+              <strong>{t('prioritizeInventory')}</strong>
+              <small>{t('prioritizeInventoryCopy')}</small>
+            </span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              aria-label={t('includeMyNutrition')}
+              checked={includeNutrition}
+              onChange={(event) => setIncludeNutrition(event.target.checked)}
+            />
+            <span>
+              <strong>{t('includeMyNutrition')}</strong>
+              <small>{t('aiPrivateDataNote')}</small>
+            </span>
+          </label>
+        </div>
+        <div className="ai-disclosure">
+          <Lock size={15} />
+          <span>
+            {t('aiSharedDataNote')}{' '}
+            {t('aiConsentingCount', { count: data.aiConsentingMembers })}
+          </span>
+        </div>
+        {aiError && <p className="ai-error">{aiError}</p>}
+        <button
+          className="primary-button generate-menu ai-generate"
+          onClick={() => void generateAiMenu()}
+          disabled={!data.aiConfigured || aiBusy}
+        >
+          {aiBusy ? (
+            <LoaderCircle className="spin" size={16} />
+          ) : (
+            <Sparkles size={16} />
+          )}
+          {aiBusy ? t('aiThinking') : t('generateWithAi')}
+        </button>
+      </article>
+
+      {aiResult && (
+        <article className="panel ai-preview">
+          <div className="panel-heading">
+            <div>
+              <span className="ai-badge">{t('aiPreview')}</span>
+              <h2>{aiResult.proposal.summary}</h2>
+            </div>
+            <Sparkles size={20} />
+          </div>
+          <p className="ai-rationale">
+            <strong>{t('aiNutritionRationale')}</strong>
+            {aiResult.proposal.nutritionRationale}
+          </p>
+          <div className="ai-preview-meta">
+            <span>{t('aiModel', { model: aiResult.model })}</span>
+            <span>
+              {t('aiContributors', {
+                count: aiResult.nutritionContributors,
+              })}
+            </span>
+          </div>
+          <div className="week-grid ai-preview-week">
+            {weekdayCopy.map((day, dayIndex) => (
+              <section key={day}>
+                <h3>{t(day)}</h3>
+                <div>
+                  {aiResult.proposal.schedule
+                    .filter((meal) => meal.dayIndex === dayIndex)
+                    .map((meal, index) => {
+                      const recipe = aiResult.proposal.recipes.find(
+                        (item) => item.key === meal.recipeKey,
+                      );
+                      return recipe ? (
+                        <span
+                          className={`planned-meal ${meal.course}`}
+                          key={`${meal.recipeKey}-${index}`}
+                        >
+                          <small>{t(recipeCourseCopy[meal.course])}</small>
+                          <strong>{recipe.name}</strong>
+                        </span>
+                      ) : null;
+                    })}
+                </div>
+              </section>
+            ))}
+          </div>
+          <div className="ai-recipe-grid">
+            {aiResult.proposal.recipes.map((recipe) => (
+              <section key={recipe.key}>
+                <div>
+                  <strong>{recipe.name}</strong>
+                  <small>{recipe.description}</small>
+                </div>
+                <span>
+                  {Math.round(recipe.caloriesPerServing)} kcal ·{' '}
+                  {Math.round(recipe.proteinPerServing)}P ·{' '}
+                  {Math.round(recipe.carbsPerServing)}C ·{' '}
+                  {Math.round(recipe.fatPerServing)}F
+                </span>
+              </section>
+            ))}
+          </div>
+          <button
+            className="primary-button ai-apply"
+            onClick={() => void applyAiMenu()}
+          >
+            <Check size={16} />
+            {t('applyAiPlan')}
+          </button>
+        </article>
+      )}
+
       <article className="panel randomizer-panel">
         <div className="panel-heading">
           <div>
@@ -1895,7 +2189,17 @@ function WeeklyMealPlanner({
   );
 }
 
-function FoodStorageView({ data, post, t }: { data: Data; post: Post; t: T }) {
+function FoodStorageView({
+  data,
+  post,
+  t,
+  language,
+}: {
+  data: Data;
+  post: Post;
+  t: T;
+  language: Language;
+}) {
   const [scope, setScope] = useState<'inventory' | 'recipes' | 'mealPlan'>(
     'inventory',
   );
@@ -2226,7 +2530,7 @@ function FoodStorageView({ data, post, t }: { data: Data; post: Post; t: T }) {
           </div>
         </>
       ) : (
-        <WeeklyMealPlanner data={data} post={post} t={t} />
+        <WeeklyMealPlanner data={data} post={post} t={t} language={language} />
       )}
     </>
   );
@@ -3135,6 +3439,29 @@ function HomeView({
                 </button>
               )}
             </div>
+          </article>
+          <article className="panel ai-consent-card">
+            <div className="ai-consent-icon">
+              <Sparkles size={19} />
+            </div>
+            <div>
+              <h2>{t('aiConsentTitle')}</h2>
+              <p>{t('aiConsentCopy')}</p>
+              <span>
+                <Lock size={13} />
+                {user.aiConsent
+                  ? t('aiConsentEnabled')
+                  : t('aiConsentDisabled')}
+              </span>
+            </div>
+            <button
+              className={user.aiConsent ? 'secondary-button' : 'primary-button'}
+              onClick={() =>
+                post({ type: 'ai-consent', enabled: !user.aiConsent })
+              }
+            >
+              {user.aiConsent ? t('disableAiConsent') : t('enableAiConsent')}
+            </button>
           </article>
           <article className="panel members-panel">
             <div className="panel-heading">

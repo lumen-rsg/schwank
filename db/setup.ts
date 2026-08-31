@@ -14,7 +14,7 @@ export async function ensureDatabase() {
   const db = env.DB;
   await db.batch([
     db.prepare(
-      'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, display_name TEXT NOT NULL, initials TEXT NOT NULL, color TEXT NOT NULL, avatar_data TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, calorie_goal INTEGER NOT NULL DEFAULT 2200, protein_goal INTEGER NOT NULL DEFAULT 140, carb_goal INTEGER NOT NULL DEFAULT 250, fat_goal INTEGER NOT NULL DEFAULT 70, water_goal INTEGER NOT NULL DEFAULT 2000, maintenance_calories INTEGER, height_cm REAL, weight_kg REAL, age INTEGER, sex TEXT, activity TEXT, nutrition_plan TEXT, diet TEXT, created_at TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, display_name TEXT NOT NULL, initials TEXT NOT NULL, color TEXT NOT NULL, avatar_data TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, calorie_goal INTEGER NOT NULL DEFAULT 2200, protein_goal INTEGER NOT NULL DEFAULT 140, carb_goal INTEGER NOT NULL DEFAULT 250, fat_goal INTEGER NOT NULL DEFAULT 70, water_goal INTEGER NOT NULL DEFAULT 2000, maintenance_calories INTEGER, height_cm REAL, weight_kg REAL, age INTEGER, sex TEXT, activity TEXT, nutrition_plan TEXT, diet TEXT, ai_consent INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)',
     ),
     db.prepare(
       'CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, token_hash TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)',
@@ -66,6 +66,7 @@ export async function ensureDatabase() {
   await ensureColumn('users', 'activity', 'TEXT');
   await ensureColumn('users', 'nutrition_plan', 'TEXT');
   await ensureColumn('users', 'diet', 'TEXT');
+  await ensureColumn('users', 'ai_consent', 'INTEGER NOT NULL DEFAULT 0');
   await ensureColumn('nutrition_entries', 'user_id', 'INTEGER');
   await ensureColumn(
     'nutrition_entries',

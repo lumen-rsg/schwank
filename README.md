@@ -20,6 +20,20 @@ Inventory is stored as individual batches, allowing the same product to have dif
 
 The shared weekly planner uses adjustable per-course frequencies, with defaults of seven breakfasts, three starters, three main courses, seven dinners, seven salads, and two desserts. Its randomiser spaces less-frequent courses across the week, saves the resulting plan for the household, and scales every meal to three portions. The complete shopping list combines matching ingredients across the entire plan and subtracts usable food already in storage.
 
+## AI weekly planner
+
+The optional ChatGPT planner generates a reviewable weekly menu from non-expired household inventory, saved recipes, course frequencies, cuisine ideas, explicit inclusions/exclusions, and the cook's notes. Applying a proposal stores its new recipes and weekly schedule in the local database, after which the regular shopping-list calculator handles the result.
+
+AI calls are explicit and server-side. No request is made until a signed-in cook presses the generate button, the API key is never sent to the browser, and OpenAI response storage is disabled for these requests. Inventory and shared recipes are household data. Private nutrition is opt-in per person and is sent without names, email addresses, age, sex, height, or weight; only calorie/macronutrient goals, diet/plan, and seven-day daily totals are included. A cook may include their own data for one request without enabling ongoing consent for housemates' future plans.
+
+Copy the example and add a server-side OpenAI API key:
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+`OPENAI_MODEL` is optional and defaults to `gpt-5.4-mini`. Restart the local server after changing `.dev.vars`. Keep `.dev.vars` private when moving the app to the Orange Pi; it is ignored by Git.
+
 ## Nutrition calculator
 
 The calculator uses the 2023 National Academies adult Estimated Energy Requirement equations with age, formula sex, height, weight, and activity level. Lose/gain plans apply a modest 10% starting adjustment, and protein/fat/carbohydrate targets stay within the adult Acceptable Macronutrient Distribution Ranges. Suggested products are adapted to the selected weight plan and omnivore, vegetarian, or vegan preference. Results are estimates for adults and are not a substitute for medical or dietetic advice.

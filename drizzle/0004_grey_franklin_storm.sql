@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `ai_consent` integer DEFAULT false NOT NULL;

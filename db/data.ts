@@ -146,10 +146,11 @@ export async function readHouseholdData(user: AuthUser) {
     recipeRows,
     ingredientRows,
     weeklyPlan,
+    aiConsentCount,
   ] = await Promise.all([
     db
       .prepare(
-        'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet FROM users WHERE id=?',
+        'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE id=?',
       )
       .bind(user.id)
       .first<AuthUser>(),
@@ -225,6 +226,9 @@ export async function readHouseholdData(user: AuthUser) {
         "SELECT id,week_start AS weekStart,day_index AS dayIndex,course,recipe_id AS recipeId,servings FROM weekly_meal_plan WHERE week_start>=date('now','-14 days') AND week_start<=date('now','+14 days') ORDER BY week_start,day_index,id",
       )
       .all(),
+    db.prepare('SELECT COUNT(*) AS count FROM users WHERE ai_consent=1').first<{
+      count: number;
+    }>(),
   ]);
   const recipes = recipeRows.results.map((recipe) => ({
     ...recipe,
@@ -248,6 +252,8 @@ export async function readHouseholdData(user: AuthUser) {
     foods: foods.results,
     recipes,
     weeklyPlan: weeklyPlan.results,
+    aiConfigured: Boolean(env.OPENAI_API_KEY),
+    aiConsentingMembers: Number(aiConsentCount?.count || 0),
   };
 }
 
@@ -384,6 +390,11 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     return db
       .prepare('UPDATE users SET avatar_data=? WHERE id=?')
       .bind(cleanImage(body.avatar, 450_000), userId)
+      .run();
+  if (body.type === 'ai-consent')
+    return db
+      .prepare('UPDATE users SET ai_consent=? WHERE id=?')
+      .bind(body.enabled ? 1 : 0, userId)
       .run();
   if (body.type === 'habit') {
     const habit =
@@ -602,6 +613,164 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       ),
     );
     return result;
+  }
+  if (body.type === 'ai-plan-apply') {
+    const weekStart = cleanOptionalDate(body.weekStart);
+    const proposal =
+      body.proposal && typeof body.proposal === 'object'
+        ? (body.proposal as Record<string, unknown>)
+        : {};
+    const rawRecipes = Array.isArray(proposal.recipes) ? proposal.recipes : [];
+    const rawSchedule = Array.isArray(proposal.schedule)
+      ? proposal.schedule
+      : [];
+    if (
+      !weekStart ||
+      rawRecipes.length < 1 ||
+      rawRecipes.length > 42 ||
+      rawSchedule.length < 1 ||
+      rawSchedule.length > 42
+    )
+      throw new DataError('The AI meal plan is incomplete.');
+    const existingRows = await db
+      .prepare('SELECT id,course FROM recipes')
+      .all<{ id: number; course: string }>();
+    const existingCourse = new Map(
+      existingRows.results.map((recipe) => [recipe.id, recipe.course]),
+    );
+    const preparedRecipes = rawRecipes.map((item) => {
+      const record =
+        item && typeof item === 'object'
+          ? (item as Record<string, unknown>)
+          : {};
+      const key = cleanText(record.key, 80);
+      const name = cleanText(record.name, 100);
+      const course = cleanRecipeCourse(record.course);
+      const instructions = cleanText(record.instructions, 5_000);
+      const sourceRecipeId = Math.round(cleanNumber(record.sourceRecipeId));
+      const rawIngredients = Array.isArray(record.ingredients)
+        ? record.ingredients
+        : [];
+      const ingredients = rawIngredients.map((ingredient) => {
+        const ingredientRecord =
+          ingredient && typeof ingredient === 'object'
+            ? (ingredient as Record<string, unknown>)
+            : {};
+        const ingredientName = cleanText(ingredientRecord.name, 80);
+        const quantity =
+          Math.round(cleanNumber(ingredientRecord.quantity, 1_000_000) * 100) /
+          100;
+        const unit = cleanFoodUnit(ingredientRecord.unit);
+        if (!ingredientName || quantity <= 0 || !unit)
+          throw new DataError('An AI recipe contains an invalid ingredient.');
+        return {
+          name: ingredientName,
+          normalizedName: normalizeFoodName(ingredientName),
+          quantity,
+          unit,
+        };
+      });
+      if (
+        !key ||
+        !name ||
+        !course ||
+        ingredients.length < 1 ||
+        ingredients.length > 30 ||
+        (sourceRecipeId > 0 && existingCourse.get(sourceRecipeId) !== course)
+      )
+        throw new DataError('An AI recipe is invalid or no longer available.');
+      return {
+        key,
+        name,
+        course,
+        instructions,
+        sourceRecipeId,
+        ingredients,
+      };
+    });
+    if (
+      new Set(preparedRecipes.map((recipe) => recipe.key)).size !==
+      preparedRecipes.length
+    )
+      throw new DataError('AI recipe keys must be unique.');
+    const recipeByKey = new Map(
+      preparedRecipes.map((recipe) => [recipe.key, recipe]),
+    );
+    const preparedSchedule = rawSchedule.map((item) => {
+      const record =
+        item && typeof item === 'object'
+          ? (item as Record<string, unknown>)
+          : {};
+      const dayIndex = Number(record.dayIndex);
+      const course = cleanRecipeCourse(record.course);
+      const recipeKey = cleanText(record.recipeKey, 80);
+      const recipe = recipeByKey.get(recipeKey);
+      if (
+        !Number.isInteger(dayIndex) ||
+        dayIndex < 0 ||
+        dayIndex > 6 ||
+        !course ||
+        !recipe ||
+        recipe.course !== course
+      )
+        throw new DataError('The AI schedule contains an invalid meal.');
+      return { dayIndex, course, recipeKey };
+    });
+    if (
+      new Set(preparedSchedule.map((meal) => `${meal.dayIndex}:${meal.course}`))
+        .size !== preparedSchedule.length
+    )
+      throw new DataError('The AI schedule contains duplicate meals.');
+    const recipeIds = new Map<string, number>();
+    const now = new Date().toISOString();
+    for (const recipe of preparedRecipes) {
+      if (recipe.sourceRecipeId > 0) {
+        recipeIds.set(recipe.key, recipe.sourceRecipeId);
+        continue;
+      }
+      const result = await db
+        .prepare(
+          'INSERT INTO recipes (name,course,servings,instructions,created_by,created_at) VALUES (?,?,3,?,?,?)',
+        )
+        .bind(recipe.name, recipe.course, recipe.instructions, userId, now)
+        .run();
+      const recipeId = Number(result.meta.last_row_id);
+      recipeIds.set(recipe.key, recipeId);
+      await db.batch(
+        recipe.ingredients.map((ingredient) =>
+          db
+            .prepare(
+              'INSERT INTO recipe_ingredients (recipe_id,name,normalized_name,quantity,unit) VALUES (?,?,?,?,?)',
+            )
+            .bind(
+              recipeId,
+              ingredient.name,
+              ingredient.normalizedName,
+              ingredient.quantity,
+              ingredient.unit,
+            ),
+        ),
+      );
+    }
+    return db.batch([
+      db
+        .prepare('DELETE FROM weekly_meal_plan WHERE week_start=?')
+        .bind(weekStart),
+      ...preparedSchedule.map((meal) =>
+        db
+          .prepare(
+            'INSERT INTO weekly_meal_plan (week_start,day_index,course,recipe_id,servings,created_by,created_at) VALUES (?,?,?,?,3,?,?)',
+          )
+          .bind(
+            weekStart,
+            meal.dayIndex,
+            meal.course,
+            recipeIds.get(meal.recipeKey),
+            userId,
+            now,
+          ),
+      ),
+    ]);
   }
   if (body.type === 'meal-plan-save') {
     const weekStart = cleanOptionalDate(body.weekStart);

@@ -31,6 +31,9 @@ export const users = sqliteTable(
     activity: text('activity'),
     nutritionPlan: text('nutrition_plan'),
     diet: text('diet'),
+    aiConsent: integer('ai_consent', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     createdAt: text('created_at').notNull(),
   },
   (table) => [uniqueIndex('idx_users_email').on(table.email)],

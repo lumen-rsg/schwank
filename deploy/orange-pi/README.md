@@ -25,3 +25,15 @@ curl http://127.0.0.1:3000/api/health
 Desktop clients should use `http://<orange-pi-lan-address>:3000` as their server
 URL. Keep port 3000 restricted to the trusted LAN; the service intentionally
 uses HTTP so it can work without local TLS certificate management.
+
+For DeepSeek meal planning, create `/home/orangepi/schwank-server/.dev.vars`
+with mode `600`:
+
+```dotenv
+AI_PROVIDER=deepseek
+AI_API_KEY=
+AI_MODEL=deepseek-v4-pro
+```
+
+Enter the key directly on the board, then restart `schwank`. Never commit or
+transfer the populated file.

@@ -323,10 +323,10 @@ const copy = {
     noShoppingList: 'Generate a weekly menu to build the shopping list.',
     aiPlanner: 'AI menu studio',
     aiPlannerCopy:
-      'Let ChatGPT combine your kitchen stock, saved recipes, cook preferences, and consented nutrition goals into a tailored week.',
+      'Let AI combine your kitchen stock, saved recipes, cook preferences, and consented nutrition goals into a tailored week.',
     aiNotConfigured: 'AI planning needs a server key',
     aiSetupHint:
-      'Add OPENAI_API_KEY to .dev.vars on the server, then restart schwank.',
+      'Add AI_API_KEY to .dev.vars on the server, then restart schwank.',
     includeFoods: 'Definitely include',
     includeFoodsPlaceholder: 'salmon, buckwheat, mushrooms',
     excludeFoods: 'Exclude completely',
@@ -341,11 +341,11 @@ const copy = {
     aiPrivateDataNote:
       'Sends anonymous targets and the last 7 days of totals—not your identity or body measurements.',
     aiSharedDataNote:
-      'Nothing is sent until you generate. Inventory, recipes, and these preferences are shared with OpenAI for this request.',
+      'Nothing is sent until you generate. Inventory, recipes, and these preferences are shared with the configured AI provider for this request.',
     aiConsentingCount: '{count} members allow anonymous nutrition use.',
-    generateWithAi: 'Create a plan with ChatGPT',
+    generateWithAi: 'Create a plan with AI',
     aiThinking: 'Designing your week…',
-    aiGenerationFailed: 'ChatGPT could not create a meal plan.',
+    aiGenerationFailed: 'AI could not create a meal plan.',
     aiPreview: 'Review before saving',
     aiNutritionRationale: 'Nutrition approach',
     aiModel: 'Model: {model}',
@@ -677,10 +677,10 @@ const copy = {
     noShoppingList: 'Составьте меню на неделю, чтобы получить список покупок.',
     aiPlanner: 'AI-студия меню',
     aiPlannerCopy:
-      'ChatGPT объединит домашние запасы, рецепты, пожелания повара и разрешённые цели питания в персональное меню на неделю.',
+      'AI объединит домашние запасы, рецепты, пожелания повара и разрешённые цели питания в персональное меню на неделю.',
     aiNotConfigured: 'Для AI нужен серверный ключ',
     aiSetupHint:
-      'Добавьте OPENAI_API_KEY в .dev.vars на сервере и перезапустите schwank.',
+      'Добавьте AI_API_KEY в .dev.vars на сервере и перезапустите schwank.',
     includeFoods: 'Обязательно включить',
     includeFoodsPlaceholder: 'лосось, гречка, грибы',
     excludeFoods: 'Полностью исключить',
@@ -696,11 +696,11 @@ const copy = {
     aiPrivateDataNote:
       'Передаются обезличенные цели и итоги за 7 дней — без личности и параметров тела.',
     aiSharedDataNote:
-      'До запуска ничего не отправляется. Для этого запроса OpenAI получит запасы, рецепты и указанные пожелания.',
+      'До запуска ничего не отправляется. Для этого запроса настроенный AI-провайдер получит запасы, рецепты и указанные пожелания.',
     aiConsentingCount: 'Разрешили обезличенные данные: {count}.',
-    generateWithAi: 'Составить меню с ChatGPT',
+    generateWithAi: 'Составить меню с AI',
     aiThinking: 'Продумываем неделю…',
-    aiGenerationFailed: 'ChatGPT не смог составить меню.',
+    aiGenerationFailed: 'AI не смог составить меню.',
     aiPreview: 'Проверка перед сохранением',
     aiNutritionRationale: 'Подход к питанию',
     aiModel: 'Модель: {model}',

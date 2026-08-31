@@ -1896,7 +1896,7 @@ function WeeklyMealPlanner({
             <Sparkles size={22} />
           </div>
           <div>
-            <span className="ai-badge">ChatGPT</span>
+            <span className="ai-badge">AI</span>
             <h2>{t('aiPlanner')}</h2>
             <p>{t('aiPlannerCopy')}</p>
           </div>

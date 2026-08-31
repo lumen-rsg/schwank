@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { isAiConfigured } from './ai-config';
 import type { AuthUser } from './auth';
 import { ensureDatabase } from './setup';
 
@@ -252,7 +253,7 @@ export async function readHouseholdData(user: AuthUser) {
     foods: foods.results,
     recipes,
     weeklyPlan: weeklyPlan.results,
-    aiConfigured: Boolean(env.OPENAI_API_KEY),
+    aiConfigured: isAiConfigured(),
     aiConsentingMembers: Number(aiConsentCount?.count || 0),
   };
 }

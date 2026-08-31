@@ -28,17 +28,17 @@ The shared weekly planner uses adjustable per-course frequencies, with defaults 
 
 ## AI weekly planner
 
-The optional ChatGPT planner generates a reviewable weekly menu from non-expired household inventory, saved recipes, course frequencies, cuisine ideas, explicit inclusions/exclusions, and the cook's notes. Applying a proposal stores its new recipes and weekly schedule in the local database, after which the regular shopping-list calculator handles the result.
+The optional AI planner generates a reviewable weekly menu from non-expired household inventory, saved recipes, course frequencies, cuisine ideas, explicit inclusions/exclusions, and the cook's notes. Applying a proposal stores its new recipes and weekly schedule in the local database, after which the regular shopping-list calculator handles the result.
 
-AI calls are explicit and server-side. No request is made until a signed-in cook presses the generate button, the API key is never sent to the browser, and OpenAI response storage is disabled for these requests. Inventory and shared recipes are household data. Private nutrition is opt-in per person and is sent without names, email addresses, age, sex, height, or weight; only calorie/macronutrient goals, diet/plan, and seven-day daily totals are included. A cook may include their own data for one request without enabling ongoing consent for housemates' future plans.
+AI calls are explicit and server-side. No request is made until a signed-in cook presses the generate button, the API key is never sent to the browser, and provider-side response storage is disabled for these requests. Inventory and shared recipes are household data. Private nutrition is opt-in per person and is sent without names, email addresses, age, sex, height, or weight; only calorie/macronutrient goals, diet/plan, and seven-day daily totals are included. A cook may include their own data for one request without enabling ongoing consent for housemates' future plans.
 
-Copy the example and add a server-side OpenAI API key:
+Copy the example and add a server-side API key:
 
 ```bash
 cp .dev.vars.example .dev.vars
 ```
 
-`OPENAI_MODEL` is optional and defaults to `gpt-5.4-mini`. Restart the local server after changing `.dev.vars`. Keep `.dev.vars` private when moving the app to the Orange Pi; it is ignored by Git.
+`AI_PROVIDER` supports `deepseek` and `openai`. The checked-in example selects DeepSeek with `deepseek-v4-pro`; OpenAI remains available and the legacy `OPENAI_API_KEY`/`OPENAI_MODEL` variables are still accepted. Restart the local server after changing `.dev.vars`. Keep `.dev.vars` private when moving the app to the Orange Pi; it is ignored by Git.
 
 ## Nutrition calculator
 

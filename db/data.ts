@@ -8,6 +8,7 @@ const asText=(value:unknown,fallback='')=>typeof value==='string'||typeof value=
 const cleanText=(value:unknown,maximum:number,fallback='')=>asText(value,fallback).trim().slice(0,maximum);
 const cleanNumber=(value:unknown,maximum=1_000_000)=>Math.max(0,Math.min(maximum,Number(value)||0));
 const cleanVisibility=(value:unknown)=>value==='shared'?'shared':'private';
+const cleanDate=(value:unknown)=>{const date=cleanText(value,10,today());const parsed=new Date(`${date}T00:00:00Z`);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==date||date>today())throw new DataError('Enter a valid date that is not in the future.');return date};
 
 export class DataError extends Error { constructor(message:string,public status=400){super(message);} }
 
@@ -21,8 +22,9 @@ function cleanImage(value:unknown,maximum:number){
 
 export async function readHouseholdData(user:AuthUser){
   await ensureDatabase();const db=env.DB;
-  const [currentUser,members,home,nutrition,tasks,expenses,organisers,messages]=await Promise.all([
-    db.prepare('SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal FROM users WHERE id=?').bind(user.id).first<AuthUser>(),
+  const since=new Date();since.setUTCDate(since.getUTCDate()-83);
+  const [currentUser,members,home,nutrition,tasks,expenses,organisers,messages,habits,water]=await Promise.all([
+    db.prepare('SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal FROM users WHERE id=?').bind(user.id).first<AuthUser>(),
     db.prepare('SELECT id,display_name AS name,initials,color,avatar_data AS avatar,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal FROM users ORDER BY display_name').all(),
     db.prepare('SELECT name,address,photo_data AS photo FROM household_settings WHERE id=1').first(),
     db.prepare("SELECT n.id,n.label,n.calories,n.protein,n.carbs,n.fat,n.eaten_on AS eatenOn,n.visibility,(n.user_id=?) AS owned,u.id AS userId,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM nutrition_entries n JOIN users u ON u.id=n.user_id WHERE n.eaten_on=? AND (n.user_id=? OR n.visibility='shared') ORDER BY n.id DESC").bind(user.id,today(),user.id).all(),
@@ -30,8 +32,10 @@ export async function readHouseholdData(user:AuthUser){
     db.prepare("SELECT id,label,amount,category,spent_on AS spentOn,visibility,(user_id=?) AS owned FROM expenses WHERE user_id=? OR visibility='shared' ORDER BY id DESC").bind(user.id,user.id).all(),
     db.prepare("SELECT id,list,label,done,visibility,(user_id=?) AS owned FROM organiser_items WHERE user_id=? OR visibility='shared' ORDER BY id DESC").bind(user.id,user.id).all(),
     db.prepare('SELECT m.id,m.body,m.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(m.user_id=?) AS mine FROM messages m JOIN users u ON u.id=m.user_id ORDER BY m.created_at').bind(user.id).all(),
+    db.prepare('SELECT h.id,h.user_id AS userId,h.habit,h.occurrences,h.cost,h.occurred_on AS occurredOn,h.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(h.user_id=?) AS mine FROM habit_entries h JOIN users u ON u.id=h.user_id WHERE h.occurred_on>=? ORDER BY h.occurred_on DESC,h.id DESC').bind(user.id,since.toISOString().slice(0,10)).all(),
+    db.prepare('SELECT id,amount_ml AS amountMl,drunk_on AS drunkOn,created_at AS createdAt FROM water_entries WHERE user_id=? AND drunk_on=? ORDER BY id DESC').bind(user.id,today()).all(),
   ]);
-  return {currentUser:currentUser??user,members:members.results,home:home??{name:'Our home',address:'',photo:null},nutrition:nutrition.results,tasks:tasks.results,expenses:expenses.results,organisers:organisers.results,messages:messages.results};
+  return {currentUser:currentUser??user,members:members.results,home:home??{name:'Our home',address:'',photo:null},nutrition:nutrition.results,tasks:tasks.results,expenses:expenses.results,organisers:organisers.results,messages:messages.results,habits:habits.results,water:water.results};
 }
 
 export async function writeHouseholdData(userId:number,body:DataAction){
@@ -52,5 +56,18 @@ export async function writeHouseholdData(userId:number,body:DataAction){
     return db.prepare('UPDATE household_settings SET name=?,address=?,updated_at=?,updated_by=? WHERE id=1').bind(name,address,new Date().toISOString(),userId).run();
   }
   if(body.type==='avatar')return db.prepare('UPDATE users SET avatar_data=? WHERE id=?').bind(cleanImage(body.avatar,450_000),userId).run();
+  if(body.type==='habit'){
+    const habit=body.habit==='alcohol'?'alcohol':body.habit==='vaping'?'vaping':null;if(!habit)throw new DataError('Choose vaping or alcohol.');
+    const occurrences=Math.max(1,Math.round(cleanNumber(body.occurrences,1_000)));const cost=cleanNumber(body.cost);const occurredOn=cleanDate(body.occurredOn);
+    return db.prepare('INSERT INTO habit_entries (user_id,habit,occurrences,cost,occurred_on,created_at) VALUES (?,?,?,?,?,?)').bind(userId,habit,occurrences,cost,occurredOn,new Date().toISOString()).run();
+  }
+  if(body.type==='water'){
+    const amountMl=Math.round(cleanNumber(body.amountMl,10_000));if(amountMl<1)throw new DataError('Water amount is required.');
+    return db.prepare('INSERT INTO water_entries (user_id,amount_ml,drunk_on,created_at) VALUES (?,?,?,?)').bind(userId,amountMl,cleanDate(body.drunkOn),new Date().toISOString()).run();
+  }
+  if(body.type==='water-goal'){
+    const goal=Math.round(cleanNumber(body.waterGoal,10_000));if(goal<250)throw new DataError('Water goal must be at least 250 ml.');
+    return db.prepare('UPDATE users SET water_goal=? WHERE id=?').bind(goal,userId).run();
+  }
   throw new DataError('Unknown data action.');
 }

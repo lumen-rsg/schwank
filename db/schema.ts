@@ -1,7 +1,7 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
-  id: integer('id').primaryKey({ autoIncrement: true }), email: text('email').notNull(), displayName: text('display_name').notNull(), initials: text('initials').notNull(), color: text('color').notNull(), avatarData: text('avatar_data'), passwordHash: text('password_hash').notNull(), passwordSalt: text('password_salt').notNull(), calorieGoal: integer('calorie_goal').notNull().default(2200), proteinGoal: integer('protein_goal').notNull().default(140), carbGoal: integer('carb_goal').notNull().default(250), fatGoal: integer('fat_goal').notNull().default(70), createdAt: text('created_at').notNull(),
+  id: integer('id').primaryKey({ autoIncrement: true }), email: text('email').notNull(), displayName: text('display_name').notNull(), initials: text('initials').notNull(), color: text('color').notNull(), avatarData: text('avatar_data'), passwordHash: text('password_hash').notNull(), passwordSalt: text('password_salt').notNull(), calorieGoal: integer('calorie_goal').notNull().default(2200), proteinGoal: integer('protein_goal').notNull().default(140), carbGoal: integer('carb_goal').notNull().default(250), fatGoal: integer('fat_goal').notNull().default(70), waterGoal: integer('water_goal').notNull().default(2000), createdAt: text('created_at').notNull(),
 }, (table) => [uniqueIndex('idx_users_email').on(table.email)]);
 
 export const sessions = sqliteTable('sessions', {
@@ -31,3 +31,11 @@ export const organiserItems = sqliteTable('organiser_items', {
 export const messages = sqliteTable('messages', {
   id: integer('id').primaryKey({ autoIncrement: true }), userId: integer('user_id'), memberId: text('member_id').notNull(), body: text('body').notNull(), createdAt: text('created_at').notNull(),
 }, (table) => [index('idx_messages_created').on(table.createdAt)]);
+
+export const habitEntries = sqliteTable('habit_entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }), userId: integer('user_id').notNull(), habit: text('habit').notNull(), occurrences: integer('occurrences').notNull().default(1), cost: real('cost').notNull().default(0), occurredOn: text('occurred_on').notNull(), createdAt: text('created_at').notNull(),
+}, (table) => [index('idx_habits_date').on(table.occurredOn), index('idx_habits_user_date').on(table.userId, table.occurredOn)]);
+
+export const waterEntries = sqliteTable('water_entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }), userId: integer('user_id').notNull(), amountMl: integer('amount_ml').notNull(), drunkOn: text('drunk_on').notNull(), createdAt: text('created_at').notNull(),
+}, (table) => [index('idx_water_user_date').on(table.userId, table.drunkOn)]);

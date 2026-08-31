@@ -39,14 +39,14 @@ export default function HouseholdApp() {
   const [loading,setLoading] = useState(true);
   const [notice,setNotice] = useState('');
   const load = async () => {
-    try { const response=await fetch('/api/roomie'); if(!response.ok) throw new Error(); setData(await response.json()); }
+    try { const response=await fetch('/api/schwank'); if(!response.ok) throw new Error(); setData(await response.json()); }
     catch { setNotice('Shared storage is reconnecting. Your workspace is still available.'); }
     finally { setLoading(false); }
   };
   useEffect(()=>{ void load(); },[]);
   const post = async (payload:Record<string,string|number|boolean>) => {
     setNotice('Saving…');
-    const response=await fetch('/api/roomie',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    const response=await fetch('/api/schwank',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     if(response.ok){ await load(); setNotice('Saved for everyone'); setTimeout(()=>setNotice(''),1800); }
     else setNotice('Could not save that. Try again.');
   };
@@ -59,14 +59,14 @@ export default function HouseholdApp() {
 
   return <main className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark"><Sparkles size={18}/></span><div><strong>Roomie</strong><span>Our shared space</span></div></div>
+      <div className="brand"><span className="brand-mark"><Sparkles size={18}/></span><div><strong>schwank</strong><span>Our shared space</span></div></div>
       <nav className="side-nav" aria-label="Main navigation">{nav.map(item=>{const Icon=item.icon; const count=item.label==='Tasks'?data.tasks.filter(t=>t.status!=='done').length:item.label==='Chat'?Math.min(data.messages.length,9):0; return <button onClick={()=>setActive(item.label)} className={active===item.label?'nav-item active':'nav-item'} key={item.label}><Icon size={18}/><span>{item.label}</span>{count>0&&<em>{count}</em>}</button>})}</nav>
       <div className="house-card"><div className="house-illustration"><Home size={24}/></div><strong>Maple House</strong><span>Move-in in 12 days</span><div className="avatar-stack">{data.members.map(m=><Avatar key={m.id} member={m} small/>)}</div></div>
       <button className="profile-row"><Avatar member={current}/><span><strong>{current.name}</strong><small>House member</small></span><MoreHorizontal size={18}/></button>
     </aside>
 
     <section className="workspace">
-      <header className="topbar"><button className="mobile-brand" onClick={()=>setActive('Overview')}><span className="brand-mark"><Sparkles size={17}/></span>Roomie</button><label className="search"><Search size={17}/><input placeholder="Search the household…"/></label><div className="topbar-actions"><button className="icon-button" aria-label="Add a task" onClick={()=>setActive('Tasks')}><Plus size={19}/></button><label className="person-picker"><Avatar member={current} small/><select value={memberId} onChange={e=>setMemberId(e.target.value)} aria-label="Current household member">{data.members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select><ChevronDown size={14}/></label></div></header>
+      <header className="topbar"><button className="mobile-brand" onClick={()=>setActive('Overview')}><span className="brand-mark"><Sparkles size={17}/></span>schwank</button><label className="search"><Search size={17}/><input placeholder="Search the household…"/></label><div className="topbar-actions"><button className="icon-button" aria-label="Add a task" onClick={()=>setActive('Tasks')}><Plus size={19}/></button><label className="person-picker"><Avatar member={current} small/><select value={memberId} onChange={e=>setMemberId(e.target.value)} aria-label="Current household member">{data.members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select><ChevronDown size={14}/></label></div></header>
       {notice&&<div className="toast" role="status">{notice}</div>}
       <div className="content">
         {loading ? <div className="loading-state"><LoaderCircle className="spin"/>Opening Maple House…</div> : active==='Overview' ? <Overview data={data} current={current} totals={totals} totalSpend={totalSpend} taskPercent={taskPercent} setActive={setActive}/> : active==='Nutrition' ? <NutritionView data={data} current={current} memberId={memberId} setMemberId={setMemberId} totals={totals} post={post}/> : active==='Tasks' ? <TasksView data={data} post={post}/> : active==='Spending' ? <SpendingView data={data} total={totalSpend} memberId={memberId} post={post}/> : active==='Organisers' ? <OrganisersView data={data} post={post}/> : <ChatView data={data} current={current} post={post}/>} 

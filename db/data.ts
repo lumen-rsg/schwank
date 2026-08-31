@@ -1,8 +1,10 @@
 import { env } from 'cloudflare:workers';
 
+export type DataAction = Record<string, string | number | boolean>;
+
 const today = () => new Date().toISOString().slice(0, 10);
 
-async function setup() {
+export async function ensureDatabase() {
   const db = env.DB;
   await db.batch([
     db.prepare('CREATE TABLE IF NOT EXISTS members (id TEXT PRIMARY KEY, name TEXT NOT NULL, initials TEXT NOT NULL, color TEXT NOT NULL, calorie_goal INTEGER NOT NULL DEFAULT 2200, protein_goal INTEGER NOT NULL DEFAULT 140, carb_goal INTEGER NOT NULL DEFAULT 250, fat_goal INTEGER NOT NULL DEFAULT 70)'),
@@ -16,6 +18,8 @@ async function setup() {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(spent_on)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)'),
   ]);
+  await db.prepare('PRAGMA optimize').run();
+
   const existing = await db.prepare('SELECT COUNT(*) AS count FROM members').first<{ count: number }>();
   if (!existing?.count) {
     await db.batch([
@@ -41,8 +45,8 @@ async function setup() {
   }
 }
 
-export async function GET() {
-  await setup();
+export async function readHouseholdData() {
+  await ensureDatabase();
   const db = env.DB;
   const [members, nutrition, tasks, expenses, organisers, messages] = await Promise.all([
     db.prepare('SELECT id,name,initials,color,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal FROM members').all(),
@@ -52,21 +56,18 @@ export async function GET() {
     db.prepare('SELECT id,list,label,done FROM organiser_items ORDER BY id DESC').all(),
     db.prepare('SELECT m.id,m.member_id AS memberId,m.body,m.created_at AS createdAt,u.name,u.initials,u.color FROM messages m JOIN members u ON u.id=m.member_id ORDER BY m.created_at').all(),
   ]);
-  return Response.json({ members: members.results, nutrition: nutrition.results, tasks: tasks.results, expenses: expenses.results, organisers: organisers.results, messages: messages.results });
+  return { members: members.results, nutrition: nutrition.results, tasks: tasks.results, expenses: expenses.results, organisers: organisers.results, messages: messages.results };
 }
 
-export async function POST(request: Request) {
-  await setup();
+export async function writeHouseholdData(body: DataAction) {
+  await ensureDatabase();
   const db = env.DB;
-  const body = await request.json<Record<string, string | number | boolean>>();
-  let result;
-  if (body.type === 'nutrition') result = await db.prepare('INSERT INTO nutrition_entries (member_id,label,calories,protein,carbs,fat,eaten_on) VALUES (?,?,?,?,?,?,?)').bind(body.memberId,body.label,body.calories,body.protein,body.carbs,body.fat,today()).run();
-  else if (body.type === 'task') result = await db.prepare('INSERT INTO tasks (title,status,assignee_id,tag,due) VALUES (?,?,?,?,?)').bind(body.title,'todo',body.assigneeId,body.tag || 'Home',body.due || 'This week').run();
-  else if (body.type === 'task-status') result = await db.prepare('UPDATE tasks SET status=? WHERE id=?').bind(body.status,body.id).run();
-  else if (body.type === 'expense') result = await db.prepare('INSERT INTO expenses (label,amount,category,paid_by,spent_on) VALUES (?,?,?,?,?)').bind(body.label,body.amount,body.category,body.paidBy,today()).run();
-  else if (body.type === 'organiser') result = await db.prepare('INSERT INTO organiser_items (list,label,done) VALUES (?,?,0)').bind(body.list,body.label).run();
-  else if (body.type === 'organiser-toggle') result = await db.prepare('UPDATE organiser_items SET done=? WHERE id=?').bind(body.done ? 1 : 0,body.id).run();
-  else if (body.type === 'message') result = await db.prepare('INSERT INTO messages (member_id,body,created_at) VALUES (?,?,?)').bind(body.memberId,body.body,new Date().toISOString()).run();
-  else return Response.json({ error: 'Unknown action' }, { status: 400 });
-  return Response.json({ ok: true, result });
+  if (body.type === 'nutrition') return db.prepare('INSERT INTO nutrition_entries (member_id,label,calories,protein,carbs,fat,eaten_on) VALUES (?,?,?,?,?,?,?)').bind(body.memberId,body.label,body.calories,body.protein,body.carbs,body.fat,today()).run();
+  if (body.type === 'task') return db.prepare('INSERT INTO tasks (title,status,assignee_id,tag,due) VALUES (?,?,?,?,?)').bind(body.title,'todo',body.assigneeId,body.tag || 'Home',body.due || 'This week').run();
+  if (body.type === 'task-status') return db.prepare('UPDATE tasks SET status=? WHERE id=?').bind(body.status,body.id).run();
+  if (body.type === 'expense') return db.prepare('INSERT INTO expenses (label,amount,category,paid_by,spent_on) VALUES (?,?,?,?,?)').bind(body.label,body.amount,body.category,body.paidBy,today()).run();
+  if (body.type === 'organiser') return db.prepare('INSERT INTO organiser_items (list,label,done) VALUES (?,?,0)').bind(body.list,body.label).run();
+  if (body.type === 'organiser-toggle') return db.prepare('UPDATE organiser_items SET done=? WHERE id=?').bind(body.done ? 1 : 0,body.id).run();
+  if (body.type === 'message') return db.prepare('INSERT INTO messages (member_id,body,created_at) VALUES (?,?,?)').bind(body.memberId,body.body,new Date().toISOString()).run();
+  throw new Error('Unknown data action');
 }

@@ -6,7 +6,7 @@ const SESSION_SECONDS = 60 * 60 * 24 * 7;
 const PBKDF2_ITERATIONS = 600_000;
 const encoder = new TextEncoder();
 
-export type AuthUser = { id:number; email:string; name:string; initials:string; color:string; avatar:string|null; calorieGoal:number; proteinGoal:number; carbGoal:number; fatGoal:number; waterGoal:number };
+export type AuthUser = { id:number; email:string; name:string; initials:string; color:string; avatar:string|null; calorieGoal:number; proteinGoal:number; carbGoal:number; fatGoal:number; waterGoal:number; maintenanceCalories:number|null; heightCm:number|null; weightKg:number|null; age:number|null; sex:string|null; activity:string|null; nutritionPlan:string|null; diet:string|null };
 type StoredUser = AuthUser & { passwordHash:string; passwordSalt:string };
 
 function bytesToBase64(bytes:Uint8Array) { let binary=''; for(const byte of bytes) binary+=String.fromCharCode(byte); return btoa(binary); }
@@ -43,7 +43,7 @@ export async function registerUser(input:unknown) {
 
 export async function loginUser(input:unknown) {
   await ensureDatabase(); const record=(input&&typeof input==='object'?input:{}) as Record<string,unknown>; const email=String(record.email??'').trim().toLowerCase(); const password=String(record.password??'');
-  const user=await env.DB.prepare('SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal FROM users WHERE email=?').bind(email).first<StoredUser>();
+  const user=await env.DB.prepare('SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet FROM users WHERE email=?').bind(email).first<StoredUser>();
   const fallbackSalt=new Uint8Array(16); const fallbackHash='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
   const candidateHash=await hashPassword(password||'invalid-password',user?base64ToBytes(user.passwordSalt):fallbackSalt);
   if(!user||!password||!constantTimeEqual(candidateHash,user?.passwordHash??fallbackHash)) throw new AuthError('Email or password is incorrect.',401);
@@ -51,7 +51,7 @@ export async function loginUser(input:unknown) {
 }
 
 function cookieValue(cookieHeader:string|null) { if(!cookieHeader)return null; for(const item of cookieHeader.split(';')){const [name,...parts]=item.trim().split('='); if(name===SESSION_COOKIE)return parts.join('=');} return null; }
-export async function getUserFromCookie(cookieHeader:string|null):Promise<AuthUser|null> { await ensureDatabase(); const token=cookieValue(cookieHeader); if(!token)return null; const tokenHash=await sha256(token); return env.DB.prepare(`SELECT u.id,u.email,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,u.calorie_goal AS calorieGoal,u.protein_goal AS proteinGoal,u.carb_goal AS carbGoal,u.fat_goal AS fatGoal,u.water_goal AS waterGoal FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).bind(tokenHash,new Date().toISOString()).first<AuthUser>(); }
+export async function getUserFromCookie(cookieHeader:string|null):Promise<AuthUser|null> { await ensureDatabase(); const token=cookieValue(cookieHeader); if(!token)return null; const tokenHash=await sha256(token); return env.DB.prepare(`SELECT u.id,u.email,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,u.calorie_goal AS calorieGoal,u.protein_goal AS proteinGoal,u.carb_goal AS carbGoal,u.fat_goal AS fatGoal,u.water_goal AS waterGoal,u.maintenance_calories AS maintenanceCalories,u.height_cm AS heightCm,u.weight_kg AS weightKg,u.age,u.sex,u.activity,u.nutrition_plan AS nutritionPlan,u.diet FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).bind(tokenHash,new Date().toISOString()).first<AuthUser>(); }
 export function getRequestUser(request:Request){return getUserFromCookie(request.headers.get('cookie'));}
 export async function destroyRequestSession(request:Request){const token=cookieValue(request.headers.get('cookie'));if(token)await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(await sha256(token)).run();}
 export function assertSameOrigin(request:Request){const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)throw new AuthError('Request origin was rejected.',403);}

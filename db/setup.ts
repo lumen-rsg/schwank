@@ -8,7 +8,7 @@ async function ensureColumn(table: string, column: string, definition: string) {
 export async function ensureDatabase() {
   const db = env.DB;
   await db.batch([
-    db.prepare('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, display_name TEXT NOT NULL, initials TEXT NOT NULL, color TEXT NOT NULL, avatar_data TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, calorie_goal INTEGER NOT NULL DEFAULT 2200, protein_goal INTEGER NOT NULL DEFAULT 140, carb_goal INTEGER NOT NULL DEFAULT 250, fat_goal INTEGER NOT NULL DEFAULT 70, water_goal INTEGER NOT NULL DEFAULT 2000, created_at TEXT NOT NULL)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, display_name TEXT NOT NULL, initials TEXT NOT NULL, color TEXT NOT NULL, avatar_data TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, calorie_goal INTEGER NOT NULL DEFAULT 2200, protein_goal INTEGER NOT NULL DEFAULT 140, carb_goal INTEGER NOT NULL DEFAULT 250, fat_goal INTEGER NOT NULL DEFAULT 70, water_goal INTEGER NOT NULL DEFAULT 2000, maintenance_calories INTEGER, height_cm REAL, weight_kg REAL, age INTEGER, sex TEXT, activity TEXT, nutrition_plan TEXT, diet TEXT, created_at TEXT NOT NULL)'),
     db.prepare('CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, token_hash TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)'),
     db.prepare('CREATE TABLE IF NOT EXISTS nutrition_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, member_id TEXT NOT NULL, visibility TEXT NOT NULL DEFAULT \'private\', label TEXT NOT NULL, calories INTEGER NOT NULL, protein INTEGER NOT NULL, carbs INTEGER NOT NULL, fat INTEGER NOT NULL, eaten_on TEXT NOT NULL)'),
     db.prepare('CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, visibility TEXT NOT NULL DEFAULT \'private\', title TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'todo\', assignee_id TEXT NOT NULL, tag TEXT NOT NULL DEFAULT \'Home\', due TEXT NOT NULL DEFAULT \'This week\')'),
@@ -21,6 +21,14 @@ export async function ensureDatabase() {
   ]);
   await ensureColumn('users', 'avatar_data', 'TEXT');
   await ensureColumn('users', 'water_goal', 'INTEGER NOT NULL DEFAULT 2000');
+  await ensureColumn('users', 'maintenance_calories', 'INTEGER');
+  await ensureColumn('users', 'height_cm', 'REAL');
+  await ensureColumn('users', 'weight_kg', 'REAL');
+  await ensureColumn('users', 'age', 'INTEGER');
+  await ensureColumn('users', 'sex', 'TEXT');
+  await ensureColumn('users', 'activity', 'TEXT');
+  await ensureColumn('users', 'nutrition_plan', 'TEXT');
+  await ensureColumn('users', 'diet', 'TEXT');
   await ensureColumn('nutrition_entries', 'user_id', 'INTEGER'); await ensureColumn('nutrition_entries', 'visibility', "TEXT NOT NULL DEFAULT 'private'");
   await ensureColumn('tasks', 'user_id', 'INTEGER'); await ensureColumn('tasks', 'visibility', "TEXT NOT NULL DEFAULT 'private'");
   await ensureColumn('expenses', 'user_id', 'INTEGER'); await ensureColumn('expenses', 'visibility', "TEXT NOT NULL DEFAULT 'private'");

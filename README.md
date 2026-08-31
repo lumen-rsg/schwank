@@ -12,7 +12,9 @@ The schema lives in `db/schema.ts`, generated migrations live in `drizzle/`, and
 
 Open `/register` to create the first account. Passwords are stored as salted PBKDF2-SHA-256 hashes and authentication uses seven-day, HTTP-only, same-site session cookies.
 
-Nutrition is always private. Tasks, spending, and organiser items are private by default and can be deliberately marked shared. The API scopes every read and write to the signed-in user; a housemate can view a shared item but only its owner can change it. Household chat is shared by design. No demo or mock records are seeded into the application.
+Nutrition entries, tasks, spending, and organiser items can be private or shared. Nutrition entries are offered as shared when logging a meal, while the server still defaults missing visibility values to private. The API scopes every read and write to the signed-in user; a housemate can view a shared item but only its owner can change it. Household chat and the household profile are shared by design. No demo or mock records are seeded into the application.
+
+The interface supports English and Russian, with the preference saved in the browser. The Home screen stores a shared household name, address, and photo, plus a private account-controlled avatar for each member. Images are resized in the browser and stored in the local database so they survive restarts.
 
 ## Local development
 

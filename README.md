@@ -1,6 +1,12 @@
 # schwank
 
-A local-first shared-home dashboard for food and recipe storage, nutrition, hydration, habit reduction, Kanban tasks, spending, organisers, and household chat.
+A local-first shared-home server and client suite for food and recipe storage, nutrition, hydration, habit reduction, Kanban tasks, spending, organisers, and household chat.
+
+## Server and clients
+
+The Orange Pi is the household server and the single source of truth. It owns the database, accounts, uploads, AI access, and API while continuing to support ordinary browsers. The Electron desktop client connects to that LAN server and is packaged for Apple Silicon macOS, x86-64 Linux, and x86-64 Windows. Its first-run screen makes selecting the server address a one-time step, and new chat messages can use native desktop notifications.
+
+Electron does not run on iOS or Android. A future mobile client can reuse the same server API. See [`docs/desktop.md`](docs/desktop.md) for Orange Pi setup, desktop usage, security details, installer commands, and the multi-platform GitHub Actions workflow.
 
 ## Data layer
 
@@ -46,21 +52,21 @@ Requires Node.js 22.13 or newer.
 
 ```bash
 npm install
-npm run dev
+npm run server:dev
 ```
 
 Create and run a production-style local build with:
 
 ```bash
-npm run build
-npm start
+npm run server:build
+npm run server:start
 ```
 
 To expose it to other devices on the LAN:
 
 ```bash
-npm run build
-npm run start:lan
+npm run server:build
+npm run server:start:lan
 ```
 
 The Git remote named `origin` points to `git@github.com:lumen-rsg/schwank.git`. Git is source control only; it is not used to host the running application.

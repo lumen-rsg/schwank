@@ -1,0 +1,9 @@
+{
+  "name": "schwank-desktop",
+  "version": "0.1.0",
+  "description": "Desktop client for the schwank shared-home server",
+  "author": "lumen-rsg",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs"
+}

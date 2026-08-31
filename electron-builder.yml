@@ -1,0 +1,36 @@
+appId: com.lumenrsg.schwank
+productName: schwank
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  app: desktop
+  output: release/desktop
+  buildResources: desktop/assets
+files:
+  - '**/*'
+  - '!*.test.mjs'
+  - '!node_modules{,/**/*}'
+extraResources:
+  - from: desktop/assets/icon.png
+    to: icon.png
+asar: true
+npmRebuild: false
+mac:
+  category: public.app-category.lifestyle
+  icon: icon.icns
+  target:
+    - dmg
+    - zip
+win:
+  icon: icon.png
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  category: Utility
+  icon: icon.png
+  target:
+    - AppImage
+    - deb
+publish: null

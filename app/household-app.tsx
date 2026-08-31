@@ -4,6 +4,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
   type SubmitEvent,
@@ -388,7 +389,11 @@ export default function HouseholdApp({
   const [data, setData] = useState<Data>(empty(initialUser));
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
-  async function load() {
+  const lastMessageId = useRef<number | null>(null);
+  const loadInProgress = useRef(false);
+  async function load(silent = false) {
+    if (loadInProgress.current) return;
+    loadInProgress.current = true;
     try {
       const response = await fetch('/api/schwank', { cache: 'no-store' });
       if (response.status === 401) {
@@ -396,15 +401,44 @@ export default function HouseholdApp({
         return;
       }
       if (!response.ok) throw new Error();
-      setData(await response.json());
+      const nextData = (await response.json()) as Data;
+      const newestMessageId = nextData.messages.reduce(
+        (maximum, message) => Math.max(maximum, message.id),
+        0,
+      );
+      if (lastMessageId.current !== null) {
+        const newMessage = nextData.messages
+          .filter(
+            (message) =>
+              message.id > (lastMessageId.current ?? 0) && !message.mine,
+          )
+          .at(-1);
+        if (newMessage)
+          void window.schwankDesktop?.notify(
+            'schwank',
+            `${newMessage.name}: ${newMessage.body}`,
+          );
+      }
+      lastMessageId.current = newestMessageId;
+      setData(nextData);
     } catch {
-      setNotice(t('storageFailed'));
+      if (!silent) setNotice(t('storageFailed'));
     } finally {
       setLoading(false);
+      loadInProgress.current = false;
     }
   }
   useEffect(() => {
     void load();
+    const interval = window.setInterval(() => void load(true), 30_000);
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    document.addEventListener('visibilitychange', refreshVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshVisible);
+    };
   }, []);
   const post: Post = async (payload) => {
     setNotice(t('saving'));

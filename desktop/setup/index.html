@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connect to schwank</title>
+    <link rel="stylesheet" href="./setup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="./icon.svg" alt="" />
+        <strong>schwank</strong>
+        <nav aria-label="Language">
+          <button type="button" data-language="en">EN</button>
+          <button type="button" data-language="ru">RU</button>
+        </nav>
+      </header>
+      <section>
+        <span class="eyebrow" data-copy="eyebrow"></span>
+        <h1 data-copy="title"></h1>
+        <p class="intro" data-copy="intro"></p>
+        <form>
+          <label for="server-url" data-copy="label"></label>
+          <div class="address-row">
+            <input
+              id="server-url"
+              name="serverUrl"
+              type="url"
+              inputmode="url"
+              spellcheck="false"
+              autocomplete="url"
+              placeholder="http://schwank.local:3000"
+              required
+            />
+            <button class="connect" type="submit" data-copy="connect"></button>
+          </div>
+          <small data-copy="hint"></small>
+          <output aria-live="polite"></output>
+        </form>
+        <aside>
+          <strong data-copy="privacyTitle"></strong>
+          <p data-copy="privacyCopy"></p>
+        </aside>
+      </section>
+      <footer>
+        <span id="version"></span>
+        <span data-copy="desktopOnly"></span>
+      </footer>
+    </main>
+    <script src="./setup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,53 @@
+name: Desktop builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'desktop-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            os: macos-14
+            command: desktop:dist:mac
+            artifact: schwank-macos-arm64
+          - name: Linux x64
+            os: ubuntu-24.04
+            command: desktop:dist:linux
+            artifact: schwank-linux-x64
+          - name: Windows x64
+            os: windows-2025
+            command: desktop:dist:windows
+            artifact: schwank-windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:check
+      - run: npm run ${{ matrix.command }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            release/desktop/*.dmg
+            release/desktop/*.zip
+            release/desktop/*.AppImage
+            release/desktop/*.deb
+            release/desktop/*.exe
+          if-no-files-found: error
+          retention-days: 14

@@ -39,4 +39,5 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/release/
 *.tsbuildinfo

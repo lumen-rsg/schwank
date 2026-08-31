@@ -1,0 +1,17 @@
+[Unit]
+Description=schwank household server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=schwank
+Group=schwank
+WorkingDirectory=/opt/schwank
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run server:start:lan
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

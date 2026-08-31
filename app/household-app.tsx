@@ -227,6 +227,23 @@ type AiPlanResult = {
   model: string;
   nutritionContributors: number;
 };
+type AiProgressStage =
+  | 'starting'
+  | 'preparing'
+  | 'context'
+  | 'requesting'
+  | 'receiving'
+  | 'validating';
+type AiStreamEvent =
+  | {
+      type: 'status';
+      stage: AiProgressStage;
+      provider?: string;
+      model?: string;
+    }
+  | { type: 'delta'; delta: string }
+  | { type: 'result'; result: AiPlanResult }
+  | { type: 'error'; error: string; status?: number };
 type Data = {
   currentUser: AuthUser;
   members: Member[];
@@ -1540,6 +1557,18 @@ const defaultMealFrequencies: Record<RecipeCourse, number> = {
   salad: 7,
   dessert: 2,
 };
+const aiProgressCopy: Record<AiProgressStage, CopyKey> = {
+  starting: 'aiOutputConnected',
+  preparing: 'aiOutputPreparing',
+  context: 'aiOutputContext',
+  requesting: 'aiOutputRequesting',
+  receiving: 'aiOutputReceiving',
+  validating: 'aiOutputValidating',
+};
+function aiProgressTime(startedAt: number) {
+  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
 const normalizedFoodName = (value: string) =>
   value.normalize('NFKC').trim().toLocaleLowerCase('en').replace(/\s+/g, ' ');
 const foodStep = (unit: FoodUnit) =>
@@ -1896,6 +1925,8 @@ function WeeklyMealPlanner({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiResult, setAiResult] = useState<AiPlanResult | null>(null);
+  const [aiOutput, setAiOutput] = useState('');
+  const aiOutputRef = useRef<HTMLPreElement>(null);
   const weekStart = localWeekStart();
   const plan = data.weeklyPlan.filter((meal) => meal.weekStart === weekStart);
   const recipeById = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
@@ -1906,6 +1937,11 @@ function WeeklyMealPlanner({
       !data.recipes.some((recipe) => recipe.course === course),
   );
 
+  useEffect(() => {
+    const output = aiOutputRef.current;
+    if (output) output.scrollTop = output.scrollHeight;
+  }, [aiOutput]);
+
   async function generateMenu() {
     const entries = randomWeeklyMenu(data.recipes, frequencies);
     await post({ type: 'meal-plan-save', weekStart, entries });
@@ -1915,6 +1951,14 @@ function WeeklyMealPlanner({
     setAiBusy(true);
     setAiError('');
     setAiResult(null);
+    const startedAt = Date.now();
+    let transcript = `[00:00] ${t('aiOutputStarting')}\n`;
+    let rawOutputStarted = false;
+    let streamedResult: AiPlanResult | null = null;
+    setAiOutput(transcript);
+    const appendStatus = (message: string) => {
+      transcript += `\n[${aiProgressTime(startedAt)}] ${message}\n`;
+    };
     try {
       const response = await fetch('/api/ai/meal-plan', {
         method: 'POST',
@@ -1930,16 +1974,62 @@ function WeeklyMealPlanner({
           frequencies,
         }),
       });
-      const result = (await response.json()) as AiPlanResult & {
-        error?: string;
-      };
-      if (!response.ok)
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
         throw new Error(result.error || t('aiGenerationFailed'));
-      setAiResult(result);
+      }
+      if (!response.body)
+        throw new Error(t('aiOutputUnavailable'));
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let lastPaintAt = 0;
+      const processLine = (line: string) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line) as AiStreamEvent;
+        if (event.type === 'status') {
+          const detail =
+            event.provider && event.model
+              ? ` (${event.provider} · ${event.model})`
+              : '';
+          appendStatus(`${t(aiProgressCopy[event.stage])}${detail}`);
+        } else if (event.type === 'delta') {
+          if (!rawOutputStarted) {
+            rawOutputStarted = true;
+            transcript += `\n── ${t('aiOutputRaw')} ──\n`;
+          }
+          transcript += event.delta;
+        } else if (event.type === 'result') {
+          streamedResult = event.result;
+          appendStatus(t('aiOutputFinished'));
+        } else if (event.type === 'error') {
+          throw new Error(event.error || t('aiGenerationFailed'));
+        }
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) processLine(line);
+        if (done || Date.now() - lastPaintAt >= 80) {
+          lastPaintAt = Date.now();
+          setAiOutput(transcript);
+        }
+        if (done) break;
+      }
+      if (buffer.trim()) processLine(buffer);
+      if (!streamedResult) throw new Error(t('aiOutputUnavailable'));
+      setAiOutput(transcript);
+      setAiResult(streamedResult);
     } catch (error) {
-      setAiError(
-        error instanceof Error ? error.message : t('aiGenerationFailed'),
-      );
+      const message =
+        error instanceof Error ? error.message : t('aiGenerationFailed');
+      setAiError(message);
+      appendStatus(`${t('aiOutputError')}: ${message}`);
+      setAiOutput(transcript);
     } finally {
       setAiBusy(false);
     }
@@ -2071,6 +2161,26 @@ function WeeklyMealPlanner({
             {t('aiSharedDataNote')}{' '}
             {t('aiConsentingCount', { count: data.aiConsentingMembers })}
           </span>
+        </div>
+        <div className={`ai-output-window${aiBusy ? ' live' : ''}`}>
+          <header>
+            <span>
+              <Activity size={14} />
+              {t('aiOutputTitle')}
+            </span>
+            <output aria-live="polite">
+              {aiBusy
+                ? t('aiOutputLive')
+                : aiError
+                  ? t('aiOutputError')
+                  : aiResult
+                    ? t('aiOutputComplete')
+                    : t('aiOutputReady')}
+            </output>
+          </header>
+          <pre ref={aiOutputRef} aria-label={t('aiOutputTitle')}>
+            {aiOutput || t('aiOutputIdle')}
+          </pre>
         </div>
         {aiError && <p className="ai-error">{aiError}</p>}
         <button

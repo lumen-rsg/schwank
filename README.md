@@ -4,9 +4,15 @@ A local-first shared-home dashboard for nutrition, Kanban tasks, spending, organ
 
 ## Data layer
 
-All household records are stored in a durable local D1/SQLite database through `db/data.ts`. The browser only keeps temporary interface state; meals, tasks, expenses, organiser items, members, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
+All household records are stored in a durable local D1/SQLite database through `db/data.ts`. The browser only keeps temporary interface state; accounts, sessions, meals, tasks, expenses, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
 
 The schema lives in `db/schema.ts`, generated migrations live in `drizzle/`, and the API is exposed at `/api/schwank`.
+
+## Accounts and privacy
+
+Open `/register` to create the first account. Passwords are stored as salted PBKDF2-SHA-256 hashes and authentication uses seven-day, HTTP-only, same-site session cookies.
+
+Nutrition is always private. Tasks, spending, and organiser items are private by default and can be deliberately marked shared. The API scopes every read and write to the signed-in user; a housemate can view a shared item but only its owner can change it. Household chat is shared by design. No demo or mock records are seeded into the application.
 
 ## Local development
 

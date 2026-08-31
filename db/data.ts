@@ -42,6 +42,19 @@ const cleanOptionalDate = (value: unknown) => {
     throw new DataError('Enter a valid expiry date.');
   return date;
 };
+const recipeCourses = [
+  'breakfast',
+  'starter',
+  'main',
+  'dinner',
+  'salad',
+  'dessert',
+] as const;
+type RecipeCourse = (typeof recipeCourses)[number];
+const cleanRecipeCourse = (value: unknown): RecipeCourse | null =>
+  recipeCourses.includes(value as RecipeCourse)
+    ? (value as RecipeCourse)
+    : null;
 
 type NutritionSex = 'male' | 'female';
 type NutritionActivity = 'inactive' | 'low' | 'active' | 'very';
@@ -132,6 +145,7 @@ export async function readHouseholdData(user: AuthUser) {
     foods,
     recipeRows,
     ingredientRows,
+    weeklyPlan,
   ] = await Promise.all([
     db
       .prepare(
@@ -198,12 +212,17 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        'SELECT r.id,r.name,r.servings,r.instructions,r.created_at AS createdAt,u.display_name AS createdByName FROM recipes r JOIN users u ON u.id=r.created_by ORDER BY r.id DESC',
+        'SELECT r.id,r.name,r.course,r.servings,r.instructions,r.created_at AS createdAt,u.display_name AS createdByName FROM recipes r JOIN users u ON u.id=r.created_by ORDER BY r.id DESC',
       )
       .all(),
     db
       .prepare(
         'SELECT id,recipe_id AS recipeId,name,normalized_name AS normalizedName,quantity,unit FROM recipe_ingredients ORDER BY id',
+      )
+      .all(),
+    db
+      .prepare(
+        "SELECT id,week_start AS weekStart,day_index AS dayIndex,course,recipe_id AS recipeId,servings FROM weekly_meal_plan WHERE week_start>=date('now','-14 days') AND week_start<=date('now','+14 days') ORDER BY week_start,day_index,id",
       )
       .all(),
   ]);
@@ -228,6 +247,7 @@ export async function readHouseholdData(user: AuthUser) {
     water: water.results,
     foods: foods.results,
     recipes,
+    weeklyPlan: weeklyPlan.results,
   };
 }
 
@@ -517,13 +537,21 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
   }
   if (body.type === 'recipe-add') {
     const name = cleanText(body.name, 100);
+    const course = cleanRecipeCourse(body.course);
     const servings = Math.max(1, Math.round(cleanNumber(body.servings, 100)));
     const instructions = cleanText(body.instructions, 5_000);
     const rawIngredients = Array.isArray(body.ingredients)
       ? body.ingredients
       : [];
-    if (!name || !rawIngredients.length || rawIngredients.length > 30)
-      throw new DataError('Recipe name and 1–30 ingredients are required.');
+    if (
+      !name ||
+      !course ||
+      !rawIngredients.length ||
+      rawIngredients.length > 30
+    )
+      throw new DataError(
+        'Recipe name, course, and 1–30 ingredients are required.',
+      );
     const ingredients = rawIngredients.map((item) => {
       const record =
         item && typeof item === 'object'
@@ -546,9 +574,16 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     });
     const result = await db
       .prepare(
-        'INSERT INTO recipes (name,servings,instructions,created_by,created_at) VALUES (?,?,?,?,?)',
+        'INSERT INTO recipes (name,course,servings,instructions,created_by,created_at) VALUES (?,?,?,?,?,?)',
       )
-      .bind(name, servings, instructions, userId, new Date().toISOString())
+      .bind(
+        name,
+        course,
+        servings,
+        instructions,
+        userId,
+        new Date().toISOString(),
+      )
       .run();
     const recipeId = Number(result.meta.last_row_id);
     await db.batch(
@@ -568,6 +603,57 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     );
     return result;
   }
+  if (body.type === 'meal-plan-save') {
+    const weekStart = cleanOptionalDate(body.weekStart);
+    const rawEntries = Array.isArray(body.entries) ? body.entries : [];
+    if (!weekStart || rawEntries.length > 42)
+      throw new DataError('Choose a valid week with no more than 42 meals.');
+    const recipeRows = await db
+      .prepare('SELECT id,course FROM recipes')
+      .all<{ id: number; course: string }>();
+    const recipeCourseById = new Map(
+      recipeRows.results.map((recipe) => [recipe.id, recipe.course]),
+    );
+    const entries = rawEntries.map((item) => {
+      const record =
+        item && typeof item === 'object'
+          ? (item as Record<string, unknown>)
+          : {};
+      const recipeId = Math.round(cleanNumber(record.recipeId));
+      const dayIndex = Number(record.dayIndex);
+      const course = cleanRecipeCourse(record.course);
+      if (
+        !recipeId ||
+        !Number.isInteger(dayIndex) ||
+        dayIndex < 0 ||
+        dayIndex > 6 ||
+        !course ||
+        recipeCourseById.get(recipeId) !== course
+      )
+        throw new DataError('Every planned meal must reference its recipe.');
+      return { recipeId, dayIndex, course };
+    });
+    const now = new Date().toISOString();
+    return db.batch([
+      db
+        .prepare('DELETE FROM weekly_meal_plan WHERE week_start=?')
+        .bind(weekStart),
+      ...entries.map((entry) =>
+        db
+          .prepare(
+            'INSERT INTO weekly_meal_plan (week_start,day_index,course,recipe_id,servings,created_by,created_at) VALUES (?,?,?,?,3,?,?)',
+          )
+          .bind(
+            weekStart,
+            entry.dayIndex,
+            entry.course,
+            entry.recipeId,
+            userId,
+            now,
+          ),
+      ),
+    ]);
+  }
   if (body.type === 'recipe-remove') {
     const recipeId = cleanNumber(body.id);
     const recipe = await db
@@ -576,6 +662,9 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       .first();
     if (!recipe) throw new DataError('Recipe was not found.', 404);
     return db.batch([
+      db
+        .prepare('DELETE FROM weekly_meal_plan WHERE recipe_id=?')
+        .bind(recipeId),
       db
         .prepare('DELETE FROM recipe_ingredients WHERE recipe_id=?')
         .bind(recipeId),

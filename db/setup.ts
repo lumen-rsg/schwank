@@ -47,10 +47,13 @@ export async function ensureDatabase() {
       "CREATE TABLE IF NOT EXISTS food_items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, normalized_name TEXT NOT NULL, quantity REAL NOT NULL DEFAULT 0, unit TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'Other', expires_on TEXT, updated_by INTEGER NOT NULL, updated_at TEXT NOT NULL)",
     ),
     db.prepare(
-      "CREATE TABLE IF NOT EXISTS recipes (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, servings INTEGER NOT NULL DEFAULT 1, instructions TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL, created_at TEXT NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS recipes (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, course TEXT NOT NULL DEFAULT 'main', servings INTEGER NOT NULL DEFAULT 1, instructions TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL, created_at TEXT NOT NULL)",
     ),
     db.prepare(
       'CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, recipe_id INTEGER NOT NULL, name TEXT NOT NULL, normalized_name TEXT NOT NULL, quantity REAL NOT NULL, unit TEXT NOT NULL)',
+    ),
+    db.prepare(
+      'CREATE TABLE IF NOT EXISTS weekly_meal_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, week_start TEXT NOT NULL, day_index INTEGER NOT NULL, course TEXT NOT NULL, recipe_id INTEGER NOT NULL, servings INTEGER NOT NULL DEFAULT 3, created_by INTEGER NOT NULL, created_at TEXT NOT NULL)',
     ),
   ]);
   await ensureColumn('users', 'avatar_data', 'TEXT');
@@ -84,6 +87,7 @@ export async function ensureDatabase() {
     "TEXT NOT NULL DEFAULT 'private'",
   );
   await ensureColumn('messages', 'user_id', 'INTEGER');
+  await ensureColumn('recipes', 'course', "TEXT NOT NULL DEFAULT 'main'");
   await db.batch([
     db.prepare(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)',
@@ -135,6 +139,12 @@ export async function ensureDatabase() {
     ),
     db.prepare(
       'CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_name ON recipe_ingredients(normalized_name)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_weekly_meal_plan_week ON weekly_meal_plan(week_start, day_index)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_weekly_meal_plan_recipe ON weekly_meal_plan(recipe_id)',
     ),
     db
       .prepare(

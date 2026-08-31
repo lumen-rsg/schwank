@@ -16,7 +16,9 @@ Nutrition entries, tasks, general spending, and organiser items can be private o
 
 ## Food storage and recipes
 
-Inventory is stored as individual batches, allowing the same product to have different units or expiry dates. Housemates can search stock, adjust quantities, and see expired or soon-to-expire food. Recipes contain servings, instructions, and one or more ingredients. Recipe cards compare every ingredient with the combined non-expired household inventory and show exact missing amounts; mass (`g`/`kg`) and volume (`ml`/`l`) units are converted automatically. Ingredient names are matched after whitespace and case normalization, and the recipe editor suggests names already in inventory.
+Inventory is stored as individual batches, allowing the same product to have different units or expiry dates. Housemates can search stock, adjust quantities, and see expired or soon-to-expire food. Recipes contain servings, instructions, one or more ingredients, and one of six sections: breakfasts, starters, main courses, dinners, salads, or desserts. Recipe cards scale their ingredient lists to three people and compare every ingredient with the combined non-expired household inventory; mass (`g`/`kg`) and volume (`ml`/`l`) units are converted automatically. Ingredient names are matched after whitespace and case normalization, and the recipe editor suggests names already in inventory.
+
+The shared weekly planner uses adjustable per-course frequencies, with defaults of seven breakfasts, three starters, three main courses, seven dinners, seven salads, and two desserts. Its randomiser spaces less-frequent courses across the week, saves the resulting plan for the household, and scales every meal to three portions. The complete shopping list combines matching ingredients across the entire plan and subtracts usable food already in storage.
 
 ## Nutrition calculator
 

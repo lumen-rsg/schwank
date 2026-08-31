@@ -202,6 +202,7 @@ export const recipes = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
+    course: text('course').notNull().default('main'),
     servings: integer('servings').notNull().default(1),
     instructions: text('instructions').notNull().default(''),
     createdBy: integer('created_by').notNull(),
@@ -223,5 +224,23 @@ export const recipeIngredients = sqliteTable(
   (table) => [
     index('idx_recipe_ingredients_recipe').on(table.recipeId),
     index('idx_recipe_ingredients_name').on(table.normalizedName),
+  ],
+);
+
+export const weeklyMealPlan = sqliteTable(
+  'weekly_meal_plan',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    weekStart: text('week_start').notNull(),
+    dayIndex: integer('day_index').notNull(),
+    course: text('course').notNull(),
+    recipeId: integer('recipe_id').notNull(),
+    servings: integer('servings').notNull().default(3),
+    createdBy: integer('created_by').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_weekly_meal_plan_week').on(table.weekStart, table.dayIndex),
+    index('idx_weekly_meal_plan_recipe').on(table.recipeId),
   ],
 );

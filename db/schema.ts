@@ -375,6 +375,23 @@ export const notificationStates = sqliteTable(
   ],
 );
 
+export const liveUpdateEvents = sqliteTable(
+  'live_update_events',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    audienceUserId: integer('audience_user_id'),
+    scope: text('scope').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_live_update_events_audience_id').on(
+      table.audienceUserId,
+      table.id,
+    ),
+    index('idx_live_update_events_created').on(table.createdAt),
+  ],
+);
+
 export const habitEntries = sqliteTable(
   'habit_entries',
   {

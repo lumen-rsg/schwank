@@ -97,6 +97,9 @@ export async function manageHouseholdMember(owner: AuthUser, input: unknown) {
       env.DB.prepare(`DELETE FROM ${table} WHERE user_id=?`).bind(target.id),
     ),
     env.DB.prepare(
+      'DELETE FROM live_update_events WHERE audience_user_id=?',
+    ).bind(target.id),
+    env.DB.prepare(
       'UPDATE tasks SET assignee_id=CAST(user_id AS TEXT) WHERE assignee_id=? AND user_id IS NOT NULL',
     ).bind(String(target.id)),
     env.DB.prepare(

@@ -16,6 +16,18 @@ export type AppNotice = {
   message: string;
 };
 
+type LiveUpdateResponse = {
+  cursor: number;
+  scopes: string[];
+};
+
+type LiveChatSnapshot = {
+  messages: Data['messages'];
+  hasMore: boolean;
+  messageCount: number;
+  unreadMessages: number;
+};
+
 function emptyHousehold(user: AuthUser): Data {
   return {
     currentUser: user,
@@ -80,6 +92,8 @@ export function useHouseholdController({
     NotificationPermission | 'desktop' | 'in-app'
   >('in-app');
   const [notificationOpenTarget, setNotificationOpenTarget] = useState('');
+  const [notificationClock, setNotificationClock] = useState(() => Date.now());
+  const [chatRevision, setChatRevision] = useState(0);
   const loadInProgress = useRef(false);
   const dataGeneration = useRef(0);
   const pendingMutations = useRef(new Set<string>());
@@ -88,7 +102,7 @@ export function useHouseholdController({
 
   const load = useCallback(
     async (silent = false) => {
-      if (loadInProgress.current || pendingMutations.current.size) return;
+      if (loadInProgress.current || pendingMutations.current.size) return false;
       loadInProgress.current = true;
       const generation = dataGeneration.current;
       try {
@@ -102,6 +116,7 @@ export function useHouseholdController({
           setData(nextData);
           setConnectionState('connected');
         }
+        return true;
       } catch (cause) {
         setConnectionState('reconnecting');
         if (!silent)
@@ -110,6 +125,7 @@ export function useHouseholdController({
             message:
               cause instanceof Error ? cause.message : t('storageFailed'),
           });
+        return false;
       } finally {
         setLoading(false);
         loadInProgress.current = false;
@@ -118,26 +134,129 @@ export function useHouseholdController({
     [t],
   );
 
+  const loadChat = useCallback(async () => {
+    try {
+      const snapshot = await requestApiJson<LiveChatSnapshot>(
+        '/api/chat',
+        { cache: 'no-store' },
+        t,
+        'storageFailed',
+      );
+      setData((current) => ({
+        ...current,
+        messages: snapshot.messages,
+        messageCount: snapshot.messageCount,
+        messagesHasMore: snapshot.hasMore,
+        unreadMessages: snapshot.unreadMessages,
+      }));
+      setChatRevision((revision) => revision + 1);
+      setConnectionState('connected');
+      return true;
+    } catch {
+      setConnectionState('reconnecting');
+      return false;
+    }
+  }, [t]);
+
   useEffect(() => {
     queueMicrotask(() => {
       if (window.schwankDesktop) setNotificationPermission('desktop');
       else if ('Notification' in window && window.isSecureContext)
         setNotificationPermission(Notification.permission);
     });
-    queueMicrotask(() => void load());
-    const interval = window.setInterval(() => void load(true), 30_000);
-    const refreshVisible = () => {
-      if (document.visibilityState === 'visible') void load(true);
+    let stopped = false;
+    let timer = 0;
+    let polling = false;
+    let cursor: number | null = null;
+    let initialized = false;
+    let forceFullRefresh = false;
+    let retryDelay = 2_000;
+
+    const regularDelay = () =>
+      window.schwankDesktop || document.visibilityState === 'visible'
+        ? 5_000
+        : 30_000;
+    const schedule = (delay: number) => {
+      window.clearTimeout(timer);
+      if (!stopped) timer = window.setTimeout(() => void poll(), delay);
     };
-    const refreshOnline = () => void load(true);
+    const poll = async () => {
+      if (stopped || polling) return;
+      if (pendingMutations.current.size) {
+        schedule(1_000);
+        return;
+      }
+      polling = true;
+      try {
+        if (cursor === null) {
+          try {
+            const baseline = await requestApiJson<LiveUpdateResponse>(
+              '/api/updates',
+              { cache: 'no-store' },
+              t,
+              'storageFailed',
+            );
+            cursor = baseline.cursor;
+          } catch {
+            cursor = 0;
+          }
+        }
+        if (!initialized || forceFullRefresh) {
+          const refreshed = await load(initialized);
+          if (!refreshed) throw new Error('refresh_failed');
+          initialized = true;
+          forceFullRefresh = false;
+        }
+        const updates = await requestApiJson<LiveUpdateResponse>(
+          `/api/updates?after=${cursor}`,
+          { cache: 'no-store' },
+          t,
+          'storageFailed',
+        );
+        if (updates.scopes.length) {
+          const chatOnly = updates.scopes.every((scope) => scope === 'chat');
+          const refreshed = chatOnly ? await loadChat() : await load(true);
+          if (!refreshed) throw new Error('refresh_failed');
+        }
+        cursor = updates.cursor;
+        retryDelay = 2_000;
+        setConnectionState('connected');
+        schedule(regularDelay());
+      } catch {
+        setConnectionState('reconnecting');
+        schedule(retryDelay);
+        retryDelay = Math.min(30_000, retryDelay * 2);
+      } finally {
+        polling = false;
+      }
+    };
+    const catchUp = () => {
+      forceFullRefresh = true;
+      retryDelay = 2_000;
+      schedule(0);
+    };
+    queueMicrotask(() => void poll());
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') catchUp();
+    };
+    const refreshOnline = () => catchUp();
     document.addEventListener('visibilitychange', refreshVisible);
     window.addEventListener('online', refreshOnline);
     return () => {
-      window.clearInterval(interval);
+      stopped = true;
+      window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', refreshVisible);
       window.removeEventListener('online', refreshOnline);
     };
-  }, [initialUser.id, load]);
+  }, [initialUser.id, load, loadChat, t]);
+
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => setNotificationClock(Date.now()),
+      30_000,
+    );
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(
     () => () => {
@@ -151,7 +270,7 @@ export function useHouseholdController({
     const states = new Map(
       data.notificationStates.map((state) => [state.eventKey, state]),
     );
-    const now = new Date();
+    const now = new Date(notificationClock);
     return deriveDueNotifications(data, t, language, now, {
       advanceMinutes: Number(data.notificationPreferences.advanceMinutes),
     }).filter((notification) => {
@@ -165,7 +284,12 @@ export function useHouseholdController({
       const snoozedUntil = states.get(notification.key)?.snoozedUntil;
       return !snoozedUntil || new Date(snoozedUntil) <= now;
     });
-  }, [data, language, t]);
+  }, [data, language, notificationClock, t]);
+
+  useEffect(() => {
+    if (window.schwankDesktop)
+      void window.schwankDesktop.setBadge(notifications.length);
+  }, [notifications.length]);
 
   useEffect(() => {
     const nativeAvailable =
@@ -326,6 +450,7 @@ export function useHouseholdController({
   return {
     data,
     connectionState,
+    chatRevision,
     enableNotifications,
     loading,
     logout,

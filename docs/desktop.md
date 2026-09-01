@@ -27,7 +27,9 @@ HTTP is accepted by the desktop client only for localhost, private IP ranges, `.
 
 On first launch, enter the server's LAN address. The client checks `/api/health`, saves the compatible origin in its OS-specific application-data directory, and opens the regular schwank login screen. Change the address later with **Server Settings** in the native application menu or `Cmd/Ctrl+,`.
 
-The app checks for household updates every 30 seconds. New chat messages can produce native notifications while the schwank window is not focused.
+The app checks a small privacy-scoped update cursor every five seconds while active instead of downloading the complete household dataset on a timer. A change triggers a full catch-up only when necessary; chat-only changes use the smaller chat snapshot. Hidden browser tabs back off to 30 seconds, while online and visibility changes force a complete catch-up so a pruned or interrupted cursor cannot leave stale data.
+
+Electron creates a system tray item and keeps the renderer alive when its window is closed. Choose **Open schwank** to restore it, **Server Settings** to change the Orange Pi address, or **Quit** to stop it. Background throttling is disabled so the local 30-second due-event clock and five-second update cursor continue to run while the window is hidden. The tray tooltip and operating-system badge show the current attention count. Native notification clicks restore the window and focus the exact record.
 
 For development, start the server and desktop shell in separate terminals:
 
@@ -63,6 +65,6 @@ The **Desktop builds** GitHub Actions workflow builds all three requested target
 
 ## Security boundary
 
-The Electron renderer has Node.js integration disabled, context isolation enabled, Chromium sandboxing enabled, and permission requests denied. Navigation and IPC calls are checked against the selected server origin. The preload bridge exposes no filesystem, shell, process, or general-purpose IPC access—only connection setup, native notifications, and reopening server settings.
+The Electron renderer has Node.js integration disabled, context isolation enabled, Chromium sandboxing enabled, and permission requests denied. Navigation and IPC calls are checked against the selected server origin. The preload bridge exposes no filesystem, shell, process, or general-purpose IPC access—only connection setup, native notifications, their bounded badge count, click navigation, and reopening server settings.
 
 The client allows private-LAN HTTP because the Orange Pi is intended to run locally. HTTPS still provides meaningful protection against other devices on the LAN intercepting sessions, so it should be the next deployment improvement before exposing schwank beyond a trusted network.

@@ -26,6 +26,7 @@ export function ChatView({
   t,
   language,
   connectionState,
+  chatRevision,
 }: {
   data: Data;
   user: AuthUser;
@@ -33,6 +34,7 @@ export function ChatView({
   t: T;
   language: Language;
   connectionState: 'connected' | 'reconnecting';
+  chatRevision: number;
 }) {
   const [olderMessages, setOlderMessages] = useState<Message[]>([]);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -45,6 +47,10 @@ export function ChatView({
     return Array.from(byId.values()).sort((left, right) => left.id - right.id);
   }, [data.messages, olderMessages]);
   const hasMore = data.messageCount > messages.length;
+
+  useEffect(() => {
+    if (chatRevision > 0) queueMicrotask(() => setOlderMessages([]));
+  }, [chatRevision]);
 
   useEffect(() => {
     if (data.unreadMessages > 0)

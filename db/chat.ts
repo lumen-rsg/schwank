@@ -25,3 +25,20 @@ export async function readChatPage(user: AuthUser, before?: number) {
     hasMore,
   };
 }
+
+export async function readChatSnapshot(user: AuthUser) {
+  await ensureDatabase();
+  const [page, stats] = await Promise.all([
+    readChatPage(user),
+    env.DB.prepare(
+      'SELECT COUNT(*) AS messageCount,SUM(CASE WHEN id>COALESCE((SELECT last_read_message_id FROM chat_read_state WHERE user_id=?),0) THEN 1 ELSE 0 END) AS unreadMessages FROM messages',
+    )
+      .bind(user.id)
+      .first<{ messageCount: number; unreadMessages: number | null }>(),
+  ]);
+  return {
+    ...page,
+    messageCount: Number(stats?.messageCount ?? 0),
+    unreadMessages: Number(stats?.unreadMessages ?? 0),
+  };
+}

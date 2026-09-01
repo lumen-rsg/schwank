@@ -84,6 +84,7 @@ export default function HouseholdApp({
   const notificationTrigger = useRef<HTMLButtonElement>(null);
   const {
     data,
+    chatRevision,
     connectionState,
     enableNotifications,
     loading,
@@ -223,7 +224,12 @@ export default function HouseholdApp({
     ) : active === 'organisers' ? (
       <OrganisersView {...common} setActive={setActive} />
     ) : active === 'chat' ? (
-      <ChatView {...common} user={user} connectionState={connectionState} />
+      <ChatView
+        {...common}
+        user={user}
+        connectionState={connectionState}
+        chatRevision={chatRevision}
+      />
     ) : (
       <HomeView {...common} user={user} />
     );

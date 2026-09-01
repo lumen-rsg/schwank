@@ -1071,6 +1071,76 @@ void test(
     });
     assert.deepEqual(snoozedClaim.body.claimed, []);
 
+    const anonymousUpdates = await jsonRequest('/api/updates');
+    assert.equal(anonymousUpdates.response.status, 401);
+    const invalidUpdateCursor = await jsonRequest(
+      '/api/updates?after=invalid',
+      {
+        headers: { cookie: alice.cookie },
+      },
+    );
+    assert.equal(invalidUpdateCursor.response.status, 400);
+    const aliceUpdateBaseline = await jsonRequest('/api/updates', {
+      headers: { cookie: alice.cookie },
+    });
+    const bobUpdateBaseline = await jsonRequest('/api/updates', {
+      headers: { cookie: bob.cookie },
+    });
+    assert.deepEqual(aliceUpdateBaseline.body.scopes, []);
+    assert.deepEqual(bobUpdateBaseline.body.scopes, []);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'task',
+          title: 'Alice live private task',
+          tag: 'Live',
+          dueOn: '2030-01-02',
+          visibility: 'private',
+        })
+      ).response.status,
+      200,
+    );
+    const alicePrivateUpdate = await jsonRequest(
+      `/api/updates?after=${aliceUpdateBaseline.body.cursor}`,
+      { headers: { cookie: alice.cookie } },
+    );
+    const bobPrivateUpdate = await jsonRequest(
+      `/api/updates?after=${bobUpdateBaseline.body.cursor}`,
+      { headers: { cookie: bob.cookie } },
+    );
+    assert.deepEqual(alicePrivateUpdate.body.scopes, ['tasks']);
+    assert.deepEqual(bobPrivateUpdate.body.scopes, []);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'task',
+          title: 'Alice live shared task',
+          tag: 'Live',
+          dueOn: '2030-01-03',
+          visibility: 'shared',
+        })
+      ).response.status,
+      200,
+    );
+    const aliceSharedUpdate = await jsonRequest(
+      `/api/updates?after=${alicePrivateUpdate.body.cursor}`,
+      { headers: { cookie: alice.cookie } },
+    );
+    const bobSharedUpdate = await jsonRequest(
+      `/api/updates?after=${bobPrivateUpdate.body.cursor}`,
+      { headers: { cookie: bob.cookie } },
+    );
+    assert.deepEqual(aliceSharedUpdate.body.scopes, ['tasks']);
+    assert.deepEqual(bobSharedUpdate.body.scopes, ['tasks']);
+    const chatSnapshot = await jsonRequest('/api/chat', {
+      headers: { cookie: bob.cookie },
+    });
+    assert.equal(chatSnapshot.response.status, 200);
+    assert.equal(chatSnapshot.body.messageCount, 51);
+    assert.equal(chatSnapshot.body.messages.length, 50);
+    assert.equal(chatSnapshot.body.hasMore, true);
+    assert.equal(chatSnapshot.body.unreadMessages, 0);
+
     const sharedTask = bobData.tasks.find(
       (task) => task.title === 'Alice shared task',
     );
@@ -2133,7 +2203,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      17,
+      18,
     );
     repairedDatabase.close();
     await startServer(restoredState);

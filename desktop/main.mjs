@@ -6,6 +6,7 @@ import {
   nativeImage,
   Notification,
   session,
+  Tray,
 } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -15,6 +16,11 @@ import {
   isAllowedApplicationUrl,
   normalizeServerUrl,
 } from './server-url.mjs';
+import {
+  attentionLabel,
+  normalizeAttentionCount,
+  shouldHideWindowOnClose,
+} from './background-state.mjs';
 
 const rootDirectory = import.meta.dirname;
 const setupPath = join(rootDirectory, 'setup', 'index.html');
@@ -28,6 +34,8 @@ const cliServerUrl = process.argv
 
 let mainWindow = null;
 let serverUrl = null;
+let tray = null;
+let isQuitting = false;
 
 app.enableSandbox();
 
@@ -99,6 +107,40 @@ async function showApplication() {
   await mainWindow.loadURL(`${serverUrl}/`);
 }
 
+function showMainWindow() {
+  if (!mainWindow) {
+    void createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function installTray() {
+  const trayImage = nativeImage.createFromPath(iconPath).resize({
+    width: 20,
+    height: 20,
+  });
+  tray = new Tray(trayImage);
+  tray.setToolTip('schwank');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open schwank', click: showMainWindow },
+      { label: 'Server Settings…', click: () => void showSetup() },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on('click', showMainWindow);
+}
+
 function installIpcHandlers() {
   ipcMain.handle('desktop:get-state', (event) => {
     if (!isSetupSender(event) && !isRemoteSender(event))
@@ -158,6 +200,15 @@ function installIpcHandlers() {
     });
     notification.show();
     return true;
+  });
+
+  ipcMain.handle('desktop:set-badge', (event, value) => {
+    if (!isRemoteSender(event))
+      throw new Error('Untrusted badge update request.');
+    const count = normalizeAttentionCount(value);
+    tray?.setToolTip(attentionLabel(count));
+    app.setBadgeCount(count);
+    return count;
   });
 
   ipcMain.handle('desktop:open-settings', async (event) => {
@@ -243,6 +294,7 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      backgroundThrottling: false,
       webSecurity: true,
       allowRunningInsecureContent: false,
     },
@@ -264,6 +316,11 @@ async function createWindow() {
     event.preventDefault(),
   );
   mainWindow.once('ready-to-show', () => mainWindow?.show());
+  mainWindow.on('close', (event) => {
+    if (!shouldHideWindowOnClose(isQuitting)) return;
+    event.preventDefault();
+    mainWindow?.hide();
+  });
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -285,10 +342,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
+    showMainWindow();
   });
   void app.whenReady().then(async () => {
     app.setName('schwank');
@@ -301,12 +355,13 @@ if (!app.requestSingleInstanceLock()) {
     );
     installIpcHandlers();
     installMenu();
+    installTray();
     await createWindow();
   });
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+  app.on('before-quit', () => {
+    isQuitting = true;
   });
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+  app.on('activate', () => {
+    showMainWindow();
   });
 }

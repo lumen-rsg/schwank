@@ -12,7 +12,9 @@ Environment=NODE_ENV=production
 Environment=HOME=/home/orangepi
 Environment=PATH=/home/orangepi/.local/node-v22.14.0-linux-arm64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 ExecStart=/home/orangepi/.local/node-v22.14.0-linux-arm64/bin/npm start
-Restart=on-failure
+# Keep the household scheduler and live-update feed available after any
+# unexpected clean or failed process exit. Explicit systemctl stop is honored.
+Restart=always
 RestartSec=5
 
 # Keep the LAN service private and limit what a compromised process can change.

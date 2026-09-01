@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('schwankDesktop', {
   connect: (serverUrl) => ipcRenderer.invoke('desktop:connect', serverUrl),
   notify: (title, body, target) =>
     ipcRenderer.invoke('desktop:notify', title, body, target),
+  setBadge: (count) => ipcRenderer.invoke('desktop:set-badge', count),
   onNotificationClick: (callback) => {
     const listener = (_event, target) => callback(String(target || ''));
     ipcRenderer.on('desktop:notification-click', listener);

@@ -3,6 +3,11 @@ import runtimeMigrations from './runtime-migrations.json';
 
 type AppliedMigration = { id: string; hash: string };
 
+const maintenanceIntervalMilliseconds = 60_000;
+let migrationPromise: Promise<void> | null = null;
+let maintenancePromise: Promise<void> | null = null;
+let lastMaintenanceAt = 0;
+
 async function hasTable(name: string) {
   const row = await env.DB.prepare(
     "SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name=?",
@@ -134,9 +139,9 @@ async function applyRuntimeMigrations() {
   }
 }
 
-export async function ensureDatabase() {
+async function runMaintenance() {
   const db = env.DB;
-  await applyRuntimeMigrations();
+  const now = new Date();
   await db.batch([
     db.prepare(
       "UPDATE users SET role='owner' WHERE id=(SELECT id FROM users WHERE deleted_at IS NULL ORDER BY created_at,id LIMIT 1) AND NOT EXISTS (SELECT 1 FROM users WHERE role='owner' AND deleted_at IS NULL)",
@@ -145,21 +150,43 @@ export async function ensureDatabase() {
       .prepare(
         "INSERT OR IGNORE INTO household_settings (id,name,address,updated_at) VALUES (1,'Our home','',?)",
       )
-      .bind(new Date().toISOString()),
+      .bind(now.toISOString()),
     db
       .prepare('DELETE FROM sessions WHERE expires_at <= ?')
-      .bind(new Date().toISOString()),
+      .bind(now.toISOString()),
     db
       .prepare(
         'DELETE FROM auth_rate_limits WHERE COALESCE(blocked_until,window_started_at) < ?',
       )
-      .bind(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+      .bind(new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
     db
       .prepare('DELETE FROM messages WHERE created_at < ?')
-      .bind(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()),
+      .bind(new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()),
     db
       .prepare('DELETE FROM notification_states WHERE updated_at < ?')
-      .bind(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+      .bind(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+    db
+      .prepare('DELETE FROM live_update_events WHERE created_at < ?')
+      .bind(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()),
   ]);
   await db.prepare('PRAGMA optimize').run();
+}
+
+export async function ensureDatabase() {
+  if (!migrationPromise)
+    migrationPromise = applyRuntimeMigrations().catch((error) => {
+      migrationPromise = null;
+      throw error;
+    });
+  await migrationPromise;
+  if (Date.now() - lastMaintenanceAt < maintenanceIntervalMilliseconds) return;
+  if (!maintenancePromise)
+    maintenancePromise = runMaintenance()
+      .then(() => {
+        lastMaintenanceAt = Date.now();
+      })
+      .finally(() => {
+        maintenancePromise = null;
+      });
+  await maintenancePromise;
 }

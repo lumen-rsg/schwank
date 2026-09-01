@@ -185,5 +185,14 @@
       "CREATE UNIQUE INDEX `idx_notification_states_user_event` ON `notification_states` (`user_id`,`event_key`);",
       "CREATE INDEX `idx_notification_states_user_updated` ON `notification_states` (`user_id`,`updated_at`);"
     ]
+  },
+  {
+    "id": "0017_orange_white_tiger",
+    "hash": "2817f9689d61456012021a1c3e69652744b8754cb0f02357ebbb78e305b29933",
+    "statements": [
+      "CREATE TABLE `live_update_events` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`audience_user_id` integer,\n\t`scope` text NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_live_update_events_audience_id` ON `live_update_events` (`audience_user_id`,`id`);",
+      "CREATE INDEX `idx_live_update_events_created` ON `live_update_events` (`created_at`);"
+    ]
   }
 ]

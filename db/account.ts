@@ -211,6 +211,9 @@ export async function deleteAccount(user: AuthUser, input: unknown) {
     ].map((table) =>
       env.DB.prepare(`DELETE FROM ${table} WHERE user_id=?`).bind(user.id),
     ),
+    env.DB.prepare(
+      'DELETE FROM live_update_events WHERE audience_user_id=?',
+    ).bind(user.id),
   ];
   if (finalAccount) {
     statements.push(
@@ -219,6 +222,7 @@ export async function deleteAccount(user: AuthUser, input: unknown) {
       env.DB.prepare('DELETE FROM recipe_ingredients'),
       env.DB.prepare('DELETE FROM recipes'),
       env.DB.prepare('DELETE FROM food_items'),
+      env.DB.prepare('DELETE FROM live_update_events'),
       env.DB.prepare(
         "UPDATE household_settings SET name='Our home',address='',photo_data=NULL,updated_at=?,updated_by=NULL,registration_open=0,invite_code_hash=NULL,invite_expires_at=NULL WHERE id=1",
       ).bind(now),

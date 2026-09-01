@@ -20,6 +20,10 @@ lets an atomic replacement of `dist` start without pre-creating transient
 directories. Persistent D1 data lives in the separate top-level
 `.wrangler/state` path and is never part of the swap.
 
+The service uses `Restart=always` so the notification scheduler and live-update
+feed return after either an unexpected clean exit or a failure. An explicit
+`systemctl stop schwank` remains stopped as normal.
+
 Useful checks:
 
 ```sh

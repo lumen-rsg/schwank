@@ -54,7 +54,7 @@ The interface supports English and Russian, with the preference saved in the bro
 
 The medication tracker is private by default and supports explicit household sharing, editable daily schedules and treatment dates, optional dose-supply and refill thresholds, pausing, deletion, dose undo, and a private 14-day adherence summary backed by 90 days of recorded history. It records schedules and user actions only; it does not diagnose or recommend treatment. General reminders follow the same privacy rule. The notification bell combines due medication doses, low refill supply, reminders, dated Kanban tasks, and payments due within three days. Electron uses native operating-system notifications while the app is in the background; secure browser contexts can opt into browser notifications, and the in-app bell remains available on plain LAN HTTP. Native alerts for private records use generic text so medication, task, and payment details are not exposed on a lock screen.
 
-The household wishlist is always shared. Any member can suggest a purchase with an optional description and estimated price, cast one vote for or against it, change or withdraw that vote, and see how everyone voted. The person who suggested an item can mark it bought, return it to voting, or archive it.
+The household wishlist is always shared. Any member can suggest a purchase with an optional description and estimated price, cast one vote for or against it, change or withdraw that vote, and see how everyone voted. Ideas can be sorted by support, recency, or price. The person who suggested an item can edit it, mark it bought, archive it, or return it to voting; archived ideas remain in household history.
 
 ## Local development
 

@@ -1,0 +1,1 @@
+ALTER TABLE `purchase_ideas` ADD `updated_at` text;

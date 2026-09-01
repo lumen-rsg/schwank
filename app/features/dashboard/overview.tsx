@@ -8,6 +8,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
+import { dateKey } from '../../client/dates';
 import { formatDate, money } from '../../client/format';
 import {
   Avatar,
@@ -19,6 +20,7 @@ import type { Language } from '../../i18n';
 import type { NutritionTotals } from '../nutrition/nutrition-calculations';
 import { Macro } from '../nutrition/nutrition-view';
 import type { Data, Post, T } from '../types';
+import { overviewGroceries, overviewTasks } from './overview-calculations';
 
 export function Overview({
   data,
@@ -40,12 +42,9 @@ export function Overview({
   language: Language;
   post: Post;
 }) {
-  const recent = data.tasks
-    .filter((task) => task.status !== 'done')
-    .slice(0, 4);
-  const groceries = data.organisers
-    .filter((item) => item.list === 'Groceries' && !item.done)
-    .slice(0, 4);
+  const today = dateKey(new Date());
+  const taskSummary = overviewTasks(data.tasks, today);
+  const grocerySummary = overviewGroceries(data.organisers);
   const done = data.tasks.filter((task) => task.status === 'done').length;
   return (
     <>
@@ -173,25 +172,38 @@ export function Overview({
           <div className="panel-heading">
             <div>
               <h2>{t('upNext')}</h2>
-              <span>{t('activeTasks', { count: recent.length })}</span>
+              <span>
+                {t('activeTasks', { count: taskSummary.active.length })}
+                {taskSummary.overdueCount > 0 &&
+                  ` · ${t('overdueTasks', { count: taskSummary.overdueCount })}`}
+              </span>
             </div>
             <button className="link-button" onClick={() => setActive('tasks')}>
               {t('viewBoard')} <ArrowRight size={15} />
             </button>
           </div>
           <div className="task-list">
-            {recent.length ? (
-              recent.map((task) => (
-                <div className="task-row" key={task.id}>
+            {taskSummary.preview.length ? (
+              taskSummary.preview.map((task) => (
+                <button
+                  type="button"
+                  className="task-row overview-action-row"
+                  key={task.id}
+                  onClick={() => setActive('tasks')}
+                >
                   <span className="check" />
                   <div className="task-copy">
                     <strong>{task.title}</strong>
                     <span>
-                      {task.dueOn ? formatDate(task.dueOn, language) : task.due}
+                      {task.dueOn && task.dueOn < today
+                        ? `${t('overdue')} · ${formatDate(task.dueOn, language)}`
+                        : task.dueOn
+                          ? formatDate(task.dueOn, language)
+                          : task.due}
                     </span>
                   </div>
                   <PrivacyBadge visibility={task.visibility} t={t} />
-                </div>
+                </button>
               ))
             ) : (
               <Empty>{t('noTasks')}</Empty>
@@ -203,15 +215,25 @@ export function Overview({
             <div className="panel-heading">
               <div>
                 <h2>{t('groceryList')}</h2>
-                <span>{t('visibleItems', { count: groceries.length })}</span>
+                <span>
+                  {t('visibleItems', { count: grocerySummary.active.length })}
+                </span>
               </div>
               <span className="tinted-icon peach">
                 <ShoppingBasket size={18} />
               </span>
             </div>
             <div className="grocery-list">
-              {groceries.length ? (
-                groceries.map((item) => <span key={item.id}>{item.label}</span>)
+              {grocerySummary.preview.length ? (
+                grocerySummary.preview.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => setActive('organisers')}
+                  >
+                    {item.label}
+                  </button>
+                ))
               ) : (
                 <Empty>{t('noGroceries')}</Empty>
               )}

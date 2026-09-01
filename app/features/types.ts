@@ -118,8 +118,9 @@ export type PurchaseIdea = {
   title: string;
   description: string;
   estimatedCost: number | null;
-  status: 'open' | 'bought';
+  status: 'open' | 'bought' | 'archived';
   createdAt: string;
+  updatedAt: string;
   owned: boolean | number;
   createdByName: string;
   initials: string;

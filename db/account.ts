@@ -95,7 +95,7 @@ export async function exportAccountData(user: AuthUser) {
       user.id,
     ),
     userRows(
-      'SELECT id,title,description,estimated_cost AS estimatedCost,status,created_at AS createdAt FROM purchase_ideas WHERE user_id=? ORDER BY id',
+      'SELECT id,title,description,estimated_cost AS estimatedCost,status,created_at AS createdAt,COALESCE(updated_at,created_at) AS updatedAt FROM purchase_ideas WHERE user_id=? ORDER BY id',
       user.id,
     ),
     userRows(

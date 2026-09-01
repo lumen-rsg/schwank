@@ -277,6 +277,7 @@ export const purchaseIdeas = sqliteTable(
     estimatedCost: real('estimated_cost'),
     status: text('status').notNull().default('open'),
     createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at'),
   },
   (table) => [
     index('idx_purchase_ideas_status_created').on(

@@ -261,6 +261,19 @@
   align-items: center;
   border-top: 1px solid #eeeae2;
 }
+.overview-action-row {
+  width: 100%;
+  padding: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.overview-action-row:hover {
+  background: #fbf9f4;
+}
 .check {
   width: 17px;
   height: 17px;
@@ -316,12 +329,17 @@
   gap: 7px;
   margin-top: 16px;
 }
-.grocery-list span {
+.grocery-list span,
+.grocery-list button {
   padding: 6px 9px;
+  border: 0;
   border-radius: 8px;
   background: #f1efe9;
   color: #666961;
   font-size: 9px;
+}
+.grocery-list button:hover {
+  background: #e9e5dc;
 }
 .grocery-list .more-pill {
   background: #fbe9df;

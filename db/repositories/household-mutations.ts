@@ -631,18 +631,43 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     const description = cleanText(body.description, 800);
     const estimatedCost = cleanNumber(body.estimatedCost);
     if (!title) throw new DataError('Purchase idea name is required.');
+    const now = new Date().toISOString();
     return db
       .prepare(
-        "INSERT INTO purchase_ideas (user_id,title,description,estimated_cost,status,created_at) VALUES (?,?,?,?, 'open',?)",
+        "INSERT INTO purchase_ideas (user_id,title,description,estimated_cost,status,created_at,updated_at) VALUES (?,?,?,?, 'open',?,?)",
       )
       .bind(
         userId,
         title,
         description,
         estimatedCost > 0 ? estimatedCost : null,
-        new Date().toISOString(),
+        now,
+        now,
       )
       .run();
+  }
+  if (body.type === 'purchase-idea-update') {
+    const ideaId = cleanNumber(body.id);
+    const title = cleanText(body.title, 100);
+    const description = cleanText(body.description, 800);
+    const estimatedCost = cleanNumber(body.estimatedCost);
+    if (!title) throw new DataError('Purchase idea name is required.');
+    const result = await db
+      .prepare(
+        'UPDATE purchase_ideas SET title=?,description=?,estimated_cost=?,updated_at=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        title,
+        description,
+        estimatedCost > 0 ? estimatedCost : null,
+        new Date().toISOString(),
+        ideaId,
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That purchase idea cannot be changed.', 403);
+    return result;
   }
   if (body.type === 'purchase-vote') {
     const ideaId = cleanNumber(body.id);
@@ -673,8 +698,10 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       : null;
     if (!status) throw new DataError('Choose a valid purchase status.');
     const result = await db
-      .prepare('UPDATE purchase_ideas SET status=? WHERE id=? AND user_id=?')
-      .bind(status, cleanNumber(body.id), userId)
+      .prepare(
+        'UPDATE purchase_ideas SET status=?,updated_at=? WHERE id=? AND user_id=?',
+      )
+      .bind(status, new Date().toISOString(), cleanNumber(body.id), userId)
       .run();
     if (!result.meta.changes)
       throw new DataError('That purchase idea cannot be changed.', 403);

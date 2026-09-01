@@ -925,6 +925,13 @@ void test(
         occurredOn: today,
       },
       { type: 'habit-remove', id: publicHabit.id },
+      {
+        type: 'purchase-idea-update',
+        id: publicIdea.id,
+        title: 'Bob cannot edit this idea',
+        description: 'Synthetic test record',
+        estimatedCost: 2_000,
+      },
       { type: 'purchase-status', id: publicIdea.id, status: 'bought' },
     ];
     for (const mutation of forbiddenMutations) {
@@ -1419,6 +1426,54 @@ void test(
       ),
       true,
     );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'purchase-idea-update',
+          id: publicIdea.id,
+          title: 'Edited household purchase idea',
+          description: 'Corrected by its author',
+          estimatedCost: 1_250,
+        })
+      ).response.status,
+      200,
+    );
+    const editedIdea = (await household(bob.cookie)).purchaseIdeas.find(
+      (idea) => idea.id === publicIdea.id,
+    );
+    assert.equal(editedIdea.title, 'Edited household purchase idea');
+    assert.equal(Number(editedIdea.estimatedCost), 1_250);
+    assert.ok(editedIdea.updatedAt);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'purchase-status',
+          id: publicIdea.id,
+          status: 'archived',
+        })
+      ).response.status,
+      200,
+    );
+    const archivedData = await household(bob.cookie);
+    assert.equal(
+      archivedData.purchaseIdeas.find((idea) => idea.id === publicIdea.id)
+        .status,
+      'archived',
+    );
+    assert.equal(
+      archivedData.purchaseVotes.some((vote) => vote.ideaId === publicIdea.id),
+      true,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'purchase-status',
+          id: publicIdea.id,
+          status: 'open',
+        })
+      ).response.status,
+      200,
+    );
 
     const sessionInventory = await jsonRequest('/api/account/sessions', {
       headers: { cookie: loginCookie },
@@ -1619,7 +1674,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      13,
+      14,
     );
     repairedDatabase.close();
     await startServer(restoredState);

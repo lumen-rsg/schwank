@@ -153,5 +153,10 @@
       "ALTER TABLE `medications` ADD `supply_remaining` integer;",
       "ALTER TABLE `medications` ADD `refill_threshold` integer;"
     ]
+  },
+  {
+    "id": "0013_milky_mattie_franklin",
+    "hash": "59fa378cbf70fa91165c22ab4512786eacfd007e781643cdfb8b9ed9f4ecd820",
+    "statements": ["ALTER TABLE `purchase_ideas` ADD `updated_at` text;"]
   }
 ]

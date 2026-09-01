@@ -113,13 +113,13 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        "SELECT p.id,p.title,p.description,p.estimated_cost AS estimatedCost,p.status,p.created_at AS createdAt,(p.user_id=?) AS owned,u.display_name AS createdByName,u.initials,u.color,u.avatar_data AS avatar FROM purchase_ideas p JOIN users u ON u.id=p.user_id WHERE p.status!='archived' ORDER BY CASE p.status WHEN 'open' THEN 0 ELSE 1 END,p.id DESC",
+        "SELECT p.id,p.title,p.description,p.estimated_cost AS estimatedCost,p.status,p.created_at AS createdAt,COALESCE(p.updated_at,p.created_at) AS updatedAt,(p.user_id=?) AS owned,u.display_name AS createdByName,u.initials,u.color,u.avatar_data AS avatar FROM purchase_ideas p JOIN users u ON u.id=p.user_id ORDER BY CASE p.status WHEN 'open' THEN 0 WHEN 'bought' THEN 1 ELSE 2 END,COALESCE(p.updated_at,p.created_at) DESC,p.id DESC",
       )
       .bind(user.id)
       .all(),
     db
       .prepare(
-        "SELECT v.id,v.idea_id AS ideaId,v.vote,v.updated_at AS updatedAt,(v.user_id=?) AS mine,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM purchase_votes v JOIN purchase_ideas p ON p.id=v.idea_id JOIN users u ON u.id=v.user_id WHERE p.status!='archived' ORDER BY v.updated_at,v.id",
+        'SELECT v.id,v.idea_id AS ideaId,v.vote,v.updated_at AS updatedAt,(v.user_id=?) AS mine,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM purchase_votes v JOIN users u ON u.id=v.user_id ORDER BY v.updated_at,v.id',
       )
       .bind(user.id)
       .all(),

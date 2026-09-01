@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Archive,
   Check,
   CircleDollarSign,
+  Edit3,
   Gift,
   PackageCheck,
   Plus,
@@ -12,12 +14,18 @@ import {
   ThumbsUp,
   Users,
 } from 'lucide-react';
-import { money } from '../../client/format';
+import { formatDate, money } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import { Avatar, Empty, PageTitle } from '../../components/app-ui';
 import type { Language } from '../../i18n';
 import type { Data, Post, PurchaseIdea, PurchaseVote, T } from '../types';
+import {
+  sortWishlistIdeas,
+  wishlistSummary,
+  wishlistVoteScore,
+  type WishlistSort,
+} from './wishlist-calculations';
 
 export function WishlistView({
   data,
@@ -30,15 +38,32 @@ export function WishlistView({
   t: T;
   language: Language;
 }) {
-  const openIdeas = data.purchaseIdeas.filter((idea) => idea.status === 'open');
-  const boughtIdeas = data.purchaseIdeas.filter(
-    (idea) => idea.status === 'bought',
+  const [sort, setSort] = useState<WishlistSort>('support');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const summary = wishlistSummary(data.purchaseIdeas, data.purchaseVotes);
+  const sortedIdeas = sortWishlistIdeas(
+    data.purchaseIdeas,
+    data.purchaseVotes,
+    sort,
   );
-  const estimatedOpenCost = openIdeas.reduce(
-    (sum, idea) => sum + Number(idea.estimatedCost || 0),
-    0,
+  const openIdeas = sortedIdeas.filter((idea) => idea.status === 'open');
+  const boughtIdeas = sortedIdeas.filter((idea) => idea.status === 'bought');
+  const archivedIdeas = sortedIdeas.filter(
+    (idea) => idea.status === 'archived',
   );
-  const totalVotes = data.purchaseVotes.length;
+  const cards = (ideas: PurchaseIdea[]) =>
+    ideas.map((idea) => (
+      <PurchaseIdeaCard
+        key={idea.id}
+        idea={idea}
+        votes={data.purchaseVotes.filter((vote) => vote.ideaId === idea.id)}
+        editing={editingId === idea.id}
+        setEditing={(editing) => setEditingId(editing ? idea.id : null)}
+        post={post}
+        t={t}
+        language={language}
+      />
+    ));
   return (
     <>
       <PageTitle
@@ -52,7 +77,7 @@ export function WishlistView({
             <Gift size={19} />
           </span>
           <div>
-            <strong>{openIdeas.length}</strong>
+            <strong>{summary.openCount}</strong>
             <span>{t('openIdeas')}</span>
           </div>
         </article>
@@ -61,7 +86,7 @@ export function WishlistView({
             <CircleDollarSign size={19} />
           </span>
           <div>
-            <strong>{money(estimatedOpenCost, language)}</strong>
+            <strong>{money(summary.estimatedOpenCost, language)}</strong>
             <span>{t('estimatedWishlistCost')}</span>
           </div>
         </article>
@@ -70,7 +95,7 @@ export function WishlistView({
             <ThumbsUp size={19} />
           </span>
           <div>
-            <strong>{totalVotes}</strong>
+            <strong>{summary.openVoteCount}</strong>
             <span>{t('householdVotes')}</span>
           </div>
         </article>
@@ -118,20 +143,25 @@ export function WishlistView({
           </button>
         </form>
       </article>
+      <div className="wishlist-toolbar">
+        <span>{t('wishlistResults', { count: openIdeas.length })}</span>
+        <label>
+          <span>{t('sortWishlist')}</span>
+          <select
+            aria-label={t('sortWishlist')}
+            value={sort}
+            onChange={(event) => setSort(event.target.value as WishlistSort)}
+          >
+            <option value="support">{t('mostSupported')}</option>
+            <option value="newest">{t('newestFirst')}</option>
+            <option value="cost-asc">{t('lowestCost')}</option>
+            <option value="cost-desc">{t('highestCost')}</option>
+          </select>
+        </label>
+      </div>
       <div className="wishlist-card-grid">
         {openIdeas.length ? (
-          openIdeas.map((idea) => (
-            <PurchaseIdeaCard
-              key={idea.id}
-              idea={idea}
-              votes={data.purchaseVotes.filter(
-                (vote) => vote.ideaId === idea.id,
-              )}
-              post={post}
-              t={t}
-              language={language}
-            />
-          ))
+          cards(openIdeas)
         ) : (
           <article className="panel">
             <Empty>{t('noPurchaseIdeas')}</Empty>
@@ -147,21 +177,23 @@ export function WishlistView({
             </div>
             <PackageCheck size={19} />
           </div>
-          <div className="wishlist-card-grid">
-            {boughtIdeas.map((idea) => (
-              <PurchaseIdeaCard
-                key={idea.id}
-                idea={idea}
-                votes={data.purchaseVotes.filter(
-                  (vote) => vote.ideaId === idea.id,
-                )}
-                post={post}
-                t={t}
-                language={language}
-              />
-            ))}
-          </div>
+          <div className="wishlist-card-grid">{cards(boughtIdeas)}</div>
         </section>
+      )}
+      {archivedIdeas.length > 0 && (
+        <details className="panel wishlist-archive">
+          <summary>
+            <span>
+              <Archive size={17} />
+              {t('wishlistArchive')}
+            </span>
+            <span>
+              {t('archivedIdeasCount', { count: archivedIdeas.length })}
+            </span>
+          </summary>
+          <p>{t('wishlistArchiveCopy')}</p>
+          <div className="wishlist-card-grid">{cards(archivedIdeas)}</div>
+        </details>
       )}
     </>
   );
@@ -170,12 +202,16 @@ export function WishlistView({
 function PurchaseIdeaCard({
   idea,
   votes,
+  editing,
+  setEditing,
   post,
   t,
   language,
 }: {
   idea: PurchaseIdea;
   votes: PurchaseVote[];
+  editing: boolean;
+  setEditing: (editing: boolean) => void;
   post: Post;
   t: T;
   language: Language;
@@ -183,25 +219,74 @@ function PurchaseIdeaCard({
   const yesVotes = votes.filter((vote) => vote.vote === 1);
   const noVotes = votes.filter((vote) => vote.vote === -1);
   const myVote = votes.find((vote) => vote.mine)?.vote || 0;
-  const score = yesVotes.length - noVotes.length;
+  const score = wishlistVoteScore(idea.id, votes);
   return (
-    <article
-      className={`panel wishlist-card${idea.status === 'bought' ? ' bought' : ''}`}
-    >
+    <article className={`panel wishlist-card ${idea.status}`}>
       <header>
         <Avatar person={idea} />
         <div>
           <span>{t('suggestedBy', { name: idea.createdByName })}</span>
           <h2>{idea.title}</h2>
         </div>
-        {idea.status === 'bought' && (
+        {idea.status !== 'open' && (
           <span className="purchase-bought-badge">
-            <Check size={12} />
-            {t('bought')}
+            {idea.status === 'bought' ? (
+              <Check size={12} />
+            ) : (
+              <Archive size={12} />
+            )}
+            {t(idea.status === 'bought' ? 'bought' : 'archived')}
           </span>
         )}
       </header>
-      {idea.description && <p>{idea.description}</p>}
+      {editing ? (
+        <form
+          className="wishlist-edit-form"
+          onSubmit={async (event) => {
+            const saved = await submitForm(
+              event,
+              post,
+              'purchase-idea-update',
+              { id: String(idea.id) },
+            );
+            if (saved) setEditing(false);
+          }}
+        >
+          <Field name="title" label={t('itemName')} defaultValue={idea.title} />
+          <label className="form-field">
+            <span>{t('estimatedCostOptional')}</span>
+            <input
+              name="estimatedCost"
+              type="number"
+              min="0"
+              step="any"
+              defaultValue={idea.estimatedCost ?? ''}
+            />
+          </label>
+          <label className="form-field full-width">
+            <span>{t('whyBuyIt')}</span>
+            <textarea
+              name="description"
+              maxLength={800}
+              defaultValue={idea.description}
+            />
+          </label>
+          <div className="inline-form-actions full-width">
+            <button className="primary-button compact-button">
+              {t('save')}
+            </button>
+            <button
+              type="button"
+              className="secondary-button compact-button"
+              onClick={() => setEditing(false)}
+            >
+              {t('cancel')}
+            </button>
+          </div>
+        </form>
+      ) : (
+        idea.description && <p>{idea.description}</p>
+      )}
       <div className="wishlist-cost-score">
         <span>
           {idea.estimatedCost
@@ -213,6 +298,11 @@ function PurchaseIdeaCard({
           {score} {t('voteScore')}
         </strong>
       </div>
+      <span className="wishlist-updated">
+        {t('wishlistUpdated', {
+          date: formatDate(idea.updatedAt.slice(0, 10), language),
+        })}
+      </span>
       <div className="vote-breakdown">
         <div>
           <span>
@@ -246,6 +336,7 @@ function PurchaseIdeaCard({
           <button
             type="button"
             className={myVote === 1 ? 'active yes' : ''}
+            aria-pressed={myVote === 1}
             onClick={() =>
               void post({
                 type: 'purchase-vote',
@@ -260,6 +351,7 @@ function PurchaseIdeaCard({
           <button
             type="button"
             className={myVote === -1 ? 'active no' : ''}
+            aria-pressed={myVote === -1}
             onClick={() =>
               void post({
                 type: 'purchase-vote',
@@ -273,8 +365,21 @@ function PurchaseIdeaCard({
           </button>
         </div>
       )}
+      {idea.status === 'open' && myVote !== 0 && (
+        <output className="my-vote-status">
+          {t(myVote === 1 ? 'yourVoteFor' : 'yourVoteAgainst')}
+        </output>
+      )}
       {idea.owned && (
         <footer>
+          <button
+            type="button"
+            className="secondary-button compact-button"
+            onClick={() => setEditing(!editing)}
+          >
+            <Edit3 size={14} />
+            {editing ? t('cancel') : t('editIdea')}
+          </button>
           <button
             type="button"
             className="secondary-button compact-button"
@@ -293,20 +398,22 @@ function PurchaseIdeaCard({
             )}
             {idea.status === 'open' ? t('markBought') : t('moveBackToVoting')}
           </button>
-          <button
-            type="button"
-            className="secondary-button compact-button"
-            onClick={() =>
-              void post({
-                type: 'purchase-status',
-                id: idea.id,
-                status: 'archived',
-              })
-            }
-          >
-            <Archive size={14} />
-            {t('archiveIdea')}
-          </button>
+          {idea.status !== 'archived' && (
+            <button
+              type="button"
+              className="secondary-button compact-button"
+              onClick={() =>
+                void post({
+                  type: 'purchase-status',
+                  id: idea.id,
+                  status: 'archived',
+                })
+              }
+            >
+              <Archive size={14} />
+              {t('archiveIdea')}
+            </button>
+          )}
         </footer>
       )}
     </article>

@@ -4091,6 +4091,17 @@ select {
   color: #577052;
   font-size: 9px;
 }
+@media (max-width: 680px) {
+  .password-form {
+    grid-template-columns: 1fr;
+  }
+  .account-security-card .primary-button,
+  .enrollment-card .primary-button {
+    width: auto;
+    padding: 0 15px;
+    font-size: 10px;
+  }
+}
 .enrollment-icon {
   width: 37px;
   height: 37px;

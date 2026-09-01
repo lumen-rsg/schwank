@@ -636,14 +636,14 @@ export function WeeklyMealPlanner({
                   <strong>{item.name}</strong>
                   <small>
                     {t('totalNeeded')}:{' '}
-                    {formatFoodQuantity(item.needed, item.unit, t)} ·{' '}
+                    {formatFoodQuantity(item.needed, item.unit, t, language)} ·{' '}
                     {t('atHome')}:{' '}
-                    {formatFoodQuantity(item.available, item.unit, t)}
+                    {formatFoodQuantity(item.available, item.unit, t, language)}
                   </small>
                 </div>
                 <b>
                   {item.buy > 0
-                    ? `${t('buy')}: ${formatFoodQuantity(item.buy, item.unit, t)}`
+                    ? `${t('buy')}: ${formatFoodQuantity(item.buy, item.unit, t, language)}`
                     : t('inStock')}
                 </b>
               </div>

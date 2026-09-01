@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type SubmitEvent } from 'react';
 import { Download, KeyRound, Monitor, ShieldCheck, Trash2 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
 import { requestApiJson, requestApiResponse } from '../../client/api';
+import { formatLongDateTime } from '../../client/format';
 import { Field } from '../../components/app-field';
 import type { Language } from '../../i18n';
 import type { T } from '../types';
@@ -166,10 +167,7 @@ export function AccountSecurityCard({
               </strong>
               <small>
                 {t('signedInAt', {
-                  date: new Intl.DateTimeFormat(language, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  }).format(new Date(session.createdAt)),
+                  date: formatLongDateTime(session.createdAt, language),
                 })}
               </small>
             </span>
@@ -389,10 +387,7 @@ export function EnrollmentCard({ t, language }: { t: T; language: Language }) {
         <strong>
           {settings?.registrationOpen && settings.inviteExpiresAt
             ? t('enrollmentOpen', {
-                date: new Intl.DateTimeFormat(language, {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                }).format(new Date(settings.inviteExpiresAt)),
+                date: formatLongDateTime(settings.inviteExpiresAt, language),
               })
             : t('enrollmentClosed')}
         </strong>

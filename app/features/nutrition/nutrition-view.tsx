@@ -61,7 +61,11 @@ export function Macro({
       <b>
         {value} / {goal}g
       </b>
-      <progress value={value} max={goal} />
+      <progress
+        value={value}
+        max={goal}
+        aria-label={`${name}: ${value} / ${goal} g`}
+      />
     </div>
   );
 }
@@ -80,7 +84,11 @@ function MacroCard({
     <div>
       <span>{label}</span>
       <strong>{value}g</strong>
-      <progress value={value} max={goal} />
+      <progress
+        value={value}
+        max={goal}
+        aria-label={`${label}: ${value} / ${goal} g`}
+      />
       <small>{t('goal', { count: goal })}</small>
     </div>
   );
@@ -164,6 +172,15 @@ export function NutritionView({
                     })}
                   </small>
                 </span>
+                <progress
+                  className="sr-only"
+                  value={Math.min(totals.calories, user.calorieGoal)}
+                  max={user.calorieGoal}
+                  aria-label={t('calorieProgress', {
+                    current: totals.calories,
+                    goal: user.calorieGoal,
+                  })}
+                />
               </div>
               <div className="macro-cards">
                 <MacroCard

@@ -1,5 +1,6 @@
 import { dateKey } from '../../client/dates';
-import type { CopyKey } from '../../i18n';
+import { quantity } from '../../client/format';
+import type { CopyKey, Language } from '../../i18n';
 import type {
   AiProgressStage,
   FoodItem,
@@ -73,8 +74,13 @@ export const normalizedFoodName = (value: string) =>
   value.normalize('NFKC').trim().toLocaleLowerCase('en').replace(/\s+/g, ' ');
 export const foodStep = (unit: FoodUnit) =>
   unit === 'pcs' ? 1 : unit === 'kg' || unit === 'l' ? 0.1 : 100;
-export function formatFoodQuantity(value: number, unit: FoodUnit, t: T) {
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value)} ${unit === 'pcs' ? t('pieces') : unit}`;
+export function formatFoodQuantity(
+  value: number,
+  unit: FoodUnit,
+  t: T,
+  language: Language,
+) {
+  return `${quantity(value, language)} ${unit === 'pcs' ? t('pieces') : unit}`;
 }
 export function recipeAvailability(
   recipe: Recipe,

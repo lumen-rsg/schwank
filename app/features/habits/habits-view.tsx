@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { Cigarette, CircleDollarSign, Plus, Users, Wine } from 'lucide-react';
 import { dateKey, recentDates } from '../../client/dates';
-import { money } from '../../client/format';
+import { formatDate, money } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import { Avatar, Empty, PageTitle } from '../../components/app-ui';
@@ -14,10 +14,12 @@ function HabitHeatmap({
   habit,
   items,
   t,
+  language,
 }: {
   habit: HabitKind;
   items: HabitEntry[];
   t: T;
+  language: Language;
 }) {
   const dates = useMemo(() => recentDates(84), []);
   const totals = items
@@ -45,7 +47,14 @@ function HabitHeatmap({
         </div>
       </div>
       <div className="heatmap-scroll">
-        <div className="habit-heatmap">
+        <figure className="habit-heatmap">
+          <figcaption className="sr-only">
+            {t('habitHeatmapSummary', {
+              habit: t(habit),
+              days: daysClear,
+              occurrences,
+            })}
+          </figcaption>
           {dates.map((date) => {
             const key = dateKey(date);
             const value = totals[key] || 0;
@@ -55,14 +64,14 @@ function HabitHeatmap({
               <span
                 key={key}
                 className={`heat-cell level-${level}`}
-                title={`${key}: ${value}`}
-                aria-label={`${key}: ${value}`}
+                title={`${formatDate(key, language)}: ${value}`}
+                aria-hidden="true"
               />
             );
           })}
-        </div>
+        </figure>
       </div>
-      <div className="heatmap-legend">
+      <div className="heatmap-legend" aria-hidden="true">
         <span>{t('noUseLogged')}</span>
         <i className="level-0" />
         <i className="level-1" />
@@ -118,8 +127,18 @@ export function HabitsView({
       />
       <div className="habit-layout">
         <div className="habit-heatmaps">
-          <HabitHeatmap habit="vaping" items={data.habits} t={t} />
-          <HabitHeatmap habit="alcohol" items={data.habits} t={t} />
+          <HabitHeatmap
+            habit="vaping"
+            items={data.habits}
+            t={t}
+            language={language}
+          />
+          <HabitHeatmap
+            habit="alcohol"
+            items={data.habits}
+            t={t}
+            language={language}
+          />
         </div>
         <article className="panel entry-panel habit-entry">
           <h2>{t('logHabit')}</h2>
@@ -208,7 +227,7 @@ export function HabitsView({
                     <strong>
                       {item.name} · {t(item.habit)}
                     </strong>
-                    <span>{item.occurredOn}</span>
+                    <span>{formatDate(item.occurredOn, language)}</span>
                   </div>
                   <b>
                     {t('habitRecord', {

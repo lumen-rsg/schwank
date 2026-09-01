@@ -12,7 +12,7 @@ import {
   Plus,
   WalletCards,
 } from 'lucide-react';
-import { formatMoneyDate, money, percentage } from '../../client/format';
+import { formatDate, money, percentage } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
@@ -391,7 +391,7 @@ export function SpendingView({
                     <span>
                       <CalendarClock size={14} />
                       {overdue ? t('overdue') : t('nextDue')}:{' '}
-                      {formatMoneyDate(payment.nextDueOn, language)}
+                      {formatDate(payment.nextDueOn, language)}
                     </span>
                     {payment.remainingAmount !== null && (
                       <span>
@@ -494,7 +494,7 @@ export function SpendingView({
                   <strong>{item.label}</strong>
                   <small>
                     {expenseCategoryLabel(item.category, t)} ·{' '}
-                    {formatMoneyDate(item.spentOn, language)}
+                    {formatDate(item.spentOn, language)}
                     {!item.owned ? ` · ${t('sharedHousemate')}` : ''}
                   </small>
                 </div>

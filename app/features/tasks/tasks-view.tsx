@@ -1,8 +1,9 @@
 'use client';
 
 import { ArrowRight, Plus } from 'lucide-react';
+import { useState } from 'react';
 import { dateKey } from '../../client/dates';
-import { formatMoneyDate } from '../../client/format';
+import { formatDate } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
@@ -24,6 +25,12 @@ export function TasksView({
   t: T;
   language: Language;
 }) {
+  const [lastMove, setLastMove] = useState<{
+    id: number;
+    title: string;
+    from: string;
+    to: string;
+  } | null>(null);
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const columns = [
@@ -60,6 +67,35 @@ export function TasksView({
           {t('addTask')}
         </button>
       </form>
+      {lastMove && (
+        <output className="undo-notice">
+          <span>
+            {t('taskMoved', {
+              task: lastMove.title,
+              status: t(
+                lastMove.to === 'todo'
+                  ? 'toDo'
+                  : lastMove.to === 'progress'
+                    ? 'inProgress'
+                    : 'done',
+              ),
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              const restored = await post({
+                type: 'task-status',
+                id: lastMove.id,
+                status: lastMove.from,
+              });
+              if (restored) setLastMove(null);
+            }}
+          >
+            {t('undo')}
+          </button>
+        </output>
+      )}
       <div className="kanban">
         {columns.map(([status, label]) => (
           <section className="kanban-column" key={status}>
@@ -91,20 +127,36 @@ export function TasksView({
                     <footer>
                       <span>
                         {task.dueOn
-                          ? formatMoneyDate(task.dueOn, language)
+                          ? formatDate(task.dueOn, language)
                           : task.due}
                         {!task.owned ? ` · ${t('sharedHousemate')}` : ''}
                       </span>
                       {Boolean(task.owned) && (
                         <button
-                          onClick={() =>
-                            post({
+                          onClick={async () => {
+                            const moved = await post({
                               type: 'task-status',
                               id: task.id,
                               status: next,
-                            })
-                          }
-                          aria-label={task.title}
+                            });
+                            if (moved)
+                              setLastMove({
+                                id: task.id,
+                                title: task.title,
+                                from: status,
+                                to: next,
+                              });
+                          }}
+                          aria-label={t('moveTaskTo', {
+                            task: task.title,
+                            status: t(
+                              next === 'progress'
+                                ? 'inProgress'
+                                : next === 'done'
+                                  ? 'done'
+                                  : 'toDo',
+                            ),
+                          })}
                         >
                           <ArrowRight size={15} />
                         </button>

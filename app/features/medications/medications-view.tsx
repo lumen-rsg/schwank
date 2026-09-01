@@ -12,7 +12,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { dateKey } from '../../client/dates';
-import { formatMoneyDate } from '../../client/format';
+import { formatDate } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
@@ -166,9 +166,9 @@ export function MedicationsView({
                 {medication.instructions && <p>{medication.instructions}</p>}
                 <div className="medication-dates">
                   <CalendarDays size={14} />
-                  {formatMoneyDate(medication.startOn, language)}
+                  {formatDate(medication.startOn, language)}
                   {medication.endOn
-                    ? ` – ${formatMoneyDate(medication.endOn, language)}`
+                    ? ` – ${formatDate(medication.endOn, language)}`
                     : ''}
                 </div>
                 {!medication.owned && (

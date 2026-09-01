@@ -35,6 +35,29 @@
 form.is-submitting {
   cursor: progress;
 }
+.undo-notice {
+  min-height: 42px;
+  margin-bottom: 14px;
+  padding: 8px 10px 8px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #cbd9c6;
+  border-radius: 10px;
+  background: #f3f8f1;
+  color: #52634e;
+  font-size: 10px;
+}
+.undo-notice button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #b8cbb2;
+  border-radius: 8px;
+  background: #fff;
+  color: #4e6648;
+  font-weight: 700;
+}
 button:disabled,
 input[type='submit']:disabled {
   cursor: not-allowed;

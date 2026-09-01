@@ -16,6 +16,7 @@ import {
   Users,
 } from 'lucide-react';
 import { dateKey } from '../../client/dates';
+import { formatDate } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import { ConfirmAction, Empty, PageTitle } from '../../components/app-ui';
@@ -211,8 +212,12 @@ export function FoodStorageView({
                           {food.category} ·{' '}
                           {food.expiresOn
                             ? expired
-                              ? t('expired', { date: food.expiresOn })
-                              : t('expires', { date: food.expiresOn })
+                              ? t('expired', {
+                                  date: formatDate(food.expiresOn, language),
+                                })
+                              : t('expires', {
+                                  date: formatDate(food.expiresOn, language),
+                                })
                             : t('noExpiry')}
                         </span>
                         <small>
@@ -237,6 +242,7 @@ export function FoodStorageView({
                             Number(food.quantity),
                             food.unit,
                             t,
+                            language,
                           )}
                         </b>
                         <button
@@ -385,12 +391,14 @@ export function FoodStorageView({
                                 item.needed,
                                 item.ingredient.unit,
                                 t,
+                                language,
                               )}{' '}
                               · {t('available')}:{' '}
                               {formatFoodQuantity(
                                 item.available,
                                 item.ingredient.unit,
                                 t,
+                                language,
                               )}
                             </small>
                             {!item.ready && (
@@ -400,6 +408,7 @@ export function FoodStorageView({
                                   item.missing,
                                   item.ingredient.unit,
                                   t,
+                                  language,
                                 )}
                               </b>
                             )}

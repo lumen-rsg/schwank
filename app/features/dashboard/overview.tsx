@@ -8,7 +8,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
-import { formatMoneyDate, money } from '../../client/format';
+import { formatDate, money } from '../../client/format';
 import {
   Avatar,
   Empty,
@@ -84,6 +84,15 @@ export function Overview({
                 <strong>{totals.calories}</strong>
                 <small>{t('ofKcal', { goal: user.calorieGoal })}</small>
               </span>
+              <progress
+                className="sr-only"
+                value={Math.min(totals.calories, user.calorieGoal)}
+                max={user.calorieGoal}
+                aria-label={t('calorieProgress', {
+                  current: totals.calories,
+                  goal: user.calorieGoal,
+                })}
+              />
             </div>
             <div className="macro-list">
               <Macro
@@ -177,9 +186,7 @@ export function Overview({
                   <div className="task-copy">
                     <strong>{task.title}</strong>
                     <span>
-                      {task.dueOn
-                        ? formatMoneyDate(task.dueOn, language)
-                        : task.due}
+                      {task.dueOn ? formatDate(task.dueOn, language) : task.due}
                     </span>
                   </div>
                   <PrivacyBadge visibility={task.visibility} t={t} />

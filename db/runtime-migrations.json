@@ -145,5 +145,13 @@
       "CREATE UNIQUE INDEX `idx_spending_budgets_user_category` ON `spending_budgets` (`user_id`,`category`);",
       "ALTER TABLE `expenses` ADD `recurring_payment_id` integer;"
     ]
+  },
+  {
+    "id": "0012_steady_pride",
+    "hash": "67b106dd45a52d2c47570b05e3eb24098201d14a2b14f153421b076887e4fc7a",
+    "statements": [
+      "ALTER TABLE `medications` ADD `supply_remaining` integer;",
+      "ALTER TABLE `medications` ADD `refill_threshold` integer;"
+    ]
   }
 ]

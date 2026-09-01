@@ -2,6 +2,7 @@ export type NotificationVisibility = 'private' | 'shared';
 export type NotificationLanguage = 'en' | 'ru';
 export type NotificationCopyKey =
   | 'medicationDue'
+  | 'medicationRefill'
   | 'paymentDue'
   | 'taskDue'
   | 'reminderDue';
@@ -23,6 +24,8 @@ export type NotificationData = {
     scheduleTimes: string[];
     startOn: string;
     endOn: string | null;
+    supplyRemaining: number | null;
+    refillThreshold: number | null;
     active: boolean | number;
     visibility: NotificationVisibility;
   }>;
@@ -92,6 +95,20 @@ export function deriveDueNotifications(
   const events: DueNotification[] = [];
 
   for (const medication of data.medications) {
+    if (
+      medication.active &&
+      medication.supplyRemaining !== null &&
+      medication.refillThreshold !== null &&
+      medication.supplyRemaining <= medication.refillThreshold
+    )
+      events.push({
+        key: `medication-refill:${medication.id}:${medication.supplyRemaining}`,
+        title: t('medicationRefill'),
+        body: `${medication.name} · ${medication.supplyRemaining}`,
+        section: 'medications',
+        dueAt: `${todayKey}T00:00`,
+        visibility: medication.visibility,
+      });
     if (
       !medication.active ||
       medication.startOn > todayKey ||

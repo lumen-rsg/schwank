@@ -1,12 +1,26 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Cigarette, CircleDollarSign, Plus, Users, Wine } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  Check,
+  Cigarette,
+  CircleDollarSign,
+  Edit3,
+  Plus,
+  Trash2,
+  Users,
+  Wine,
+} from 'lucide-react';
 import { dateKey, recentDates } from '../../client/dates';
 import { formatDate, money } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
-import { Avatar, Empty, PageTitle } from '../../components/app-ui';
+import {
+  Avatar,
+  ConfirmAction,
+  Empty,
+  PageTitle,
+} from '../../components/app-ui';
 import type { Language } from '../../i18n';
 import type { Data, HabitEntry, HabitKind, Post, T } from '../types';
 
@@ -104,6 +118,8 @@ export function HabitsView({
   t: T;
   language: Language;
 }) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const today = dateKey(new Date());
   const spending = data.habits.reduce(
     (sum, item) => sum + Number(item.cost),
     0,
@@ -179,7 +195,8 @@ export function HabitsView({
               name="occurredOn"
               label={t('date')}
               type="date"
-              defaultValue={dateKey(new Date())}
+              max={today}
+              defaultValue={today}
             />
             <button className="primary-button">
               <Plus size={16} />
@@ -220,23 +237,107 @@ export function HabitsView({
           </div>
           {data.habits.length ? (
             <div className="habit-activity-list">
-              {data.habits.slice(0, 8).map((item) => (
-                <div key={item.id}>
-                  <Avatar person={item} />
-                  <div>
-                    <strong>
-                      {item.name} · {t(item.habit)}
-                    </strong>
-                    <span>{formatDate(item.occurredOn, language)}</span>
+              {data.habits.slice(0, 12).map((item) =>
+                editingId === item.id ? (
+                  <form
+                    className="habit-edit-form"
+                    key={item.id}
+                    onSubmit={async (event) => {
+                      const saved = await submitForm(
+                        event,
+                        post,
+                        'habit-update',
+                        { id: String(item.id) },
+                      );
+                      if (saved) setEditingId(null);
+                    }}
+                  >
+                    <label className="form-field">
+                      <span>{t('habitType')}</span>
+                      <select name="habit" defaultValue={item.habit}>
+                        <option value="vaping">{t('vaping')}</option>
+                        <option value="alcohol">{t('alcohol')}</option>
+                      </select>
+                    </label>
+                    <Field
+                      name="occurrences"
+                      label={t('occurrences')}
+                      type="number"
+                      min={1}
+                      max={1_000}
+                      step={1}
+                      defaultValue={String(item.occurrences)}
+                    />
+                    <Field
+                      name="cost"
+                      label={t('costRub')}
+                      type="number"
+                      min={0}
+                      max={1_000_000}
+                      step="0.01"
+                      defaultValue={String(item.cost)}
+                    />
+                    <Field
+                      name="occurredOn"
+                      label={t('date')}
+                      type="date"
+                      max={today}
+                      defaultValue={item.occurredOn}
+                    />
+                    <div className="habit-edit-actions">
+                      <button className="primary-button">
+                        <Check size={14} /> {t('save')}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setEditingId(null)}
+                      >
+                        {t('cancel')}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div key={item.id}>
+                    <Avatar person={item} />
+                    <div>
+                      <strong>
+                        {item.name} · {t(item.habit)}
+                      </strong>
+                      <span>{formatDate(item.occurredOn, language)}</span>
+                    </div>
+                    <b>
+                      {t('habitRecord', {
+                        count: item.occurrences,
+                        cost: money(Number(item.cost), language),
+                      })}
+                    </b>
+                    {item.mine && (
+                      <div className="habit-row-actions">
+                        <button
+                          type="button"
+                          aria-label={t('editHabitRecord')}
+                          onClick={() => setEditingId(item.id)}
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <ConfirmAction
+                          label={t('deleteHabitRecord')}
+                          title={t('deleteHabitTitle')}
+                          description={t('deleteHabitWarning')}
+                          confirmLabel={t('delete')}
+                          cancelLabel={t('cancel')}
+                          onConfirm={() =>
+                            post({ type: 'habit-remove', id: item.id })
+                          }
+                        >
+                          <Trash2 size={13} />
+                        </ConfirmAction>
+                      </div>
+                    )}
                   </div>
-                  <b>
-                    {t('habitRecord', {
-                      count: item.occurrences,
-                      cost: money(Number(item.cost), language),
-                    })}
-                  </b>
-                </div>
-              ))}
+                ),
+              )}
             </div>
           ) : (
             <Empty>{t('noHabitActivity')}</Empty>

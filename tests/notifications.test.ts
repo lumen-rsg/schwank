@@ -8,6 +8,7 @@ import {
 
 const copy: Record<NotificationCopyKey, string> = {
   medicationDue: 'Medication due',
+  medicationRefill: 'Refill medication',
   paymentDue: 'Payment due',
   taskDue: 'Task due',
   reminderDue: 'Reminder due',
@@ -25,6 +26,8 @@ function notificationData(): NotificationData {
         scheduleTimes: ['08:00', '09:00', '13:00'],
         startOn: '2026-08-01',
         endOn: null,
+        supplyRemaining: 2,
+        refillThreshold: 3,
         active: true,
         visibility: 'private',
       },
@@ -35,6 +38,8 @@ function notificationData(): NotificationData {
         scheduleTimes: ['09:00'],
         startOn: '2026-01-01',
         endOn: '2026-08-31',
+        supplyRemaining: null,
+        refillThreshold: null,
         active: true,
         visibility: 'shared',
       },
@@ -104,6 +109,7 @@ void test('derives only due, active, and unfinished notifications', () => {
   assert.deepEqual(
     notifications.map((notification) => notification.key),
     [
+      'medication-refill:1:2',
       'medication:1:2026-09-01T09:00',
       'task:20:2026-09-01',
       'reminder:30:2026-09-01T11:00',
@@ -111,7 +117,7 @@ void test('derives only due, active, and unfinished notifications', () => {
     ],
   );
   assert.equal(notifications[0].visibility, 'private');
-  assert.equal(notifications[2].section, 'organisers');
+  assert.equal(notifications[3].section, 'organisers');
 });
 
 void test('formats payment notifications in the selected locale', () => {

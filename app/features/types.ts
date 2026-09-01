@@ -99,6 +99,8 @@ export type Medication = {
   scheduleTimes: string[];
   startOn: string;
   endOn: string | null;
+  supplyRemaining: number | null;
+  refillThreshold: number | null;
   active: boolean | number;
   visibility: Visibility;
   owned: boolean | number;

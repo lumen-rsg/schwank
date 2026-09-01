@@ -1,28 +1,120 @@
 'use client';
 
+import { useState } from 'react';
 import {
   CalendarDays,
   Check,
   CheckCircle2,
   Clock3,
+  Edit3,
+  History,
   Info,
+  Package,
   Pause,
   Pill,
   Play,
   Plus,
+  Trash2,
+  Undo2,
 } from 'lucide-react';
 import { dateKey } from '../../client/dates';
-import { formatDate } from '../../client/format';
+import { formatDate, formatDateTime } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
+  ConfirmAction,
   Empty,
   PageTitle,
   PrivacyBadge,
   PrivacySelect,
 } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import type { Data, Post, T } from '../types';
+import { medicationAdherence } from '../health/health-calculations';
+import type { Data, Medication, Post, T } from '../types';
+
+function MedicationFields({
+  medication,
+  today,
+  t,
+}: {
+  medication?: Medication;
+  today: string;
+  t: T;
+}) {
+  return (
+    <>
+      <Field
+        name="name"
+        label={t('medicationName')}
+        placeholder={t('medicationNamePlaceholder')}
+        defaultValue={medication?.name}
+      />
+      <Field
+        name="dosage"
+        label={t('dosage')}
+        placeholder={t('dosagePlaceholder')}
+        defaultValue={medication?.dosage}
+      />
+      <Field
+        name="scheduleTimes"
+        label={t('dailyTimes')}
+        placeholder="08:00, 20:00"
+        defaultValue={medication?.scheduleTimes.join(', ')}
+      />
+      <Field
+        name="startOn"
+        label={t('startDate')}
+        type="date"
+        defaultValue={medication?.startOn ?? today}
+      />
+      <Field
+        name="endOn"
+        label={t('endDateOptional')}
+        type="date"
+        min={medication ? undefined : today}
+        defaultValue={medication?.endOn ?? undefined}
+      />
+      <Field
+        name="supplyRemaining"
+        label={t('dosesRemainingOptional')}
+        type="number"
+        min={0}
+        max={100_000}
+        step={1}
+        defaultValue={
+          medication?.supplyRemaining === null ||
+          medication?.supplyRemaining === undefined
+            ? undefined
+            : String(medication.supplyRemaining)
+        }
+      />
+      <Field
+        name="refillThreshold"
+        label={t('refillThresholdOptional')}
+        type="number"
+        min={0}
+        max={100_000}
+        step={1}
+        defaultValue={
+          medication?.refillThreshold === null ||
+          medication?.refillThreshold === undefined
+            ? undefined
+            : String(medication.refillThreshold)
+        }
+      />
+      <PrivacySelect t={t} defaultValue={medication?.visibility} />
+      <label className="form-field medication-instructions">
+        <span>{t('instructionsOptional')}</span>
+        <textarea
+          name="instructions"
+          maxLength={500}
+          placeholder={t('medicationInstructionsPlaceholder')}
+          defaultValue={medication?.instructions}
+        />
+      </label>
+    </>
+  );
+}
 
 export function MedicationsView({
   data,
@@ -36,6 +128,7 @@ export function MedicationsView({
   language: Language;
 }) {
   const todayKey = dateKey(new Date());
+  const [editingId, setEditingId] = useState<number | null>(null);
   const activeToday = data.medications.filter(
     (medication) =>
       medication.active &&
@@ -49,6 +142,16 @@ export function MedicationsView({
   const takenToday = data.medicationDoses.filter((dose) =>
     dose.scheduledFor.startsWith(todayKey),
   ).length;
+  const ownedMedications = data.medications.filter(
+    (medication) => medication.owned,
+  );
+  const ownedMedicationIds = new Set(
+    ownedMedications.map((medication) => medication.id),
+  );
+  const ownedDoses = data.medicationDoses.filter((dose) =>
+    ownedMedicationIds.has(dose.medicationId),
+  );
+  const adherence = medicationAdherence(ownedMedications, ownedDoses, 14);
   return (
     <>
       <PageTitle
@@ -90,40 +193,7 @@ export function MedicationsView({
           className="medication-form"
           onSubmit={(event) => submitForm(event, post, 'medication')}
         >
-          <Field
-            name="name"
-            label={t('medicationName')}
-            placeholder={t('medicationNamePlaceholder')}
-          />
-          <Field
-            name="dosage"
-            label={t('dosage')}
-            placeholder={t('dosagePlaceholder')}
-          />
-          <Field
-            name="scheduleTimes"
-            label={t('dailyTimes')}
-            placeholder="08:00, 20:00"
-          />
-          <Field
-            name="startOn"
-            label={t('startDate')}
-            type="date"
-            defaultValue={todayKey}
-          />
-          <label className="form-field">
-            <span>{t('endDateOptional')}</span>
-            <input name="endOn" type="date" min={todayKey} />
-          </label>
-          <PrivacySelect t={t} />
-          <label className="form-field medication-instructions">
-            <span>{t('instructionsOptional')}</span>
-            <textarea
-              name="instructions"
-              maxLength={500}
-              placeholder={t('medicationInstructionsPlaceholder')}
-            />
-          </label>
+          <MedicationFields today={todayKey} t={t} />
           <button className="primary-button">
             <Plus size={16} />
             {t('addMedication')}
@@ -133,6 +203,44 @@ export function MedicationsView({
       <div className="medication-card-grid">
         {data.medications.length ? (
           data.medications.map((medication) => {
+            if (editingId === medication.id)
+              return (
+                <article
+                  className="panel medication-card medication-edit-card"
+                  key={medication.id}
+                >
+                  <form
+                    className="medication-form medication-edit-form"
+                    onSubmit={async (event) => {
+                      const saved = await submitForm(
+                        event,
+                        post,
+                        'medication-update',
+                        { id: String(medication.id) },
+                      );
+                      if (saved) setEditingId(null);
+                    }}
+                  >
+                    <MedicationFields
+                      medication={medication}
+                      today={todayKey}
+                      t={t}
+                    />
+                    <div className="medication-edit-actions">
+                      <button className="primary-button">
+                        <Check size={14} /> {t('save')}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setEditingId(null)}
+                      >
+                        {t('cancel')}
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              );
             const todayDoses = medication.scheduleTimes.map((time) => {
               const scheduledFor = `${todayKey}T${time}`;
               return {
@@ -148,6 +256,10 @@ export function MedicationsView({
             const inDateRange =
               medication.startOn <= todayKey &&
               (!medication.endOn || medication.endOn >= todayKey);
+            const lowSupply =
+              medication.supplyRemaining !== null &&
+              medication.refillThreshold !== null &&
+              medication.supplyRemaining <= medication.refillThreshold;
             return (
               <article
                 className={`panel medication-card${medication.active ? '' : ' paused'}`}
@@ -171,6 +283,19 @@ export function MedicationsView({
                     ? ` – ${formatDate(medication.endOn, language)}`
                     : ''}
                 </div>
+                {medication.supplyRemaining !== null && (
+                  <div
+                    className={`medication-supply${lowSupply ? ' low' : ''}`}
+                  >
+                    <Package size={14} />
+                    <span>
+                      {t('dosesRemaining', {
+                        count: medication.supplyRemaining,
+                      })}
+                    </span>
+                    {lowSupply && <b>{t('refillDue')}</b>}
+                  </div>
+                )}
                 {!medication.owned && (
                   <small>
                     {t('sharedByName', { name: medication.ownerName })}
@@ -183,9 +308,24 @@ export function MedicationsView({
                         <Clock3 size={14} /> {time}
                       </span>
                       {dose ? (
-                        <b>
-                          <Check size={13} /> {t('taken')}
-                        </b>
+                        medication.owned ? (
+                          <button
+                            type="button"
+                            aria-label={t('undoDoseAt', { time })}
+                            onClick={() =>
+                              void post({
+                                type: 'medication-dose-remove',
+                                id: dose.id,
+                              })
+                            }
+                          >
+                            <Undo2 size={13} /> {t('undoTaken')}
+                          </button>
+                        ) : (
+                          <b>
+                            <Check size={13} /> {t('taken')}
+                          </b>
+                        )
                       ) : medication.owned &&
                         medication.active &&
                         inDateRange ? (
@@ -208,7 +348,14 @@ export function MedicationsView({
                   ))}
                 </div>
                 {medication.owned && (
-                  <footer>
+                  <footer className="medication-card-actions">
+                    <button
+                      type="button"
+                      className="secondary-button compact-button"
+                      onClick={() => setEditingId(medication.id)}
+                    >
+                      <Edit3 size={14} /> {t('editMedication')}
+                    </button>
                     <button
                       type="button"
                       className="secondary-button compact-button"
@@ -227,6 +374,23 @@ export function MedicationsView({
                       )}
                       {medication.active ? t('pause') : t('resume')}
                     </button>
+                    <ConfirmAction
+                      label={t('deleteMedication', {
+                        medication: medication.name,
+                      })}
+                      title={t('deleteMedicationTitle')}
+                      description={t('deleteMedicationWarning', {
+                        medication: medication.name,
+                      })}
+                      confirmLabel={t('delete')}
+                      cancelLabel={t('cancel')}
+                      className="danger-icon-button"
+                      onConfirm={() =>
+                        post({ type: 'medication-remove', id: medication.id })
+                      }
+                    >
+                      <Trash2 size={14} />
+                    </ConfirmAction>
                   </footer>
                 )}
               </article>
@@ -238,6 +402,69 @@ export function MedicationsView({
           </article>
         )}
       </div>
+      <article className="panel medication-history-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{t('adherenceHistory')}</h2>
+            <span>{t('privateMedicationHistory')}</span>
+          </div>
+          <History size={19} />
+        </div>
+        <div className="adherence-summary">
+          <div>
+            <strong>{adherence.percent}%</strong>
+            <span>{t('last14Days')}</span>
+          </div>
+          <progress
+            value={adherence.taken}
+            max={Math.max(1, adherence.expected)}
+            aria-label={t('adherenceProgress', {
+              taken: adherence.taken,
+              scheduled: adherence.expected,
+            })}
+          />
+          <b>
+            {t('dosesRecorded', {
+              taken: adherence.taken,
+              scheduled: adherence.expected,
+            })}
+          </b>
+        </div>
+        <div className="medication-history-list">
+          {ownedDoses.length ? (
+            ownedDoses.slice(0, 16).map((dose) => {
+              const medication = ownedMedications.find(
+                (candidate) => candidate.id === dose.medicationId,
+              );
+              return (
+                <div key={dose.id}>
+                  <span className="tinted-icon violet">
+                    <Pill size={14} />
+                  </span>
+                  <div>
+                    <strong>{medication?.name ?? t('medications')}</strong>
+                    <small>{formatDateTime(dose.takenAt, language)}</small>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={t('undoDose')}
+                    onClick={() =>
+                      void post({
+                        type: 'medication-dose-remove',
+                        id: dose.id,
+                      })
+                    }
+                  >
+                    <Undo2 size={13} /> {t('undo')}
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <Empty>{t('noDoseHistory')}</Empty>
+          )}
+        </div>
+      </article>
       <p className="medical-disclaimer">
         <Info size={14} /> {t('medicationDisclaimer')}
       </p>

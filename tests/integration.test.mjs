@@ -468,6 +468,8 @@ void test(
         scheduleTimes: '10:00',
         startOn: '2029-01-01',
         endOn: '2030-12-31',
+        supplyRemaining: 12,
+        refillThreshold: 3,
         visibility: 'shared',
       },
     ];
@@ -819,6 +821,12 @@ void test(
     const sharedMedication = bobData.medications.find(
       (medication) => medication.name === 'Alice shared medication',
     );
+    const aliceWater = aliceData.water.find(
+      (entry) => Number(entry.amountMl) === 450,
+    );
+    const publicHabit = bobData.habits.find(
+      (entry) => entry.name === 'Alice Test',
+    );
     const publicIdea = bobData.purchaseIdeas.find(
       (idea) => idea.title === 'Alice public purchase idea',
     );
@@ -830,7 +838,7 @@ void test(
         sharedItem &&
         sharedReminder,
     );
-    assert.ok(sharedMedication && publicIdea);
+    assert.ok(sharedMedication && aliceWater && publicHabit && publicIdea);
 
     const forbiddenMutations = [
       {
@@ -883,10 +891,40 @@ void test(
       { type: 'reminder-toggle', id: sharedReminder.id, done: true },
       { type: 'medication-toggle', id: sharedMedication.id, active: false },
       {
+        type: 'medication-update',
+        id: sharedMedication.id,
+        name: 'Bob cannot edit this medication',
+        dosage: '2 tablets',
+        instructions: 'Synthetic test record',
+        scheduleTimes: '10:00',
+        startOn: '2029-01-01',
+        endOn: '2030-12-31',
+        supplyRemaining: 12,
+        refillThreshold: 3,
+        visibility: 'shared',
+      },
+      { type: 'medication-remove', id: sharedMedication.id },
+      {
         type: 'medication-dose',
         id: sharedMedication.id,
         scheduledFor: '2030-01-15T10:00',
       },
+      {
+        type: 'water-update',
+        id: aliceWater.id,
+        amountMl: 500,
+        drunkOn: today,
+      },
+      { type: 'water-remove', id: aliceWater.id },
+      {
+        type: 'habit-update',
+        id: publicHabit.id,
+        habit: 'alcohol',
+        occurrences: 2,
+        cost: 100,
+        occurredOn: today,
+      },
+      { type: 'habit-remove', id: publicHabit.id },
       { type: 'purchase-status', id: publicIdea.id, status: 'bought' },
     ];
     for (const mutation of forbiddenMutations) {
@@ -967,6 +1005,153 @@ void test(
         (meal) => meal.id === historicalMeal.id,
       ),
       false,
+    );
+
+    const updatedMedicationResult = await action(alice.cookie, {
+      type: 'medication-update',
+      id: sharedMedication.id,
+      name: 'Corrected private medication',
+      dosage: '1 tablet',
+      instructions: 'Corrected synthetic record',
+      scheduleTimes: '10:00, 20:00',
+      startOn: today,
+      endOn: '',
+      supplyRemaining: 5,
+      refillThreshold: 2,
+      visibility: 'private',
+    });
+    assert.equal(updatedMedicationResult.response.status, 200);
+    const correctedMedication =
+      updatedMedicationResult.body.data.medications.find(
+        (medication) => medication.id === sharedMedication.id,
+      );
+    assert.equal(correctedMedication.name, 'Corrected private medication');
+    assert.deepEqual(correctedMedication.scheduleTimes, ['10:00', '20:00']);
+    assert.equal(correctedMedication.supplyRemaining, 5);
+    assert.equal(
+      (await household(bob.cookie)).medications.some(
+        (medication) => medication.id === sharedMedication.id,
+      ),
+      false,
+    );
+    const doseResult = await action(alice.cookie, {
+      type: 'medication-dose',
+      id: sharedMedication.id,
+      scheduledFor: `${today}T10:00`,
+    });
+    assert.equal(doseResult.response.status, 200);
+    const dosedMedication = doseResult.body.data.medications.find(
+      (medication) => medication.id === sharedMedication.id,
+    );
+    const recordedDose = doseResult.body.data.medicationDoses.find(
+      (dose) => dose.medicationId === sharedMedication.id,
+    );
+    assert.equal(dosedMedication.supplyRemaining, 4);
+    assert.ok(recordedDose);
+    const duplicateDoseResult = await action(alice.cookie, {
+      type: 'medication-dose',
+      id: sharedMedication.id,
+      scheduledFor: `${today}T10:00`,
+    });
+    assert.equal(duplicateDoseResult.response.status, 200);
+    assert.equal(
+      duplicateDoseResult.body.data.medications.find(
+        (medication) => medication.id === sharedMedication.id,
+      ).supplyRemaining,
+      4,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'medication-dose-remove',
+          id: recordedDose.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'medication-dose-remove',
+          id: recordedDose.id,
+        })
+      ).response.status,
+      403,
+    );
+    assert.equal(
+      (await household(alice.cookie)).medications.find(
+        (medication) => medication.id === sharedMedication.id,
+      ).supplyRemaining,
+      5,
+    );
+
+    const correctedWaterResult = await action(alice.cookie, {
+      type: 'water-update',
+      id: aliceWater.id,
+      amountMl: 600,
+      drunkOn: yesterday,
+    });
+    assert.equal(correctedWaterResult.response.status, 200);
+    assert.equal(
+      correctedWaterResult.body.data.water.find(
+        (entry) => entry.id === aliceWater.id,
+      ).amountMl,
+      600,
+    );
+    assert.equal((await household(bob.cookie)).water.length, 0);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'water-remove',
+          id: aliceWater.id,
+        })
+      ).response.status,
+      200,
+    );
+
+    const correctedHabitResult = await action(alice.cookie, {
+      type: 'habit-update',
+      id: publicHabit.id,
+      habit: 'alcohol',
+      occurrences: 2,
+      cost: 100,
+      occurredOn: yesterday,
+    });
+    assert.equal(correctedHabitResult.response.status, 200);
+    const correctedHabit = correctedHabitResult.body.data.habits.find(
+      (entry) => entry.id === publicHabit.id,
+    );
+    assert.equal(correctedHabit.habit, 'alcohol');
+    assert.equal(correctedHabit.occurrences, 2);
+    assert.equal(
+      (await household(bob.cookie)).habits.find(
+        (entry) => entry.id === publicHabit.id,
+      ).cost,
+      100,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'habit-remove',
+          id: publicHabit.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(bob.cookie)).habits.some(
+        (entry) => entry.id === publicHabit.id,
+      ),
+      false,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'medication-remove',
+          id: sharedMedication.id,
+        })
+      ).response.status,
+      200,
     );
 
     const historicalExpenseResult = await action(alice.cookie, {
@@ -1434,7 +1619,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      12,
+      13,
     );
     repairedDatabase.close();
     await startServer(restoredState);

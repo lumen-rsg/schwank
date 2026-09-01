@@ -81,6 +81,40 @@ function cleanNutritionFields(body: DataAction) {
   };
 }
 
+function optionalCount(value: unknown, maximum = 100_000) {
+  if (value === null || value === undefined || value === '') return null;
+  return Math.round(cleanNumber(value, maximum));
+}
+
+function cleanMedicationFields(body: DataAction) {
+  const name = cleanText(body.name, 100);
+  const dosage = cleanText(body.dosage, 80);
+  const instructions = cleanText(body.instructions, 500);
+  const scheduleTimes = cleanMedicationTimes(body.scheduleTimes);
+  const startOn = cleanPaymentDate(body.startOn);
+  const endOn = cleanOptionalDate(body.endOn);
+  const supplyRemaining = optionalCount(body.supplyRemaining);
+  const refillThreshold =
+    supplyRemaining === null
+      ? null
+      : (optionalCount(body.refillThreshold) ?? 0);
+  if (!name || !dosage)
+    throw new DataError('Medication name and dosage are required.');
+  if (endOn && endOn < startOn)
+    throw new DataError('Medication end date cannot be before its start.');
+  return {
+    name,
+    dosage,
+    instructions,
+    scheduleTimes,
+    startOn,
+    endOn,
+    supplyRemaining,
+    refillThreshold,
+    visibility: cleanVisibility(body.visibility),
+  };
+}
+
 function cleanRecurringPaymentFields(body: DataAction) {
   const kind = cleanPaymentKind(body.kind);
   const label = cleanText(body.label, 100);
@@ -465,32 +499,66 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     return result;
   }
   if (body.type === 'medication') {
-    const name = cleanText(body.name, 100);
-    const dosage = cleanText(body.dosage, 80);
-    const instructions = cleanText(body.instructions, 500);
-    const scheduleTimes = cleanMedicationTimes(body.scheduleTimes);
-    const startOn = cleanPaymentDate(body.startOn);
-    const endOn = cleanOptionalDate(body.endOn);
-    if (!name || !dosage)
-      throw new DataError('Medication name and dosage are required.');
-    if (endOn && endOn < startOn)
-      throw new DataError('Medication end date cannot be before its start.');
+    const medication = cleanMedicationFields(body);
     return db
       .prepare(
-        'INSERT INTO medications (user_id,visibility,name,dosage,instructions,schedule_times,start_on,end_on,active,created_at) VALUES (?,?,?,?,?,?,?,?,1,?)',
+        'INSERT INTO medications (user_id,visibility,name,dosage,instructions,schedule_times,start_on,end_on,supply_remaining,refill_threshold,active,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,1,?)',
       )
       .bind(
         userId,
-        cleanVisibility(body.visibility),
-        name,
-        dosage,
-        instructions,
-        JSON.stringify(scheduleTimes),
-        startOn,
-        endOn,
+        medication.visibility,
+        medication.name,
+        medication.dosage,
+        medication.instructions,
+        JSON.stringify(medication.scheduleTimes),
+        medication.startOn,
+        medication.endOn,
+        medication.supplyRemaining,
+        medication.refillThreshold,
         new Date().toISOString(),
       )
       .run();
+  }
+  if (body.type === 'medication-update') {
+    const medication = cleanMedicationFields(body);
+    const result = await db
+      .prepare(
+        'UPDATE medications SET visibility=?,name=?,dosage=?,instructions=?,schedule_times=?,start_on=?,end_on=?,supply_remaining=?,refill_threshold=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        medication.visibility,
+        medication.name,
+        medication.dosage,
+        medication.instructions,
+        JSON.stringify(medication.scheduleTimes),
+        medication.startOn,
+        medication.endOn,
+        medication.supplyRemaining,
+        medication.refillThreshold,
+        cleanNumber(body.id),
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That medication cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'medication-remove') {
+    const medicationId = cleanNumber(body.id);
+    const medication = await db
+      .prepare('SELECT id FROM medications WHERE id=? AND user_id=?')
+      .bind(medicationId, userId)
+      .first();
+    if (!medication)
+      throw new DataError('That medication cannot be removed.', 403);
+    return db.batch([
+      db
+        .prepare('DELETE FROM medication_doses WHERE medication_id=?')
+        .bind(medicationId),
+      db
+        .prepare('DELETE FROM medications WHERE id=? AND user_id=?')
+        .bind(medicationId, userId),
+    ]);
   }
   if (body.type === 'medication-toggle') {
     const result = await db
@@ -506,18 +574,57 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     const scheduledFor = cleanDateTime(body.scheduledFor);
     const medication = await db
       .prepare(
-        'SELECT id FROM medications WHERE id=? AND user_id=? AND active=1',
+        'SELECT id,schedule_times AS scheduleTimes,start_on AS startOn,end_on AS endOn FROM medications WHERE id=? AND user_id=? AND active=1',
       )
       .bind(medicationId, userId)
-      .first();
+      .first<{
+        id: number;
+        scheduleTimes: string;
+        startOn: string;
+        endOn: string | null;
+      }>();
     if (!medication)
       throw new DataError('That medication cannot be changed.', 403);
-    return db
+    const [scheduledDate, scheduledTime] = scheduledFor.split('T');
+    const scheduleTimes = JSON.parse(medication.scheduleTimes) as string[];
+    if (
+      !scheduleTimes.includes(scheduledTime) ||
+      scheduledDate < medication.startOn ||
+      (medication.endOn && scheduledDate > medication.endOn)
+    )
+      throw new DataError('Choose a scheduled dose within this course.');
+    return db.batch([
+      db
+        .prepare(
+          'UPDATE medications SET supply_remaining=MAX(0,supply_remaining-1) WHERE id=? AND user_id=? AND supply_remaining IS NOT NULL AND NOT EXISTS (SELECT 1 FROM medication_doses WHERE medication_id=? AND user_id=? AND scheduled_for=?)',
+        )
+        .bind(medicationId, userId, medicationId, userId, scheduledFor),
+      db
+        .prepare(
+          'INSERT OR IGNORE INTO medication_doses (medication_id,user_id,scheduled_for,taken_at) VALUES (?,?,?,?)',
+        )
+        .bind(medicationId, userId, scheduledFor, new Date().toISOString()),
+    ]);
+  }
+  if (body.type === 'medication-dose-remove') {
+    const doseId = cleanNumber(body.id);
+    const dose = await db
       .prepare(
-        'INSERT OR IGNORE INTO medication_doses (medication_id,user_id,scheduled_for,taken_at) VALUES (?,?,?,?)',
+        'SELECT d.id,d.medication_id AS medicationId FROM medication_doses d JOIN medications m ON m.id=d.medication_id WHERE d.id=? AND d.user_id=? AND m.user_id=?',
       )
-      .bind(medicationId, userId, scheduledFor, new Date().toISOString())
-      .run();
+      .bind(doseId, userId, userId)
+      .first<{ id: number; medicationId: number }>();
+    if (!dose) throw new DataError('That dose cannot be changed.', 403);
+    return db.batch([
+      db
+        .prepare(
+          'UPDATE medications SET supply_remaining=supply_remaining+1 WHERE id=? AND user_id=? AND supply_remaining IS NOT NULL AND EXISTS (SELECT 1 FROM medication_doses WHERE id=? AND user_id=?)',
+        )
+        .bind(dose.medicationId, userId, doseId, userId),
+      db
+        .prepare('DELETE FROM medication_doses WHERE id=? AND user_id=?')
+        .bind(doseId, userId),
+    ]);
   }
   if (body.type === 'purchase-idea') {
     const title = cleanText(body.title, 100);
@@ -658,6 +765,44 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       )
       .run();
   }
+  if (body.type === 'habit-update') {
+    const habit =
+      body.habit === 'alcohol'
+        ? 'alcohol'
+        : body.habit === 'vaping'
+          ? 'vaping'
+          : null;
+    if (!habit) throw new DataError('Choose vaping or alcohol.');
+    const occurrences = Math.max(
+      1,
+      Math.round(cleanNumber(body.occurrences, 1_000)),
+    );
+    const result = await db
+      .prepare(
+        'UPDATE habit_entries SET habit=?,occurrences=?,cost=?,occurred_on=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        habit,
+        occurrences,
+        cleanNumber(body.cost),
+        cleanDate(body.occurredOn),
+        cleanNumber(body.id),
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That habit record cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'habit-remove') {
+    const result = await db
+      .prepare('DELETE FROM habit_entries WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That habit record cannot be removed.', 403);
+    return result;
+  }
   if (body.type === 'water') {
     const amountMl = Math.round(cleanNumber(body.amountMl, 10_000));
     if (amountMl < 1) throw new DataError('Water amount is required.');
@@ -667,6 +812,28 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       )
       .bind(userId, amountMl, cleanDate(body.drunkOn), new Date().toISOString())
       .run();
+  }
+  if (body.type === 'water-update') {
+    const amountMl = Math.round(cleanNumber(body.amountMl, 10_000));
+    if (amountMl < 1) throw new DataError('Water amount is required.');
+    const result = await db
+      .prepare(
+        'UPDATE water_entries SET amount_ml=?,drunk_on=? WHERE id=? AND user_id=?',
+      )
+      .bind(amountMl, cleanDate(body.drunkOn), cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That water entry cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'water-remove') {
+    const result = await db
+      .prepare('DELETE FROM water_entries WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That water entry cannot be removed.', 403);
+    return result;
   }
   if (body.type === 'water-goal') {
     const goal = Math.round(cleanNumber(body.waterGoal, 10_000));

@@ -75,7 +75,7 @@ export async function exportAccountData(user: AuthUser) {
       user.id,
     ),
     userRows(
-      'SELECT id,visibility,name,dosage,instructions,schedule_times AS scheduleTimes,start_on AS startOn,end_on AS endOn,active,created_at AS createdAt FROM medications WHERE user_id=? ORDER BY id',
+      'SELECT id,visibility,name,dosage,instructions,schedule_times AS scheduleTimes,start_on AS startOn,end_on AS endOn,supply_remaining AS supplyRemaining,refill_threshold AS refillThreshold,active,created_at AS createdAt FROM medications WHERE user_id=? ORDER BY id',
       user.id,
     ),
     userRows(

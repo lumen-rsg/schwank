@@ -231,6 +231,8 @@ export const medications = sqliteTable(
     scheduleTimes: text('schedule_times').notNull(),
     startOn: text('start_on').notNull(),
     endOn: text('end_on'),
+    supplyRemaining: integer('supply_remaining'),
+    refillThreshold: integer('refill_threshold'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     createdAt: text('created_at').notNull(),
   },

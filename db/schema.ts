@@ -46,6 +46,7 @@ export const sessions = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     userId: integer('user_id').notNull(),
     tokenHash: text('token_hash').notNull(),
+    userAgent: text('user_agent').notNull().default(''),
     expiresAt: text('expires_at').notNull(),
     createdAt: text('created_at').notNull(),
   },
@@ -54,6 +55,14 @@ export const sessions = sqliteTable(
     index('idx_sessions_user').on(table.userId),
   ],
 );
+
+export const authRateLimits = sqliteTable('auth_rate_limits', {
+  bucketHash: text('bucket_hash').primaryKey(),
+  scope: text('scope').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  windowStartedAt: text('window_started_at').notNull(),
+  blockedUntil: text('blocked_until'),
+});
 
 export const nutritionEntries = sqliteTable(
   'nutrition_entries',

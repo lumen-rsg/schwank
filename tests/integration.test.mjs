@@ -279,6 +279,23 @@ void test(
     });
     assert.equal(memberRotate.response.status, 403);
 
+    for (let attempt = 1; attempt < 10; attempt += 1) {
+      const rejectedRegistration = await register(
+        `Rate Limit ${attempt}`,
+        `register-limit-${attempt}@example.test`,
+        'rate-limit-password-123',
+        'WRONG-CODE',
+      );
+      assert.equal(rejectedRegistration.response.status, 403);
+    }
+    const limitedRegistration = await register(
+      'Rate Limited Registration',
+      'register-limit-final@example.test',
+      'rate-limit-password-123',
+      'WRONG-CODE',
+    );
+    assert.equal(limitedRegistration.response.status, 429);
+
     const wrongPassword = await jsonRequest('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin },
@@ -298,6 +315,38 @@ void test(
       }),
     });
     assert.equal(login.response.status, 200);
+    const loginCookie = login.response.headers.get('set-cookie')?.split(';')[0];
+    assert.ok(loginCookie);
+
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      const rejectedLogin = await jsonRequest('/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin },
+        body: JSON.stringify({
+          email: 'login-limit@example.test',
+          password: `wrong-password-${attempt}`,
+        }),
+      });
+      assert.equal(rejectedLogin.response.status, 401);
+    }
+    const limitedLogin = await jsonRequest('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin },
+      body: JSON.stringify({
+        email: 'login-limit@example.test',
+        password: 'wrong-password-final',
+      }),
+    });
+    assert.equal(limitedLogin.response.status, 429);
+    const stillLimitedLogin = await jsonRequest('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin },
+      body: JSON.stringify({
+        email: 'login-limit@example.test',
+        password: 'another-wrong-password',
+      }),
+    });
+    assert.equal(stillLimitedLogin.response.status, 429);
 
     const today = new Date().toISOString().slice(0, 10);
     const records = [
@@ -560,6 +609,92 @@ void test(
       true,
     );
 
+    const sessionInventory = await jsonRequest('/api/account/sessions', {
+      headers: { cookie: loginCookie },
+    });
+    assert.equal(sessionInventory.response.status, 200);
+    assert.equal(sessionInventory.body.sessions.length, 2);
+    assert.equal(
+      sessionInventory.body.sessions.filter((session) => session.current)
+        .length,
+      1,
+    );
+    const oldSession = sessionInventory.body.sessions.find(
+      (session) => !session.current,
+    );
+    assert.ok(oldSession);
+    const revoked = await jsonRequest('/api/account/sessions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: loginCookie,
+        origin,
+      },
+      body: JSON.stringify({ sessionId: oldSession.id }),
+    });
+    assert.equal(revoked.response.status, 200);
+    assert.equal(revoked.body.currentRevoked, false);
+    assert.equal(
+      (await jsonRequest('/api/schwank', { headers: { cookie: alice.cookie } }))
+        .response.status,
+      401,
+    );
+
+    const wrongCurrentPassword = await jsonRequest('/api/account/password', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: loginCookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'incorrect-current-password',
+        newPassword: 'alice-new-password-456',
+      }),
+    });
+    assert.equal(wrongCurrentPassword.response.status, 403);
+
+    const changedPassword = await jsonRequest('/api/account/password', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: loginCookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'alice-password-123',
+        newPassword: 'alice-new-password-456',
+      }),
+    });
+    assert.equal(changedPassword.response.status, 200);
+    const changedPasswordCookie = changedPassword.response.headers
+      .get('set-cookie')
+      ?.split(';')[0];
+    assert.ok(changedPasswordCookie);
+    assert.equal(
+      (await jsonRequest('/api/schwank', { headers: { cookie: loginCookie } }))
+        .response.status,
+      401,
+    );
+    assert.equal(
+      (
+        await jsonRequest('/api/schwank', {
+          headers: { cookie: changedPasswordCookie },
+        })
+      ).response.status,
+      200,
+    );
+
+    const oldPasswordLogin = await jsonRequest('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin },
+      body: JSON.stringify({
+        email: 'alice@example.test',
+        password: 'alice-password-123',
+      }),
+    });
+    assert.equal(oldPasswordLogin.response.status, 401);
+
     await stopServer();
     const restoreParent = await mkdtemp(join(tmpdir(), 'schwank-restore-'));
     temporaryDirectories.push(restoreParent);
@@ -572,7 +707,7 @@ void test(
       headers: { 'content-type': 'application/json', origin },
       body: JSON.stringify({
         email: 'alice@example.test',
-        password: 'alice-password-123',
+        password: 'alice-new-password-456',
       }),
     });
     assert.equal(restoredLogin.response.status, 200);

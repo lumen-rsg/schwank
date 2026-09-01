@@ -17,7 +17,10 @@ export async function ensureDatabase() {
       "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, display_name TEXT NOT NULL, initials TEXT NOT NULL, color TEXT NOT NULL, avatar_data TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'member', calorie_goal INTEGER NOT NULL DEFAULT 2200, protein_goal INTEGER NOT NULL DEFAULT 140, carb_goal INTEGER NOT NULL DEFAULT 250, fat_goal INTEGER NOT NULL DEFAULT 70, water_goal INTEGER NOT NULL DEFAULT 2000, maintenance_calories INTEGER, height_cm REAL, weight_kg REAL, age INTEGER, sex TEXT, activity TEXT, nutrition_plan TEXT, diet TEXT, ai_consent INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)",
     ),
     db.prepare(
-      'CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, token_hash TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)',
+      "CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, token_hash TEXT NOT NULL, user_agent TEXT NOT NULL DEFAULT '', expires_at TEXT NOT NULL, created_at TEXT NOT NULL)",
+    ),
+    db.prepare(
+      'CREATE TABLE IF NOT EXISTS auth_rate_limits (bucket_hash TEXT PRIMARY KEY, scope TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, window_started_at TEXT NOT NULL, blocked_until TEXT)',
     ),
     db.prepare(
       "CREATE TABLE IF NOT EXISTS nutrition_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, member_id TEXT NOT NULL, visibility TEXT NOT NULL DEFAULT 'private', label TEXT NOT NULL, calories INTEGER NOT NULL, protein INTEGER NOT NULL, carbs INTEGER NOT NULL, fat INTEGER NOT NULL, eaten_on TEXT NOT NULL)",
@@ -86,6 +89,7 @@ export async function ensureDatabase() {
   await ensureColumn('users', 'diet', 'TEXT');
   await ensureColumn('users', 'ai_consent', 'INTEGER NOT NULL DEFAULT 0');
   await ensureColumn('users', 'role', "TEXT NOT NULL DEFAULT 'member'");
+  await ensureColumn('sessions', 'user_agent', "TEXT NOT NULL DEFAULT ''");
   await ensureColumn(
     'household_settings',
     'registration_open',
@@ -209,6 +213,11 @@ export async function ensureDatabase() {
     db
       .prepare('DELETE FROM sessions WHERE expires_at <= ?')
       .bind(new Date().toISOString()),
+    db
+      .prepare(
+        'DELETE FROM auth_rate_limits WHERE COALESCE(blocked_until,window_started_at) < ?',
+      )
+      .bind(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
   ]);
   await db.prepare('PRAGMA optimize').run();
 }

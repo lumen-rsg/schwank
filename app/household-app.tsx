@@ -44,6 +44,7 @@ import {
   LogOut,
   MessageCircle,
   Minus,
+  Monitor,
   PackageOpen,
   PackageCheck,
   Pause,
@@ -56,6 +57,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
   ShoppingBasket,
   Sparkles,
   Trash2,
@@ -457,12 +459,18 @@ function Field({
   type = 'text',
   placeholder,
   defaultValue,
+  minLength,
+  maxLength,
+  autoComplete,
 }: {
   name: string;
   label: string;
   type?: string;
   placeholder?: string;
   defaultValue?: string;
+  minLength?: number;
+  maxLength?: number;
+  autoComplete?: string;
 }) {
   return (
     <label className="form-field">
@@ -472,6 +480,9 @@ function Field({
         type={type}
         placeholder={placeholder}
         defaultValue={defaultValue}
+        minLength={minLength}
+        maxLength={maxLength}
+        autoComplete={autoComplete}
         min={type === 'number' ? 0 : undefined}
         step={type === 'number' ? 'any' : undefined}
         required
@@ -4772,6 +4783,7 @@ function HomeView({
               {user.aiConsent ? t('disableAiConsent') : t('enableAiConsent')}
             </button>
           </article>
+          <AccountSecurityCard t={t} language={language} />
           {user.role === 'owner' && (
             <EnrollmentCard t={t} language={language} />
           )}
@@ -4808,6 +4820,178 @@ function HomeView({
         </div>
       </div>
     </>
+  );
+}
+
+type AccountSession = {
+  id: number;
+  userAgent: string;
+  createdAt: string;
+  expiresAt: string;
+  current: boolean | number;
+};
+
+function sessionDevice(userAgent: string) {
+  if (/Electron/i.test(userAgent)) return 'Electron';
+  if (/Android|iPhone|iPad|Mobile/i.test(userAgent)) return 'Mobile';
+  if (/Windows/i.test(userAgent)) return 'Windows';
+  if (/Macintosh|Mac OS/i.test(userAgent)) return 'macOS';
+  if (/Linux/i.test(userAgent)) return 'Linux';
+  return 'Browser';
+}
+
+function AccountSecurityCard({ t, language }: { t: T; language: Language }) {
+  const [sessions, setSessions] = useState<AccountSession[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const loadSessions = useCallback(async () => {
+    const response = await fetch('/api/account/sessions', {
+      cache: 'no-store',
+    });
+    if (response.status === 401) {
+      window.location.assign('/login');
+      return;
+    }
+    if (!response.ok) throw new Error(t('storageFailed'));
+    const payload = (await response.json()) as { sessions: AccountSession[] };
+    setSessions(payload.sessions);
+  }, [t]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadSessions().catch((cause) =>
+        setError(cause instanceof Error ? cause.message : t('storageFailed')),
+      );
+    });
+  }, [loadSessions, t]);
+
+  async function changePassword(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch('/api/account/password', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: values.get('currentPassword'),
+          newPassword: values.get('newPassword'),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error || t('saveFailed'));
+      form.reset();
+      setMessage(t('passwordChanged'));
+      await loadSessions();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('saveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeSession(session: AccountSession) {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch('/api/account/sessions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        currentRevoked?: boolean;
+      };
+      if (!response.ok) throw new Error(payload.error || t('saveFailed'));
+      if (payload.currentRevoked) {
+        window.location.assign('/login');
+        return;
+      }
+      setMessage(t('sessionRevoked'));
+      await loadSessions();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('saveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="panel account-security-card">
+      <div className="account-security-heading">
+        <span>
+          <ShieldCheck size={18} />
+        </span>
+        <div>
+          <h2>{t('accountSecurity')}</h2>
+          <p>{t('accountSecurityCopy')}</p>
+        </div>
+      </div>
+      <form className="password-form" onSubmit={changePassword}>
+        <Field
+          name="currentPassword"
+          label={t('currentPassword')}
+          type="password"
+          maxLength={128}
+          autoComplete="current-password"
+        />
+        <Field
+          name="newPassword"
+          label={t('newPassword')}
+          type="password"
+          minLength={12}
+          maxLength={128}
+          autoComplete="new-password"
+        />
+        <button className="primary-button" disabled={busy}>
+          {t('changePassword')}
+        </button>
+      </form>
+      <div className="session-heading">
+        <strong>{t('activeSessions')}</strong>
+        <span>{t('activeSessionsCount', { count: sessions.length })}</span>
+      </div>
+      <div className="session-list">
+        {sessions.map((session) => (
+          <div key={session.id}>
+            <Monitor size={16} />
+            <span>
+              <strong>
+                {sessionDevice(session.userAgent)}
+                {session.current ? ` · ${t('thisDevice')}` : ''}
+              </strong>
+              <small>
+                {t('signedInAt', {
+                  date: new Intl.DateTimeFormat(language, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }).format(new Date(session.createdAt)),
+                })}
+              </small>
+            </span>
+            <button
+              className="danger-text-button"
+              type="button"
+              disabled={busy}
+              onClick={() => void revokeSession(session)}
+            >
+              {session.current ? t('signOut') : t('revokeSession')}
+            </button>
+          </div>
+        ))}
+      </div>
+      {message && <output className="security-success">{message}</output>}
+      {error && <div className="auth-error">{error}</div>}
+    </article>
   );
 }
 

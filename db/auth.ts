@@ -5,6 +5,11 @@ export const SESSION_COOKIE = 'schwank_session';
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
 const PBKDF2_ITERATIONS = 600_000;
 const encoder = new TextEncoder();
+const RATE_LIMITS = {
+  login: { attempts: 5, windowSeconds: 15 * 60 },
+  register: { attempts: 10, windowSeconds: 60 * 60 },
+} as const;
+type AuthRateScope = keyof typeof RATE_LIMITS;
 
 export type AuthUser = {
   id: number;
@@ -46,6 +51,101 @@ async function sha256(value: string) {
       await crypto.subtle.digest('SHA-256', encoder.encode(value)),
     ),
   );
+}
+
+function requestFingerprint(request: Request) {
+  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0];
+  const address =
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-real-ip') ||
+    forwarded?.trim() ||
+    'local';
+  return address;
+}
+
+async function rateLimitBucket(
+  request: Request,
+  scope: AuthRateScope,
+  identity: string,
+) {
+  return sha256(
+    `${scope}|${requestFingerprint(request)}|${identity.trim().toLowerCase()}`,
+  );
+}
+
+export async function assertAuthRateLimit(
+  request: Request,
+  scope: AuthRateScope,
+  identity: string,
+) {
+  await ensureDatabase();
+  const bucketHash = await rateLimitBucket(request, scope, identity);
+  const row = await env.DB.prepare(
+    'SELECT attempts,window_started_at AS windowStartedAt,blocked_until AS blockedUntil FROM auth_rate_limits WHERE bucket_hash=?',
+  )
+    .bind(bucketHash)
+    .first<{
+      attempts: number;
+      windowStartedAt: string;
+      blockedUntil: string | null;
+    }>();
+  const now = new Date();
+  if (row?.blockedUntil && row.blockedUntil > now.toISOString())
+    throw new AuthError('Too many attempts. Try again later.', 429);
+  const windowMilliseconds = RATE_LIMITS[scope].windowSeconds * 1000;
+  if (
+    row &&
+    new Date(row.windowStartedAt).getTime() + windowMilliseconds <=
+      now.getTime()
+  )
+    await env.DB.prepare('DELETE FROM auth_rate_limits WHERE bucket_hash=?')
+      .bind(bucketHash)
+      .run();
+}
+
+export async function recordAuthFailure(
+  request: Request,
+  scope: AuthRateScope,
+  identity: string,
+) {
+  const bucketHash = await rateLimitBucket(request, scope, identity);
+  const now = new Date();
+  const config = RATE_LIMITS[scope];
+  const existing = await env.DB.prepare(
+    'SELECT attempts,window_started_at AS windowStartedAt FROM auth_rate_limits WHERE bucket_hash=?',
+  )
+    .bind(bucketHash)
+    .first<{ attempts: number; windowStartedAt: string }>();
+  const expired =
+    !existing ||
+    new Date(existing.windowStartedAt).getTime() +
+      config.windowSeconds * 1000 <=
+      now.getTime();
+  const attempts = expired ? 1 : Number(existing.attempts) + 1;
+  const windowStartedAt = expired
+    ? now.toISOString()
+    : existing.windowStartedAt;
+  const blockedUntil =
+    attempts >= config.attempts
+      ? new Date(now.getTime() + config.windowSeconds * 1000).toISOString()
+      : null;
+  await env.DB.prepare(
+    'INSERT INTO auth_rate_limits (bucket_hash,scope,attempts,window_started_at,blocked_until) VALUES (?,?,?,?,?) ON CONFLICT(bucket_hash) DO UPDATE SET attempts=excluded.attempts,window_started_at=excluded.window_started_at,blocked_until=excluded.blocked_until',
+  )
+    .bind(bucketHash, scope, attempts, windowStartedAt, blockedUntil)
+    .run();
+  if (blockedUntil)
+    throw new AuthError('Too many attempts. Try again later.', 429);
+}
+
+export async function clearAuthRateLimit(
+  request: Request,
+  scope: AuthRateScope,
+  identity: string,
+) {
+  await env.DB.prepare('DELETE FROM auth_rate_limits WHERE bucket_hash=?')
+    .bind(await rateLimitBucket(request, scope, identity))
+    .run();
 }
 async function hashPassword(password: string, salt: Uint8Array) {
   const key = await crypto.subtle.importKey(
@@ -211,7 +311,13 @@ export async function updateEnrollmentSettings(user: AuthUser, input: unknown) {
   return { registrationOpen: true, inviteExpiresAt, inviteCode };
 }
 
-async function createSession(userId: number) {
+function cleanUserAgent(request?: Request) {
+  return (
+    request?.headers.get('user-agent')?.trim().slice(0, 240) || 'Unknown device'
+  );
+}
+
+async function createSession(userId: number, request?: Request) {
   const token = bytesToBase64(crypto.getRandomValues(new Uint8Array(32)));
   const tokenHash = await sha256(token);
   const now = new Date();
@@ -219,14 +325,20 @@ async function createSession(userId: number) {
     now.getTime() + SESSION_SECONDS * 1000,
   ).toISOString();
   await env.DB.prepare(
-    'INSERT INTO sessions (user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?)',
+    'INSERT INTO sessions (user_id,token_hash,user_agent,expires_at,created_at) VALUES (?,?,?,?,?)',
   )
-    .bind(userId, tokenHash, expiresAt, now.toISOString())
+    .bind(
+      userId,
+      tokenHash,
+      cleanUserAgent(request),
+      expiresAt,
+      now.toISOString(),
+    )
     .run();
   return token;
 }
 
-export async function registerUser(input: unknown) {
+export async function registerUser(input: unknown, request?: Request) {
   await ensureDatabase();
   const { email, name, password, inviteCode } = normalizeRegistration(input);
   const userCount = await env.DB.prepare(
@@ -278,13 +390,13 @@ export async function registerUser(input: unknown) {
       )
       .run();
     const userId = Number(result.meta.last_row_id);
-    return { token: await createSession(userId), userId };
+    return { token: await createSession(userId, request), userId };
   } catch {
     throw new AuthError('An account with that email already exists.', 409);
   }
 }
 
-export async function loginUser(input: unknown) {
+export async function loginUser(input: unknown, request?: Request) {
   await ensureDatabase();
   const record = (input && typeof input === 'object' ? input : {}) as Record<
     string,
@@ -309,7 +421,7 @@ export async function loginUser(input: unknown) {
     !constantTimeEqual(candidateHash, user?.passwordHash ?? fallbackHash)
   )
     throw new AuthError('Email or password is incorrect.', 401);
-  return { token: await createSession(user.id), userId: user.id };
+  return { token: await createSession(user.id, request), userId: user.id };
 }
 
 function cookieValue(cookieHeader: string | null) {
@@ -320,6 +432,123 @@ function cookieValue(cookieHeader: string | null) {
   }
   return null;
 }
+
+async function requestTokenHash(request: Request) {
+  const token = cookieValue(request.headers.get('cookie'));
+  return token ? sha256(token) : null;
+}
+
+export type SessionSummary = {
+  id: number;
+  userAgent: string;
+  createdAt: string;
+  expiresAt: string;
+  current: boolean | number;
+};
+
+export async function listUserSessions(user: AuthUser, request: Request) {
+  await ensureDatabase();
+  const tokenHash = await requestTokenHash(request);
+  if (!tokenHash) throw new AuthError('Sign in required.', 401);
+  const result = await env.DB.prepare(
+    'SELECT id,user_agent AS userAgent,created_at AS createdAt,expires_at AS expiresAt,(token_hash=?) AS current FROM sessions WHERE user_id=? AND expires_at>? ORDER BY created_at DESC,id DESC',
+  )
+    .bind(tokenHash, user.id, new Date().toISOString())
+    .all<SessionSummary>();
+  return result.results;
+}
+
+export async function revokeUserSession(
+  user: AuthUser,
+  request: Request,
+  input: unknown,
+) {
+  await ensureDatabase();
+  const record = (input && typeof input === 'object' ? input : {}) as Record<
+    string,
+    unknown
+  >;
+  const sessionId = Number(record.sessionId);
+  if (!Number.isSafeInteger(sessionId) || sessionId < 1)
+    throw new AuthError('Choose a valid session.', 400);
+  const tokenHash = await requestTokenHash(request);
+  if (!tokenHash) throw new AuthError('Sign in required.', 401);
+  const session = await env.DB.prepare(
+    'SELECT id,(token_hash=?) AS current FROM sessions WHERE id=? AND user_id=?',
+  )
+    .bind(tokenHash, sessionId, user.id)
+    .first<{ id: number; current: boolean | number }>();
+  if (!session) throw new AuthError('Session not found.', 404);
+  await env.DB.prepare('DELETE FROM sessions WHERE id=? AND user_id=?')
+    .bind(sessionId, user.id)
+    .run();
+  return { currentRevoked: Boolean(session.current) };
+}
+
+export async function changeUserPassword(
+  user: AuthUser,
+  request: Request,
+  input: unknown,
+) {
+  await ensureDatabase();
+  const record = (input && typeof input === 'object' ? input : {}) as Record<
+    string,
+    unknown
+  >;
+  const currentPassword = stringField(record, 'currentPassword');
+  const newPassword = stringField(record, 'newPassword');
+  if (newPassword.length < 12 || newPassword.length > 128)
+    throw new AuthError(
+      'Use a new password between 12 and 128 characters.',
+      400,
+    );
+  if (!currentPassword)
+    throw new AuthError('Enter your current password.', 400);
+  const stored = await env.DB.prepare(
+    'SELECT password_hash AS passwordHash,password_salt AS passwordSalt FROM users WHERE id=?',
+  )
+    .bind(user.id)
+    .first<{ passwordHash: string; passwordSalt: string }>();
+  if (!stored) throw new AuthError('Sign in required.', 401);
+  const candidateHash = await hashPassword(
+    currentPassword,
+    base64ToBytes(stored.passwordSalt),
+  );
+  if (!constantTimeEqual(candidateHash, stored.passwordHash))
+    throw new AuthError('Your current password is incorrect.', 403);
+  const repeatedHash = await hashPassword(
+    newPassword,
+    base64ToBytes(stored.passwordSalt),
+  );
+  if (constantTimeEqual(repeatedHash, stored.passwordHash))
+    throw new AuthError('Choose a password you have not just been using.', 400);
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const passwordHash = await hashPassword(newPassword, salt);
+  const token = bytesToBase64(crypto.getRandomValues(new Uint8Array(32)));
+  const tokenHash = await sha256(token);
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + SESSION_SECONDS * 1000,
+  ).toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      'UPDATE users SET password_hash=?,password_salt=? WHERE id=?',
+    ).bind(passwordHash, bytesToBase64(salt), user.id),
+    env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id),
+    env.DB.prepare(
+      'INSERT INTO sessions (user_id,token_hash,user_agent,expires_at,created_at) VALUES (?,?,?,?,?)',
+    ).bind(
+      user.id,
+      tokenHash,
+      cleanUserAgent(request),
+      expiresAt,
+      now.toISOString(),
+    ),
+  ]);
+  return { token };
+}
+
 export async function getUserFromCookie(
   cookieHeader: string | null,
 ): Promise<AuthUser | null> {

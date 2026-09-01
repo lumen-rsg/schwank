@@ -4004,6 +4004,93 @@ select {
   border-color: #d8e2d4;
   background: linear-gradient(145deg, #fffdf9, #f5faf3);
 }
+.account-security-card {
+  display: grid;
+  gap: 14px;
+  border-color: #d8dfe8;
+  background: linear-gradient(145deg, #fffdf9, #f5f8fb);
+}
+.account-security-heading {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.account-security-heading > span {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #e5ebf2;
+  color: #5e7188;
+}
+.account-security-card h2 {
+  margin: 2px 0 5px;
+  font-size: 13px;
+}
+.account-security-card p {
+  margin: 0;
+  color: #7d7f78;
+  font-size: 8px;
+  line-height: 1.5;
+}
+.password-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  align-items: end;
+}
+.password-form .primary-button {
+  grid-column: 1/-1;
+  justify-content: center;
+}
+.session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #e4e8eb;
+}
+.session-heading strong {
+  font-size: 9px;
+}
+.session-heading span {
+  color: #8a8d85;
+  font-size: 8px;
+}
+.session-list {
+  display: grid;
+}
+.session-list > div {
+  min-height: 43px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  border-top: 1px solid #ece9e2;
+  color: #65778a;
+}
+.session-list > div > span {
+  display: grid;
+  gap: 2px;
+}
+.session-list strong {
+  color: #4e5357;
+  font-size: 8px;
+}
+.session-list small {
+  color: #8c8f89;
+  font-size: 7px;
+}
+.security-success {
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #e8f2e5;
+  color: #577052;
+  font-size: 9px;
+}
 .enrollment-icon {
   width: 37px;
   height: 37px;

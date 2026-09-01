@@ -1,6 +1,9 @@
 import {
   assertSameOrigin,
+  assertAuthRateLimit,
   AuthError,
+  clearAuthRateLimit,
+  recordAuthFailure,
   registerUser,
   sessionCookie,
 } from '@/db/auth';
@@ -8,7 +11,17 @@ import {
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    const { token } = await registerUser(await request.json());
+    const input = await request.json();
+    await assertAuthRateLimit(request, 'register', 'household');
+    let token: string;
+    try {
+      ({ token } = await registerUser(input, request));
+    } catch (error) {
+      if (error instanceof AuthError)
+        await recordAuthFailure(request, 'register', 'household');
+      throw error;
+    }
+    await clearAuthRateLimit(request, 'register', 'household');
     return Response.json(
       { ok: true },
       { status: 201, headers: { 'set-cookie': sessionCookie(token, request) } },

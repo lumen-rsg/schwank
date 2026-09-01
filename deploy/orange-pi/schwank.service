@@ -21,7 +21,9 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/home/orangepi/schwank-server/.wrangler
-ReadWritePaths=/home/orangepi/schwank-server/dist/server/.wrangler
+# Wrangler creates a build-local .wrangler/tmp directory beside its compiled
+# configuration. Keep the replaceable server subtree writable across swaps.
+ReadWritePaths=/home/orangepi/schwank-server/dist/server
 ReadWritePaths=/home/orangepi/schwank-server/node_modules/.mf
 ReadWritePaths=/home/orangepi/.config/.wrangler
 

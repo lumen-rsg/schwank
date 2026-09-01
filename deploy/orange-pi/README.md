@@ -14,6 +14,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now schwank
 ```
 
+The replaceable `dist/server` subtree is writable because Wrangler creates a
+build-local `.wrangler/tmp` directory beside its compiled configuration. This
+lets an atomic replacement of `dist` start without pre-creating transient
+directories. Persistent D1 data lives in the separate top-level
+`.wrangler/state` path and is never part of the swap.
+
 Useful checks:
 
 ```sh

@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +19,12 @@ const verifier = join(
   'deploy',
   'orange-pi',
   'verify-backup.sh',
+);
+const serviceUnit = join(
+  repositoryRoot,
+  'deploy',
+  'orange-pi',
+  'schwank.service',
 );
 
 function run(command, arguments_, options = {}) {
@@ -84,4 +97,17 @@ void test('verifies a valid archived D1 state and rejects corruption', async () 
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+void test('keeps persistent state and the replaceable server build writable', async () => {
+  const service = await readFile(serviceUnit, 'utf8');
+
+  assert.match(
+    service,
+    /^ReadWritePaths=\/home\/orangepi\/schwank-server\/\.wrangler$/m,
+  );
+  assert.match(
+    service,
+    /^ReadWritePaths=\/home\/orangepi\/schwank-server\/dist\/server$/m,
+  );
 });

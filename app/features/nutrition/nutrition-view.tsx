@@ -191,14 +191,38 @@ export function NutritionView({
                   label={t('meal')}
                   placeholder={t('dinner')}
                 />
-                <Field name="calories" label={t('calories')} type="number" />
+                <Field
+                  name="calories"
+                  label={t('calories')}
+                  type="number"
+                  min={0}
+                  max={20_000}
+                  step={1}
+                />
                 <Field
                   name="protein"
                   label={`${t('protein')} (g)`}
                   type="number"
+                  min={0}
+                  max={2_000}
+                  step={1}
                 />
-                <Field name="carbs" label={`${t('carbs')} (g)`} type="number" />
-                <Field name="fat" label={`${t('fats')} (g)`} type="number" />
+                <Field
+                  name="carbs"
+                  label={`${t('carbs')} (g)`}
+                  type="number"
+                  min={0}
+                  max={2_000}
+                  step={1}
+                />
+                <Field
+                  name="fat"
+                  label={`${t('fats')} (g)`}
+                  type="number"
+                  min={0}
+                  max={2_000}
+                  step={1}
+                />
                 <PrivacySelect t={t} defaultValue="shared" />
                 <button className="primary-button">
                   <Plus size={16} />
@@ -428,6 +452,9 @@ function NutritionCalculator({
               name="heightCm"
               label={t('heightCm')}
               type="number"
+              min={120}
+              max={250}
+              step="0.1"
               defaultValue={
                 user.heightCm === null ? undefined : String(user.heightCm)
               }
@@ -436,6 +463,9 @@ function NutritionCalculator({
               name="weightKg"
               label={t('weightKg')}
               type="number"
+              min={35}
+              max={350}
+              step="0.1"
               defaultValue={
                 user.weightKg === null ? undefined : String(user.weightKg)
               }
@@ -444,6 +474,9 @@ function NutritionCalculator({
               name="age"
               label={t('ageYears')}
               type="number"
+              min={19}
+              max={100}
+              step={1}
               defaultValue={user.age === null ? undefined : String(user.age)}
             />
             <label className="form-field">

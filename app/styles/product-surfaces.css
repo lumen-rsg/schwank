@@ -22,6 +22,24 @@
   box-shadow: 0 10px 35px #2c291f22;
   font-size: 11px;
 }
+.toast.success {
+  border-color: #bad2b7;
+  background: #f5fbf3;
+  color: #466342;
+}
+.toast.error {
+  border-color: #e2b8ae;
+  background: #fff6f3;
+  color: #8b3e2c;
+}
+form.is-submitting {
+  cursor: progress;
+}
+button:disabled,
+input[type='submit']:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
 .loading-state {
   min-height: 55vh;
   display: flex;

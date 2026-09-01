@@ -75,7 +75,14 @@ export function WaterView({
             className="form-grid water-form"
             onSubmit={(event) => submitForm(event, post, 'water')}
           >
-            <Field name="amountMl" label={t('customAmount')} type="number" />
+            <Field
+              name="amountMl"
+              label={t('customAmount')}
+              type="number"
+              min={1}
+              max={10_000}
+              step={1}
+            />
             <button className="primary-button">
               <Plus size={16} />
               {t('addWater')}
@@ -90,6 +97,9 @@ export function WaterView({
               name="waterGoal"
               label={t('waterGoal')}
               type="number"
+              min={250}
+              max={10_000}
+              step={1}
               defaultValue={String(user.waterGoal)}
             />
             <button className="secondary-button">{t('setGoal')}</button>

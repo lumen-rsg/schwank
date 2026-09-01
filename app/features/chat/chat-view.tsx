@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { MessageCircle, Send } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
+import { withFormSubmission } from '../../client/forms';
 import { Avatar, Empty, PageTitle } from '../../components/app-ui';
 import type { Language } from '../../i18n';
 import type { Data, Post, T } from '../types';
@@ -74,14 +75,17 @@ export function ChatView({
         </div>
         <form
           className="chat-compose"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const messageValue = new FormData(form).get('body');
-            const body =
-              typeof messageValue === 'string' ? messageValue.trim() : '';
-            if (body && (await post({ type: 'message', body }))) form.reset();
-          }}
+          onSubmit={(event) =>
+            withFormSubmission(event, async (form) => {
+              const messageValue = new FormData(form).get('body');
+              const body =
+                typeof messageValue === 'string' ? messageValue.trim() : '';
+              if (!body) return false;
+              const saved = await post({ type: 'message', body });
+              if (saved) form.reset();
+              return saved;
+            })
+          }
         >
           <Avatar person={user} />
           <input

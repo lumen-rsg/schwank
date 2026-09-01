@@ -143,12 +143,18 @@ export function HabitsView({
               label={t('occurrences')}
               type="number"
               defaultValue="1"
+              min={1}
+              max={1_000}
+              step={1}
             />
             <Field
               name="cost"
               label={t('costRub')}
               type="number"
               defaultValue="0"
+              min={0}
+              max={1_000_000}
+              step="0.01"
             />
             <Field
               name="occurredOn"

@@ -9,6 +9,10 @@ export function Field({
   minLength,
   maxLength,
   autoComplete,
+  min,
+  max,
+  step,
+  required = true,
 }: {
   name: string;
   label: string;
@@ -18,6 +22,10 @@ export function Field({
   minLength?: number;
   maxLength?: number;
   autoComplete?: string;
+  min?: number | string;
+  max?: number | string;
+  step?: number | string;
+  required?: boolean;
 }) {
   return (
     <label className="form-field">
@@ -30,9 +38,10 @@ export function Field({
         minLength={minLength}
         maxLength={maxLength}
         autoComplete={autoComplete}
-        min={type === 'number' ? 0 : undefined}
-        step={type === 'number' ? 'any' : undefined}
-        required
+        min={min ?? (type === 'number' ? 0 : undefined)}
+        max={max}
+        step={step ?? (type === 'number' ? 'any' : undefined)}
+        required={required}
       />
     </label>
   );

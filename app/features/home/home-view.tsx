@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
+import { withFormSubmission } from '../../client/forms';
 import { imagePreparationMessage, resizeImage } from '../../client/image';
 import { Field } from '../../components/app-field';
 import { Avatar, PageTitle } from '../../components/app-ui';
@@ -103,20 +104,22 @@ export function HomeView({
           </div>
           <form
             className="settings-form"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const values = new FormData(form);
-              const nameValue = values.get('name');
-              const addressValue = values.get('address');
-              const payload: Record<string, string | boolean> = {
-                type: 'home',
-                name: typeof nameValue === 'string' ? nameValue : '',
-                address: typeof addressValue === 'string' ? addressValue : '',
-              };
-              if (photoChanged) payload.photo = homePhoto || '';
-              if (await post(payload)) setPhotoChanged(false);
-            }}
+            onSubmit={(event) =>
+              withFormSubmission(event, async (form) => {
+                const values = new FormData(form);
+                const nameValue = values.get('name');
+                const addressValue = values.get('address');
+                const payload: Record<string, string | boolean> = {
+                  type: 'home',
+                  name: typeof nameValue === 'string' ? nameValue : '',
+                  address: typeof addressValue === 'string' ? addressValue : '',
+                };
+                if (photoChanged) payload.photo = homePhoto || '';
+                const saved = await post(payload);
+                if (saved) setPhotoChanged(false);
+                return saved;
+              })
+            }
           >
             <Field
               name="name"

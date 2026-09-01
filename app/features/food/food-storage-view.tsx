@@ -134,7 +134,13 @@ export function FoodStorageView({
                 label={t('foodName')}
                 placeholder={t('foodNamePlaceholder')}
               />
-              <Field name="quantity" label={t('quantity')} type="number" />
+              <Field
+                name="quantity"
+                label={t('quantity')}
+                type="number"
+                min="0.01"
+                max={1_000_000}
+              />
               <label className="form-field">
                 <span>{t('unit')}</span>
                 <select name="unit" defaultValue="g">

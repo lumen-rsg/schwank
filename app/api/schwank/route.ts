@@ -22,8 +22,8 @@ export async function POST(request: Request) {
     const user = await getRequestUser(request);
     if (!user) throw new ApiError('Sign in required.', 401, 'auth_required');
     const action = (await request.json()) as DataAction;
-    const result = await writeHouseholdData(user.id, action);
-    return Response.json({ ok: true, result });
+    await writeHouseholdData(user.id, action);
+    return Response.json({ ok: true, data: await readHouseholdData(user) });
   } catch (error) {
     return apiErrorResponse(error, { message: 'Unable to save data.' });
   }

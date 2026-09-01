@@ -213,7 +213,14 @@ export function SpendingView({
               label={t('whatWasIt')}
               placeholder={t('cleaningSupplies')}
             />
-            <Field name="amount" label={t('amountRub')} type="number" />
+            <Field
+              name="amount"
+              label={t('amountRub')}
+              type="number"
+              min="0.01"
+              max={1_000_000}
+              step="0.01"
+            />
             <label className="form-field">
               <span>{t('category')}</span>
               <select name="category" defaultValue="groceries">
@@ -260,7 +267,14 @@ export function SpendingView({
             label={t('paymentName')}
             placeholder={t('paymentNamePlaceholder')}
           />
-          <Field name="amount" label={t('paymentAmount')} type="number" />
+          <Field
+            name="amount"
+            label={t('paymentAmount')}
+            type="number"
+            min="0.01"
+            max={1_000_000}
+            step="0.01"
+          />
           <label className="form-field">
             <span>{t('billingCycle')}</span>
             <select name="billingCycle" defaultValue="monthly">

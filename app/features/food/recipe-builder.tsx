@@ -2,6 +2,7 @@
 
 import { useState, type SubmitEvent } from 'react';
 import { ChefHat, Plus, Trash2 } from 'lucide-react';
+import { withFormSubmission } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import type { FoodItem, FoodUnit, Post, RecipeCourse, T } from '../types';
 import { recipeCourseCopy } from './food-utils';
@@ -32,33 +33,33 @@ export function RecipeBuilder({
     );
   }
   async function save(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    const nameValue = values.get('name');
-    const instructionsValue = values.get('instructions');
-    const name = typeof nameValue === 'string' ? nameValue : '';
-    const servings = Number(values.get('servings'));
-    const instructions =
-      typeof instructionsValue === 'string' ? instructionsValue : '';
-    const cleanIngredients = ingredients.map((item) => ({
-      name: item.name,
-      quantity: Number(item.quantity),
-      unit: item.unit,
-    }));
-    if (
-      await post({
+    return withFormSubmission(event, async (form) => {
+      const values = new FormData(form);
+      const nameValue = values.get('name');
+      const instructionsValue = values.get('instructions');
+      const name = typeof nameValue === 'string' ? nameValue : '';
+      const servings = Number(values.get('servings'));
+      const instructions =
+        typeof instructionsValue === 'string' ? instructionsValue : '';
+      const cleanIngredients = ingredients.map((item) => ({
+        name: item.name,
+        quantity: Number(item.quantity),
+        unit: item.unit,
+      }));
+      const saved = await post({
         type: 'recipe-add',
         name,
         course,
         servings,
         instructions,
         ingredients: cleanIngredients,
-      })
-    ) {
-      form.reset();
-      setIngredients([{ name: '', quantity: '', unit: 'g' }]);
-    }
+      });
+      if (saved) {
+        form.reset();
+        setIngredients([{ name: '', quantity: '', unit: 'g' }]);
+      }
+      return saved;
+    });
   }
   return (
     <article className="panel recipe-builder">
@@ -90,6 +91,9 @@ export function RecipeBuilder({
             label={t('servings')}
             type="number"
             defaultValue="3"
+            min={1}
+            max={100}
+            step={1}
           />
         </div>
         <label className="form-field recipe-instructions">

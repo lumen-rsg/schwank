@@ -6,6 +6,12 @@ import { deriveDueNotifications } from '@/lib/notifications';
 import type { Language } from '../i18n';
 import type { Data, Post, T } from '../features/types';
 import { requestApiJson } from './api';
+import { mutationKey } from './mutations';
+
+export type AppNotice = {
+  kind: 'progress' | 'success' | 'error';
+  message: string;
+};
 
 function emptyHousehold(user: AuthUser): Data {
   return {
@@ -44,18 +50,22 @@ export function useHouseholdController({
 }) {
   const [data, setData] = useState<Data>(() => emptyHousehold(initialUser));
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<AppNotice | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'desktop' | 'in-app'
   >('in-app');
   const lastMessageId = useRef<number | null>(null);
   const loadInProgress = useRef(false);
+  const dataGeneration = useRef(0);
+  const pendingMutations = useRef(new Set<string>());
+  const noticeTimer = useRef<number | null>(null);
   const deliveredNotificationKeys = useRef(new Set<string>());
 
   const load = useCallback(
     async (silent = false) => {
-      if (loadInProgress.current) return;
+      if (loadInProgress.current || pendingMutations.current.size) return;
       loadInProgress.current = true;
+      const generation = dataGeneration.current;
       try {
         const nextData = await requestApiJson<Data>(
           '/api/schwank',
@@ -80,13 +90,17 @@ export function useHouseholdController({
               `${newMessage.name}: ${newMessage.body}`,
             );
         }
-        lastMessageId.current = newestMessageId;
-        setData(nextData);
+        if (generation === dataGeneration.current) {
+          lastMessageId.current = newestMessageId;
+          setData(nextData);
+        }
       } catch (cause) {
         if (!silent)
-          setNotice(
-            cause instanceof Error ? cause.message : t('storageFailed'),
-          );
+          setNotice({
+            kind: 'error',
+            message:
+              cause instanceof Error ? cause.message : t('storageFailed'),
+          });
       } finally {
         setLoading(false);
         loadInProgress.current = false;
@@ -120,6 +134,14 @@ export function useHouseholdController({
       document.removeEventListener('visibilitychange', refreshVisible);
     };
   }, [initialUser.id, load]);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current !== null)
+        window.clearTimeout(noticeTimer.current);
+    },
+    [],
+  );
 
   const notifications = useMemo(
     () => deriveDueNotifications(data, t, language),
@@ -168,9 +190,14 @@ export function useHouseholdController({
   }
 
   const post: Post = async (payload) => {
-    setNotice(t('saving'));
+    const key = mutationKey(payload);
+    if (pendingMutations.current.has(key)) return false;
+    pendingMutations.current.add(key);
+    dataGeneration.current += 1;
+    if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
+    setNotice({ kind: 'progress', message: t('saving') });
     try {
-      await requestApiJson(
+      const response = await requestApiJson<{ ok: true; data: Data }>(
         '/api/schwank',
         {
           method: 'POST',
@@ -180,15 +207,22 @@ export function useHouseholdController({
         t,
         'saveFailed',
       );
-      await load();
-      setNotice(
-        payload.visibility === 'private' ? t('savedPrivately') : t('saved'),
-      );
-      window.setTimeout(() => setNotice(''), 1600);
+      setData(response.data);
+      setNotice({
+        kind: 'success',
+        message:
+          payload.visibility === 'private' ? t('savedPrivately') : t('saved'),
+      });
+      noticeTimer.current = window.setTimeout(() => setNotice(null), 2200);
       return true;
     } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : t('saveFailed'));
+      setNotice({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : t('saveFailed'),
+      });
       return false;
+    } finally {
+      pendingMutations.current.delete(key);
     }
   };
 

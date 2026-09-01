@@ -474,6 +474,9 @@ void test(
     for (const record of records) {
       const created = await action(alice.cookie, record);
       assert.equal(created.response.status, 200, JSON.stringify(created.body));
+      assert.equal(created.body.ok, true);
+      assert.equal(created.body.data.currentUser.email, 'alice@example.test');
+      assert.ok(Array.isArray(created.body.data.tasks));
     }
 
     assert.equal(

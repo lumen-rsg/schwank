@@ -28,6 +28,7 @@ import type { AuthUser } from '@/db/auth';
 import { useLanguage } from './i18n';
 import { Avatar, Empty, LanguageSwitch } from './components/app-ui';
 import { useHouseholdController } from './client/use-household-controller';
+import { usePersistedSection } from './client/use-persisted-section';
 import { ChatView } from './features/chat/chat-view';
 import { Overview } from './features/dashboard/overview';
 import { FoodStorageView } from './features/food/food-storage-view';
@@ -58,6 +59,7 @@ const navigation = [
   { id: 'chat', key: 'chat', icon: MessageCircle },
   { id: 'home', key: 'homeSettings', icon: Settings },
 ] as const;
+const sectionIds = navigation.map((item) => item.id);
 
 export default function HouseholdApp({
   initialUser,
@@ -65,7 +67,11 @@ export default function HouseholdApp({
   initialUser: AuthUser;
 }) {
   const { language, setLanguage, t } = useLanguage();
-  const [active, setActive] = useState('overview');
+  const [active, setActive] = usePersistedSection(
+    initialUser.id,
+    sectionIds,
+    'overview',
+  );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const {
     data,
@@ -291,7 +297,16 @@ export default function HouseholdApp({
             </button>
           </div>
         </header>
-        {notice && <output className="toast">{notice}</output>}
+        {notice && (
+          <output
+            className={`toast ${notice.kind}`}
+            role={notice.kind === 'error' ? 'alert' : 'status'}
+            aria-live={notice.kind === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {notice.message}
+          </output>
+        )}
         <div className="content">
           {loading ? (
             <div className="loading-state">

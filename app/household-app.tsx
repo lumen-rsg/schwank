@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
   type SubmitEvent,
 } from 'react';
 import {
@@ -20,7 +19,6 @@ import {
   Calculator,
   CalendarClock,
   CalendarDays,
-  Camera,
   Check,
   CheckCircle2,
   ChefHat,
@@ -30,14 +28,10 @@ import {
   ClipboardCheck,
   Clock3,
   Droplets,
-  Download,
   Flame,
   Gift,
   Home,
-  Image as ImageIcon,
   Info,
-  KeyRound,
-  Languages,
   ListChecks,
   ListTodo,
   LoaderCircle,
@@ -45,7 +39,6 @@ import {
   LogOut,
   MessageCircle,
   Minus,
-  Monitor,
   PackageOpen,
   PackageCheck,
   Pause,
@@ -58,7 +51,6 @@ import {
   Search,
   Send,
   Settings,
-  ShieldCheck,
   ShoppingBasket,
   Sparkles,
   Trash2,
@@ -70,276 +62,40 @@ import {
   Wine,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
-import type { ApiErrorCode, ApiErrorPayload } from '@/lib/api-errors';
+import type { ApiErrorPayload } from '@/lib/api-errors';
 import { deriveDueNotifications } from '@/lib/notifications';
 import { apiErrorMessage } from './api-error-copy';
 import { useLanguage, type CopyKey, type Language } from './i18n';
+import { Field } from './components/app-field';
+import {
+  Avatar,
+  Empty,
+  LanguageSwitch,
+  PageTitle,
+  PrivacyBadge,
+  PrivacySelect,
+} from './components/app-ui';
+import { requestApiJson } from './client/api';
+import { HomeView } from './features/home/home-view';
 
-type Visibility = 'private' | 'shared';
-type Member = {
-  id: number;
-  name: string;
-  initials: string;
-  color: string;
-  avatar: string | null;
-};
-type HomeProfile = { name: string; address: string; photo: string | null };
-type Nutrition = {
-  id: number;
-  userId: number;
-  label: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  eatenOn: string;
-  visibility: Visibility;
-  owned: boolean | number;
-  name: string;
-  initials: string;
-  color: string;
-  avatar: string | null;
-};
-type Task = {
-  id: number;
-  title: string;
-  status: string;
-  tag: string;
-  due: string;
-  dueOn: string | null;
-  visibility: Visibility;
-  owned: boolean | number;
-};
-type Expense = {
-  id: number;
-  label: string;
-  amount: number;
-  category: string;
-  spentOn: string;
-  visibility: Visibility;
-  owned: boolean | number;
-};
-type RecurringPayment = {
-  id: number;
-  kind: 'subscription' | 'loan' | 'rent';
-  label: string;
-  amount: number;
-  billingCycle: 'monthly' | 'yearly';
-  nextDueOn: string;
-  remainingAmount: number | null;
-  active: boolean | number;
-  visibility: Visibility;
-  owned: boolean | number;
-};
-type Organiser = {
-  id: number;
-  list: string;
-  label: string;
-  done: boolean | number;
-  visibility: Visibility;
-  owned: boolean | number;
-};
-type Reminder = {
-  id: number;
-  label: string;
-  remindAt: string;
-  done: boolean | number;
-  visibility: Visibility;
-  owned: boolean | number;
-};
-type Medication = {
-  id: number;
-  name: string;
-  dosage: string;
-  instructions: string;
-  scheduleTimes: string[];
-  startOn: string;
-  endOn: string | null;
-  active: boolean | number;
-  visibility: Visibility;
-  owned: boolean | number;
-  ownerName: string;
-};
-type MedicationDose = {
-  id: number;
-  medicationId: number;
-  scheduledFor: string;
-  takenAt: string;
-  takenByName: string;
-};
-type PurchaseIdea = {
-  id: number;
-  title: string;
-  description: string;
-  estimatedCost: number | null;
-  status: 'open' | 'bought';
-  createdAt: string;
-  owned: boolean | number;
-  createdByName: string;
-  initials: string;
-  color: string;
-  avatar: string | null;
-};
-type PurchaseVote = {
-  id: number;
-  ideaId: number;
-  vote: 1 | -1;
-  updatedAt: string;
-  mine: boolean | number;
-  name: string;
-  initials: string;
-  color: string;
-  avatar: string | null;
-};
-type Message = {
-  id: number;
-  body: string;
-  createdAt: string;
-  name: string;
-  initials: string;
-  color: string;
-  avatar: string | null;
-  mine: boolean | number;
-};
-type HabitKind = 'vaping' | 'alcohol';
-type HabitEntry = {
-  id: number;
-  userId: number;
-  habit: HabitKind;
-  occurrences: number;
-  cost: number;
-  occurredOn: string;
-  createdAt: string;
-  name: string;
-  initials: string;
-  color: string;
-  avatar: string | null;
-  mine: boolean | number;
-};
-type WaterEntry = {
-  id: number;
-  amountMl: number;
-  drunkOn: string;
-  createdAt: string;
-};
-type FoodUnit = 'g' | 'kg' | 'ml' | 'l' | 'pcs';
-type RecipeCourse =
-  | 'breakfast'
-  | 'starter'
-  | 'main'
-  | 'dinner'
-  | 'salad'
-  | 'dessert';
-type FoodItem = {
-  id: number;
-  name: string;
-  normalizedName: string;
-  quantity: number;
-  unit: FoodUnit;
-  category: string;
-  expiresOn: string | null;
-  updatedAt: string;
-  updatedByName: string;
-};
-type RecipeIngredient = {
-  id: number;
-  recipeId: number;
-  name: string;
-  normalizedName: string;
-  quantity: number;
-  unit: FoodUnit;
-};
-type Recipe = {
-  id: number;
-  name: string;
-  course: RecipeCourse;
-  servings: number;
-  instructions: string;
-  createdAt: string;
-  createdByName: string;
-  ingredients: RecipeIngredient[];
-};
-type WeeklyMeal = {
-  id: number;
-  weekStart: string;
-  dayIndex: number;
-  course: RecipeCourse;
-  recipeId: number;
-  servings: number;
-};
-type AiMealPlanProposal = {
-  summary: string;
-  nutritionRationale: string;
-  recipes: Array<{
-    key: string;
-    sourceRecipeId: number;
-    name: string;
-    course: RecipeCourse;
-    description: string;
-    caloriesPerServing: number;
-    proteinPerServing: number;
-    carbsPerServing: number;
-    fatPerServing: number;
-    ingredients: Array<{
-      name: string;
-      quantity: number;
-      unit: FoodUnit;
-    }>;
-    instructions: string;
-  }>;
-  schedule: Array<{
-    dayIndex: number;
-    course: RecipeCourse;
-    recipeKey: string;
-  }>;
-};
-type AiPlanResult = {
-  proposal: AiMealPlanProposal;
-  model: string;
-  nutritionContributors: number;
-};
-type AiProgressStage =
-  | 'starting'
-  | 'preparing'
-  | 'context'
-  | 'requesting'
-  | 'receiving'
-  | 'validating';
-type AiStreamEvent =
-  | {
-      type: 'status';
-      stage: AiProgressStage;
-      provider?: string;
-      model?: string;
-    }
-  | { type: 'delta'; delta: string }
-  | { type: 'result'; result: AiPlanResult }
-  | { type: 'error'; error: string; code?: ApiErrorCode; status?: number };
-type Data = {
-  currentUser: AuthUser;
-  members: Member[];
-  home: HomeProfile;
-  nutrition: Nutrition[];
-  tasks: Task[];
-  expenses: Expense[];
-  recurringPayments: RecurringPayment[];
-  organisers: Organiser[];
-  reminders: Reminder[];
-  medications: Medication[];
-  medicationDoses: MedicationDose[];
-  purchaseIdeas: PurchaseIdea[];
-  purchaseVotes: PurchaseVote[];
-  messages: Message[];
-  habits: HabitEntry[];
-  water: WaterEntry[];
-  foods: FoodItem[];
-  recipes: Recipe[];
-  weeklyPlan: WeeklyMeal[];
-  aiConfigured: boolean;
-  aiConsentingMembers: number;
-};
-type Post = (payload: Record<string, unknown>) => Promise<boolean>;
-type T = (key: CopyKey, variables?: Record<string, string | number>) => string;
+import type {
+  AiPlanResult,
+  AiProgressStage,
+  AiStreamEvent,
+  Data,
+  FoodItem,
+  FoodUnit,
+  HabitEntry,
+  HabitKind,
+  Nutrition,
+  Post,
+  PurchaseIdea,
+  PurchaseVote,
+  Recipe,
+  RecipeCourse,
+  T,
+  WeeklyMeal,
+} from './features/types';
 
 const navigation = [
   { id: 'overview', key: 'overview', icon: Home },
@@ -430,143 +186,6 @@ const empty = (user: AuthUser): Data => ({
   aiConsentingMembers: 0,
 });
 
-function Avatar({
-  person,
-  small = false,
-}: {
-  person: { initials?: string; color?: string; avatar?: string | null };
-  small?: boolean;
-}) {
-  return (
-    <span
-      className={small ? 'avatar avatar-small' : 'avatar'}
-      style={{ backgroundColor: person.color }}
-    >
-      {person.avatar ? (
-        <Image
-          src={person.avatar}
-          alt=""
-          width={small ? 27 : 34}
-          height={small ? 27 : 34}
-          unoptimized
-        />
-      ) : (
-        person.initials
-      )}
-    </span>
-  );
-}
-function Field({
-  name,
-  label,
-  type = 'text',
-  placeholder,
-  defaultValue,
-  minLength,
-  maxLength,
-  autoComplete,
-}: {
-  name: string;
-  label: string;
-  type?: string;
-  placeholder?: string;
-  defaultValue?: string;
-  minLength?: number;
-  maxLength?: number;
-  autoComplete?: string;
-}) {
-  return (
-    <label className="form-field">
-      <span>{label}</span>
-      <input
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        defaultValue={defaultValue}
-        minLength={minLength}
-        maxLength={maxLength}
-        autoComplete={autoComplete}
-        min={type === 'number' ? 0 : undefined}
-        step={type === 'number' ? 'any' : undefined}
-        required
-      />
-    </label>
-  );
-}
-function PrivacySelect({
-  t,
-  defaultValue = 'private',
-}: {
-  t: T;
-  defaultValue?: Visibility;
-}) {
-  return (
-    <label className="form-field">
-      <span>{t('privacy')}</span>
-      <select name="visibility" defaultValue={defaultValue}>
-        <option value="private">{t('private')}</option>
-        <option value="shared">{t('shared')}</option>
-      </select>
-    </label>
-  );
-}
-function PrivacyBadge({ visibility, t }: { visibility: Visibility; t: T }) {
-  return (
-    <span className={`privacy-badge ${visibility}`}>
-      {visibility === 'private' ? <Lock size={11} /> : <Users size={11} />}{' '}
-      {t(visibility)}
-    </span>
-  );
-}
-function Empty({ children }: { children: string }) {
-  return <div className="empty-state">{children}</div>;
-}
-function PageTitle({
-  eyebrow,
-  title,
-  copy,
-  action,
-}: {
-  eyebrow: string;
-  title: string;
-  copy: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="welcome">
-      <div>
-        <span className="eyebrow">{eyebrow}</span>
-        <h1>
-          {title} <span>✦</span>
-        </h1>
-        <p>{copy}</p>
-      </div>
-      {action}
-    </div>
-  );
-}
-function LanguageSwitch({
-  language,
-  setLanguage,
-}: {
-  language: Language;
-  setLanguage: (language: Language) => void;
-}) {
-  return (
-    <label className="language-switch">
-      <Languages size={15} />
-      <select
-        value={language}
-        onChange={(event) => setLanguage(event.target.value as Language)}
-        aria-label="Language"
-      >
-        <option value="en">EN</option>
-        <option value="ru">RU</option>
-      </select>
-    </label>
-  );
-}
-
 export default function HouseholdApp({
   initialUser,
 }: {
@@ -589,13 +208,12 @@ export default function HouseholdApp({
       if (loadInProgress.current) return;
       loadInProgress.current = true;
       try {
-        const response = await fetch('/api/schwank', { cache: 'no-store' });
-        if (response.status === 401) {
-          window.location.assign('/login');
-          return;
-        }
-        if (!response.ok) throw new Error();
-        const nextData = (await response.json()) as Data;
+        const nextData = await requestApiJson<Data>(
+          '/api/schwank',
+          { cache: 'no-store' },
+          t,
+          'storageFailed',
+        );
         const newestMessageId = nextData.messages.reduce(
           (maximum, message) => Math.max(maximum, message.id),
           0,
@@ -615,8 +233,11 @@ export default function HouseholdApp({
         }
         lastMessageId.current = newestMessageId;
         setData(nextData);
-      } catch {
-        if (!silent) setNotice(t('storageFailed'));
+      } catch (cause) {
+        if (!silent)
+          setNotice(
+            cause instanceof Error ? cause.message : t('storageFailed'),
+          );
       } finally {
         setLoading(false);
         loadInProgress.current = false;
@@ -694,28 +315,27 @@ export default function HouseholdApp({
   }
   const post: Post = async (payload) => {
     setNotice(t('saving'));
-    const response = await fetch('/api/schwank', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (response.status === 401) {
-      window.location.assign('/login');
-      return false;
-    }
-    const result = (await response
-      .json()
-      .catch(() => ({}))) as Partial<ApiErrorPayload>;
-    if (response.ok) {
+    try {
+      await requestApiJson(
+        '/api/schwank',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+        t,
+        'saveFailed',
+      );
       await load();
       setNotice(
         payload.visibility === 'private' ? t('savedPrivately') : t('saved'),
       );
       setTimeout(() => setNotice(''), 1600);
       return true;
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : t('saveFailed'));
+      return false;
     }
-    setNotice(apiErrorMessage(result, t, 'saveFailed'));
-    return false;
   };
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -4617,667 +4237,6 @@ function ChatView({
   );
 }
 
-function HomeView({
-  data,
-  user,
-  post,
-  t,
-  language,
-}: {
-  data: Data;
-  user: AuthUser;
-  post: Post;
-  t: T;
-  language: Language;
-}) {
-  const [homePhoto, setHomePhoto] = useState<string | null>(data.home.photo);
-  const [photoChanged, setPhotoChanged] = useState(false);
-  const [preparing, setPreparing] = useState(false);
-  const [imageError, setImageError] = useState('');
-  async function pickHome(file?: File) {
-    if (!file) return;
-    setPreparing(true);
-    setImageError('');
-    try {
-      setHomePhoto(await resizeImage(file, 1400, 900, 0.8));
-      setPhotoChanged(true);
-    } catch (cause) {
-      setImageError(imagePreparationMessage(cause, t));
-    } finally {
-      setPreparing(false);
-    }
-  }
-  async function pickAvatar(file?: File) {
-    if (!file) return;
-    setPreparing(true);
-    setImageError('');
-    try {
-      await post({
-        type: 'avatar',
-        avatar: await resizeImage(file, 512, 512, 0.84),
-      });
-    } catch (cause) {
-      setImageError(imagePreparationMessage(cause, t));
-    } finally {
-      setPreparing(false);
-    }
-  }
-  return (
-    <>
-      <PageTitle
-        eyebrow={t('homeEyebrow')}
-        title={t('homeTitle')}
-        copy={t('homeCopy')}
-      />
-      <div className="settings-grid">
-        <article className="panel home-settings-card">
-          <div
-            className="home-photo-editor"
-            style={
-              homePhoto
-                ? {
-                    backgroundImage: `linear-gradient(#0003,#0003),url(${homePhoto})`,
-                  }
-                : undefined
-            }
-          >
-            {!homePhoto && <ImageIcon size={30} />}
-            <label className="photo-button">
-              <Camera size={15} />
-              {homePhoto ? t('replacePhoto') : t('choosePhoto')}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                disabled={preparing}
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  event.currentTarget.value = '';
-                  void pickHome(file);
-                }}
-              />
-            </label>
-          </div>
-          <form
-            className="settings-form"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const values = new FormData(form);
-              const nameValue = values.get('name');
-              const addressValue = values.get('address');
-              const payload: Record<string, string | boolean> = {
-                type: 'home',
-                name: typeof nameValue === 'string' ? nameValue : '',
-                address: typeof addressValue === 'string' ? addressValue : '',
-              };
-              if (photoChanged) payload.photo = homePhoto || '';
-              if (await post(payload)) setPhotoChanged(false);
-            }}
-          >
-            <Field
-              name="name"
-              label={t('homeName')}
-              placeholder={t('homeNamePlaceholder')}
-              defaultValue={data.home.name}
-            />
-            <Field
-              name="address"
-              label={t('address')}
-              placeholder={t('addressPlaceholder')}
-              defaultValue={data.home.address}
-            />
-            {homePhoto && (
-              <button
-                type="button"
-                className="danger-text-button"
-                onClick={() => {
-                  setHomePhoto(null);
-                  setPhotoChanged(true);
-                }}
-              >
-                {t('removePhoto')}
-              </button>
-            )}
-            <button className="primary-button">
-              <Home size={16} />
-              {t('saveHome')}
-            </button>
-          </form>
-        </article>
-        <div className="settings-stack">
-          <article className="panel profile-settings">
-            <div className="profile-avatar-large">
-              <Avatar person={user} />
-              <label className="avatar-upload">
-                <Camera size={15} />
-                <span>
-                  {user.avatar ? t('replaceAvatar') : t('chooseAvatar')}
-                </span>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  disabled={preparing}
-                  onChange={(event) => {
-                    const file = event.currentTarget.files?.[0];
-                    event.currentTarget.value = '';
-                    void pickAvatar(file);
-                  }}
-                />
-              </label>
-            </div>
-            <div>
-              <h2>{t('profileTitle')}</h2>
-              <p>{t('profileCopy')}</p>
-              <strong>{user.name}</strong>
-              <span>{user.email}</span>
-              {user.avatar && (
-                <button
-                  className="danger-text-button"
-                  onClick={() => post({ type: 'avatar', avatar: '' })}
-                >
-                  {t('removeAvatar')}
-                </button>
-              )}
-            </div>
-          </article>
-          <article className="panel ai-consent-card">
-            <div className="ai-consent-icon">
-              <Sparkles size={19} />
-            </div>
-            <div>
-              <h2>{t('aiConsentTitle')}</h2>
-              <p>{t('aiConsentCopy')}</p>
-              <span>
-                <Lock size={13} />
-                {user.aiConsent
-                  ? t('aiConsentEnabled')
-                  : t('aiConsentDisabled')}
-              </span>
-            </div>
-            <button
-              className={user.aiConsent ? 'secondary-button' : 'primary-button'}
-              onClick={() =>
-                post({ type: 'ai-consent', enabled: !user.aiConsent })
-              }
-            >
-              {user.aiConsent ? t('disableAiConsent') : t('enableAiConsent')}
-            </button>
-          </article>
-          <AccountSecurityCard t={t} language={language} />
-          <AccountDataCard
-            user={user}
-            memberCount={data.members.length}
-            t={t}
-          />
-          {user.role === 'owner' && (
-            <EnrollmentCard t={t} language={language} />
-          )}
-          <article className="panel members-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>{t('housemates')}</h2>
-                <span>{t('membersCount', { count: data.members.length })}</span>
-              </div>
-              <Users size={18} />
-            </div>
-            <div className="member-list">
-              {data.members.map((member) => (
-                <div key={member.id}>
-                  <Avatar person={member} />
-                  <strong>{member.name}</strong>
-                </div>
-              ))}
-            </div>
-          </article>
-          <p className="image-hint">
-            {preparing ? (
-              <>
-                <LoaderCircle className="spin" size={14} />
-                {t('uploading')}
-              </>
-            ) : (
-              <>
-                <ImageIcon size={14} />
-                {t('imageHint')}
-              </>
-            )}
-          </p>
-          {imageError && <div className="auth-error">{imageError}</div>}
-        </div>
-      </div>
-    </>
-  );
-}
-
-type AccountSession = {
-  id: number;
-  userAgent: string;
-  createdAt: string;
-  expiresAt: string;
-  current: boolean | number;
-};
-
-function sessionDevice(userAgent: string) {
-  if (/Electron/i.test(userAgent)) return 'Electron';
-  if (/Android|iPhone|iPad|Mobile/i.test(userAgent)) return 'Mobile';
-  if (/Windows/i.test(userAgent)) return 'Windows';
-  if (/Macintosh|Mac OS/i.test(userAgent)) return 'macOS';
-  if (/Linux/i.test(userAgent)) return 'Linux';
-  return 'Browser';
-}
-
-function AccountSecurityCard({ t, language }: { t: T; language: Language }) {
-  const [sessions, setSessions] = useState<AccountSession[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  const loadSessions = useCallback(async () => {
-    const response = await fetch('/api/account/sessions', {
-      cache: 'no-store',
-    });
-    if (response.status === 401) {
-      window.location.assign('/login');
-      return;
-    }
-    if (!response.ok) {
-      const errorPayload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<ApiErrorPayload>;
-      throw new Error(apiErrorMessage(errorPayload, t, 'storageFailed'));
-    }
-    const payload = (await response.json()) as { sessions: AccountSession[] };
-    setSessions(payload.sessions);
-  }, [t]);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      void loadSessions().catch((cause) =>
-        setError(cause instanceof Error ? cause.message : t('storageFailed')),
-      );
-    });
-  }, [loadSessions, t]);
-
-  async function changePassword(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    setBusy(true);
-    setError('');
-    setMessage('');
-    try {
-      const response = await fetch('/api/account/password', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          currentPassword: values.get('currentPassword'),
-          newPassword: values.get('newPassword'),
-        }),
-      });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<ApiErrorPayload>;
-      if (!response.ok)
-        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
-      form.reset();
-      setMessage(t('passwordChanged'));
-      await loadSessions();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('saveFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function revokeSession(session: AccountSession) {
-    setBusy(true);
-    setError('');
-    setMessage('');
-    try {
-      const response = await fetch('/api/account/sessions', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId: session.id }),
-      });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<ApiErrorPayload> & {
-        currentRevoked?: boolean;
-      };
-      if (!response.ok)
-        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
-      if (payload.currentRevoked) {
-        window.location.assign('/login');
-        return;
-      }
-      setMessage(t('sessionRevoked'));
-      await loadSessions();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('saveFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <article className="panel account-security-card">
-      <div className="account-security-heading">
-        <span>
-          <ShieldCheck size={18} />
-        </span>
-        <div>
-          <h2>{t('accountSecurity')}</h2>
-          <p>{t('accountSecurityCopy')}</p>
-        </div>
-      </div>
-      <form className="password-form" onSubmit={changePassword}>
-        <Field
-          name="currentPassword"
-          label={t('currentPassword')}
-          type="password"
-          maxLength={128}
-          autoComplete="current-password"
-        />
-        <Field
-          name="newPassword"
-          label={t('newPassword')}
-          type="password"
-          minLength={12}
-          maxLength={128}
-          autoComplete="new-password"
-        />
-        <button className="primary-button" disabled={busy}>
-          {t('changePassword')}
-        </button>
-      </form>
-      <div className="session-heading">
-        <strong>{t('activeSessions')}</strong>
-        <span>{t('activeSessionsCount', { count: sessions.length })}</span>
-      </div>
-      <div className="session-list">
-        {sessions.map((session) => (
-          <div key={session.id}>
-            <Monitor size={16} />
-            <span>
-              <strong>
-                {sessionDevice(session.userAgent)}
-                {session.current ? ` · ${t('thisDevice')}` : ''}
-              </strong>
-              <small>
-                {t('signedInAt', {
-                  date: new Intl.DateTimeFormat(language, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  }).format(new Date(session.createdAt)),
-                })}
-              </small>
-            </span>
-            <button
-              className="danger-text-button"
-              type="button"
-              disabled={busy}
-              onClick={() => void revokeSession(session)}
-            >
-              {session.current ? t('signOut') : t('revokeSession')}
-            </button>
-          </div>
-        ))}
-      </div>
-      {message && <output className="security-success">{message}</output>}
-      {error && <div className="auth-error">{error}</div>}
-    </article>
-  );
-}
-
-function AccountDataCard({
-  user,
-  memberCount,
-  t,
-}: {
-  user: AuthUser;
-  memberCount: number;
-  t: T;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  async function downloadExport() {
-    setBusy(true);
-    setMessage('');
-    setError('');
-    try {
-      const response = await fetch('/api/account/export', { method: 'POST' });
-      if (!response.ok) {
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as Partial<ApiErrorPayload>;
-        throw new Error(apiErrorMessage(payload, t, 'storageFailed'));
-      }
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `schwank-account-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setMessage(t('dataExported'));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('storageFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function removeAccount(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!window.confirm(t('deleteAccountWarning'))) return;
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    setBusy(true);
-    setMessage('');
-    setError('');
-    try {
-      const response = await fetch('/api/account', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          currentPassword: values.get('currentPassword'),
-          confirmation: values.get('confirmation'),
-        }),
-      });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<ApiErrorPayload>;
-      if (!response.ok)
-        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
-      window.location.assign('/register');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('saveFailed'));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <article className="panel account-data-card">
-      <div className="account-data-heading">
-        <span>
-          <Download size={18} />
-        </span>
-        <div>
-          <h2>{t('accountData')}</h2>
-          <p>{t('accountDataCopy')}</p>
-        </div>
-      </div>
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={busy}
-        onClick={() => void downloadExport()}
-      >
-        <Download size={15} />
-        {t('downloadExport')}
-      </button>
-      <div className="danger-zone">
-        <div>
-          <strong>{t('deleteAccount')}</strong>
-          <p>{t('deleteAccountCopy')}</p>
-          {user.role === 'owner' && memberCount > 1 && (
-            <small>{t('ownerDeletionCopy')}</small>
-          )}
-          {memberCount === 1 && <small>{t('lastAccountDeletionCopy')}</small>}
-        </div>
-        {!showDelete ? (
-          <button
-            className="danger-text-button"
-            type="button"
-            onClick={() => setShowDelete(true)}
-          >
-            {t('deleteAccount')}
-          </button>
-        ) : (
-          <form className="delete-account-form" onSubmit={removeAccount}>
-            <Field
-              name="currentPassword"
-              label={t('currentPassword')}
-              type="password"
-              maxLength={128}
-              autoComplete="current-password"
-            />
-            <Field
-              name="confirmation"
-              label={t('confirmEmail', { email: user.email })}
-              type="email"
-              maxLength={254}
-              autoComplete="off"
-            />
-            <div>
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={busy}
-                onClick={() => setShowDelete(false)}
-              >
-                {t('cancel')}
-              </button>
-              <button className="danger-button" disabled={busy}>
-                <Trash2 size={15} />
-                {t('permanentlyDelete')}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-      {message && <output className="security-success">{message}</output>}
-      {error && <div className="auth-error">{error}</div>}
-    </article>
-  );
-}
-
-function EnrollmentCard({ t, language }: { t: T; language: Language }) {
-  const [settings, setSettings] = useState<{
-    registrationOpen: boolean;
-    inviteExpiresAt: string | null;
-  } | null>(null);
-  const [inviteCode, setInviteCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    void fetch('/api/household/enrollment', { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
-        return response.json() as Promise<{
-          registrationOpen: boolean;
-          inviteExpiresAt: string | null;
-        }>;
-      })
-      .then(setSettings)
-      .catch(() => setError(t('storageFailed')));
-  }, [t]);
-
-  async function update(action: 'rotate' | 'close') {
-    setBusy(true);
-    setError('');
-    try {
-      const response = await fetch('/api/household/enrollment', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const payload = (await response.json()) as Partial<ApiErrorPayload> & {
-        registrationOpen?: boolean;
-        inviteExpiresAt?: string | null;
-        inviteCode?: string;
-      };
-      if (!response.ok)
-        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
-      setSettings({
-        registrationOpen: Boolean(payload.registrationOpen),
-        inviteExpiresAt: payload.inviteExpiresAt ?? null,
-      });
-      setInviteCode(payload.inviteCode ?? '');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('saveFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <article className="panel enrollment-card">
-      <div className="enrollment-icon">
-        <KeyRound size={18} />
-      </div>
-      <div>
-        <span className="eyebrow">{t('ownerOnly')}</span>
-        <h2>{t('enrollmentTitle')}</h2>
-        <p>{t('enrollmentCopy')}</p>
-        <strong>
-          {settings?.registrationOpen && settings.inviteExpiresAt
-            ? t('enrollmentOpen', {
-                date: new Intl.DateTimeFormat(language, {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                }).format(new Date(settings.inviteExpiresAt)),
-              })
-            : t('enrollmentClosed')}
-        </strong>
-        {inviteCode && (
-          <button
-            className="invite-code"
-            type="button"
-            title={t('inviteCodeOnce')}
-            onClick={() => void navigator.clipboard?.writeText(inviteCode)}
-          >
-            {inviteCode}
-          </button>
-        )}
-        {inviteCode && <small>{t('inviteCodeOnce')}</small>}
-        {error && <div className="auth-error">{error}</div>}
-      </div>
-      <div className="enrollment-actions">
-        <button
-          className="primary-button"
-          disabled={busy}
-          onClick={() => void update('rotate')}
-        >
-          {t('createInvite')}
-        </button>
-        {settings?.registrationOpen && (
-          <button
-            className="secondary-button"
-            disabled={busy}
-            onClick={() => void update('close')}
-          >
-            {t('closeRegistration')}
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}
-
 async function submitForm(
   event: SubmitEvent<HTMLFormElement>,
   post: Post,
@@ -5342,71 +4301,4 @@ function formatDateTime(value: string, language: Language) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
-}
-function resizeImage(
-  file: File,
-  maxWidth: number,
-  maxHeight: number,
-  quality: number,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (file.size > 12 * 1024 * 1024) {
-      reject(new Error('imageSourceTooLarge'));
-      return;
-    }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      reject(new Error('errorImageInvalidType'));
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    const image = new window.Image();
-    image.onload = () => {
-      if (
-        image.width < 1 ||
-        image.height < 1 ||
-        image.width > 12_000 ||
-        image.height > 12_000
-      ) {
-        URL.revokeObjectURL(url);
-        reject(new Error('imageDimensionsTooLarge'));
-        return;
-      }
-      const scale = Math.min(
-        1,
-        maxWidth / image.width,
-        maxHeight / image.height,
-      );
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext('2d');
-      if (!context) {
-        URL.revokeObjectURL(url);
-        reject(new Error('imagePreparationFailed'));
-        return;
-      }
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/webp', quality));
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('imagePreparationFailed'));
-    };
-    image.src = url;
-  });
-}
-
-function imagePreparationMessage(cause: unknown, t: T) {
-  const key = cause instanceof Error ? cause.message : 'imagePreparationFailed';
-  return t(
-    [
-      'imageSourceTooLarge',
-      'imageDimensionsTooLarge',
-      'errorImageInvalidType',
-      'imagePreparationFailed',
-    ].includes(key)
-      ? (key as CopyKey)
-      : 'imagePreparationFailed',
-  );
 }

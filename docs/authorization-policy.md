@@ -31,6 +31,7 @@ No application data is available to anonymous requests. The public enrollment-st
 | Water log and goal                      | Personal-only                     | None                                                                       | Account user                         | Account user, including correction and deletion                      |
 | Habit events and cost                   | Household-public                  | All events and spending are intentionally public                           | Any member for themselves            | Entry creator only                                                   |
 | Chat                                    | Household-public                  | All retained messages                                                      | Any member for themselves            | Message author only, including correction and deletion               |
+| Notification preferences and state      | Personal-only                     | None                                                                       | Account user                         | Account user; event claims and snoozes are scoped to that user       |
 | Wishlist ideas                          | Household-public                  | All open, bought, and archived ideas                                       | Any member                           | Idea creator controls content and status                             |
 | Wishlist votes                          | Household-public                  | Every member’s vote and identity                                           | Any member for their own vote        | Voter controls only their vote                                       |
 | Home name, address, and photo           | Household-global                  | All fields                                                                 | Owner                                | Owner                                                                |
@@ -52,7 +53,7 @@ No application data is available to anonymous requests. The public enrollment-st
 
 - Account export is a same-origin authenticated POST and returns only the requester’s profile, records, contributions, and household-global records they last authored or updated. It never includes another member’s email, profile, or private records.
 - Account deletion requires both the current password and the account email as explicit confirmation.
-- Personal and private/shareable records owned by the departing member are erased, including shared copies.
+- Personal and private/shareable records owned by the departing member are erased, including shared copies, notification preferences, and delivery state.
 - Their household-public contributions—chat messages, habit entries, wishlist ideas, and votes—are erased. Votes on an erased idea are erased with it.
 - Household-global pantry items, recipes, and meal plans remain while another active member exists. The retained audit identity is anonymized to `Former member`; the deleted account cannot authenticate and is excluded from the member directory and AI aggregates.
 - When the household owner leaves, ownership passes to the oldest remaining active member and outstanding registration invitations are invalidated.

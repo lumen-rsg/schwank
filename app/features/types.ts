@@ -154,6 +154,24 @@ export type Message = {
   avatar: string | null;
   mine: boolean | number;
 };
+export type NotificationPreferences = {
+  enabled: boolean | number;
+  medicationsEnabled: boolean | number;
+  paymentsEnabled: boolean | number;
+  tasksEnabled: boolean | number;
+  remindersEnabled: boolean | number;
+  chatEnabled: boolean | number;
+  advanceMinutes: number;
+  quietHoursEnabled: boolean | number;
+  quietStart: string;
+  quietEnd: string;
+  timezone: string;
+};
+export type NotificationState = {
+  eventKey: string;
+  deliveredAt: string | null;
+  snoozedUntil: string | null;
+};
 export type HabitKind = 'vaping' | 'alcohol';
 export type HabitEntry = {
   id: number;
@@ -288,6 +306,8 @@ export type Data = {
   messageCount: number;
   messagesHasMore: boolean;
   unreadMessages: number;
+  notificationPreferences: NotificationPreferences;
+  notificationStates: NotificationState[];
   habits: HabitEntry[];
   water: WaterEntry[];
   foods: FoodItem[];

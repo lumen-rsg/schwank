@@ -8,7 +8,7 @@ export function resolvePersistedSection<T extends string>(
   stored: string,
   fallback: T,
 ) {
-  const candidate = hash || stored;
+  const candidate = hash.split('?')[0] || stored;
   return sections.includes(candidate as T) ? (candidate as T) : fallback;
 }
 

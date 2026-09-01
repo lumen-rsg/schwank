@@ -958,6 +958,119 @@ void test(
       'owner',
     );
 
+    assert.equal(aliceData.notificationPreferences.advanceMinutes, 4320);
+    assert.deepEqual(aliceData.notificationStates, []);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'notification-preferences',
+          enabled: true,
+          medicationsEnabled: true,
+          paymentsEnabled: true,
+          tasksEnabled: true,
+          remindersEnabled: true,
+          chatEnabled: false,
+          advanceMinutes: 60,
+          quietHoursEnabled: false,
+          quietStart: '23:00',
+          quietEnd: '07:00',
+          timezone: 'Europe/Moscow',
+        })
+      ).response.status,
+      200,
+    );
+    const aliceNotificationData = await household(alice.cookie);
+    const bobNotificationData = await household(bob.cookie);
+    assert.equal(aliceNotificationData.notificationPreferences.chatEnabled, 0);
+    assert.equal(
+      aliceNotificationData.notificationPreferences.advanceMinutes,
+      60,
+    );
+    assert.equal(bobNotificationData.notificationPreferences.chatEnabled, true);
+    assert.equal(
+      bobNotificationData.notificationPreferences.advanceMinutes,
+      4320,
+    );
+
+    const rejectedNotificationOrigin = await jsonRequest('/api/notifications', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: alice.cookie,
+        origin: 'https://attacker.invalid',
+      },
+      body: JSON.stringify({
+        events: [{ key: 'task:999:2030-01-01', category: 'tasks' }],
+      }),
+    });
+    assert.equal(rejectedNotificationOrigin.response.status, 403);
+
+    const claimedNotifications = await jsonRequest('/api/notifications', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: alice.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        events: [
+          { key: 'task:999:2030-01-01', category: 'tasks' },
+          { key: 'chat:999', category: 'tasks' },
+        ],
+      }),
+    });
+    assert.deepEqual(claimedNotifications.body.claimed, [
+      'task:999:2030-01-01',
+    ]);
+    const duplicateClaim = await jsonRequest('/api/notifications', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: alice.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        events: [{ key: 'task:999:2030-01-01', category: 'tasks' }],
+      }),
+    });
+    assert.deepEqual(duplicateClaim.body.claimed, []);
+    const bobIndependentClaim = await jsonRequest('/api/notifications', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bob.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        events: [{ key: 'task:999:2030-01-01', category: 'tasks' }],
+      }),
+    });
+    assert.deepEqual(bobIndependentClaim.body.claimed, ['task:999:2030-01-01']);
+    const snoozedNotification = await action(alice.cookie, {
+      type: 'notification-snooze',
+      eventKey: 'task:999:2030-01-01',
+      minutes: 15,
+    });
+    assert.equal(snoozedNotification.response.status, 200);
+    const aliceNotificationState =
+      snoozedNotification.body.data.notificationStates.find(
+        (state) => state.eventKey === 'task:999:2030-01-01',
+      );
+    assert.equal(aliceNotificationState.deliveredAt, null);
+    assert.ok(aliceNotificationState.snoozedUntil);
+    const snoozedClaim = await jsonRequest('/api/notifications', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: alice.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        events: [{ key: 'task:999:2030-01-01', category: 'tasks' }],
+      }),
+    });
+    assert.deepEqual(snoozedClaim.body.claimed, []);
+
     const sharedTask = bobData.tasks.find(
       (task) => task.title === 'Alice shared task',
     );
@@ -2020,7 +2133,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      16,
+      17,
     );
     repairedDatabase.close();
     await startServer(restoredState);

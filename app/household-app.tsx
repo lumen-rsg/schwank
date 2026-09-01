@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ArrowRight,
   Bell,
   BellRing,
   Cigarette,
   ClipboardCheck,
-  Clock3,
   Droplets,
   Gift,
   Home,
@@ -26,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
 import { useLanguage } from './i18n';
-import { Avatar, Empty, LanguageSwitch } from './components/app-ui';
+import { Avatar, LanguageSwitch } from './components/app-ui';
 import { useHouseholdController } from './client/use-household-controller';
 import { usePersistedSection } from './client/use-persisted-section';
 import { ChatView } from './features/chat/chat-view';
@@ -38,6 +36,7 @@ import { MedicationsView } from './features/medications/medications-view';
 import { OrganisersView } from './features/organisers/organisers-view';
 import { sumNutrition } from './features/nutrition/nutrition-calculations';
 import { NutritionView } from './features/nutrition/nutrition-view';
+import { NotificationPopover } from './features/notifications/notification-popover';
 import { SpendingView } from './features/spending/spending-view';
 import { TasksView } from './features/tasks/tasks-view';
 import { WaterView } from './features/water/water-view';
@@ -58,6 +57,15 @@ const navigation = [
   { id: 'home', key: 'homeSettings', icon: Settings },
 ] as const;
 const sectionIds = navigation.map((item) => item.id);
+
+function sectionForTarget(target: string) {
+  if (target.startsWith('medication:')) return 'medications';
+  if (target.startsWith('payment:')) return 'spending';
+  if (target.startsWith('task:')) return 'tasks';
+  if (target.startsWith('reminder:')) return 'organisers';
+  if (target.startsWith('chat:')) return 'chat';
+  return null;
+}
 
 export default function HouseholdApp({
   initialUser,
@@ -82,8 +90,10 @@ export default function HouseholdApp({
     logout,
     notificationPermission,
     notifications,
+    notificationOpenTarget,
     notice,
     post,
+    clearNotificationOpenTarget,
   } = useHouseholdController({ initialUser, language, t });
   const user = data.currentUser;
   const ownNutrition = data.nutrition.filter((item) => item.owned);
@@ -97,6 +107,75 @@ export default function HouseholdApp({
     ? Math.round((completed / data.tasks.length) * 100)
     : 0;
   const common = { data, t, language, post };
+
+  const [pendingNotificationTarget, setPendingNotificationTarget] =
+    useState('');
+
+  const openNotificationTarget = useCallback(
+    (target: string, section?: string) => {
+      const destination = section || sectionForTarget(target);
+      if (!destination) return;
+      setActive(destination);
+      setPendingNotificationTarget(target);
+      setNotificationsOpen(false);
+    },
+    [setActive],
+  );
+
+  useEffect(() => {
+    const query = window.location.hash.split('?')[1];
+    const target = new URLSearchParams(query || '').get('target');
+    if (target) queueMicrotask(() => setPendingNotificationTarget(target));
+  }, []);
+
+  useEffect(() => {
+    if (!notificationOpenTarget) return;
+    queueMicrotask(() => {
+      openNotificationTarget(notificationOpenTarget);
+      clearNotificationOpenTarget();
+    });
+  }, [
+    clearNotificationOpenTarget,
+    notificationOpenTarget,
+    openNotificationTarget,
+  ]);
+
+  useEffect(() => {
+    if (!pendingNotificationTarget || loading) return;
+    const expectedSection = sectionForTarget(pendingNotificationTarget);
+    if (!expectedSection || expectedSection !== active) return;
+    let secondFrame = 0;
+    let timer = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        const escaped = CSS.escape(pendingNotificationTarget);
+        const target = contentRef.current?.querySelector<HTMLElement>(
+          `[data-notification-target="${escaped}"]`,
+        );
+        if (!target) {
+          setPendingNotificationTarget('');
+          return;
+        }
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('notification-target-flash');
+        const url = new URL(window.location.href);
+        url.hash = `${active}?target=${encodeURIComponent(pendingNotificationTarget)}`;
+        window.history.replaceState(null, '', url);
+        timer = window.setTimeout(() => {
+          target.classList.remove('notification-target-flash');
+          setPendingNotificationTarget('');
+        }, 2400);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+      window.clearTimeout(timer);
+    };
+  }, [active, loading, pendingNotificationTarget]);
+
   useEffect(() => {
     if (previousSection.current === active) return;
     previousSection.current = active;
@@ -264,52 +343,20 @@ export default function HouseholdApp({
                 )}
               </button>
               {notificationsOpen && (
-                <section
-                  id="notification-panel"
-                  className="notification-popover"
-                  aria-label={t('notifications')}
-                >
-                  <header>
-                    <div>
-                      <strong>{t('notifications')}</strong>
-                      <span>
-                        {t('dueNowCount', { count: notifications.length })}
-                      </span>
-                    </div>
-                    {notificationPermission === 'default' && (
-                      <button type="button" onClick={enableNotifications}>
-                        {t('enableNotifications')}
-                      </button>
-                    )}
-                  </header>
-                  {notifications.length ? (
-                    notifications.map((notification) => (
-                      <button
-                        type="button"
-                        className="notification-item"
-                        key={notification.key}
-                        onClick={() => {
-                          setActive(notification.section);
-                          setNotificationsOpen(false);
-                        }}
-                      >
-                        <span>
-                          <Clock3 size={15} />
-                        </span>
-                        <div>
-                          <strong>{notification.title}</strong>
-                          <small>{notification.body}</small>
-                        </div>
-                        <ArrowRight size={14} />
-                      </button>
-                    ))
-                  ) : (
-                    <Empty>{t('noNotifications')}</Empty>
-                  )}
-                  {notificationPermission === 'in-app' && (
-                    <p>{t('inAppNotificationsOnly')}</p>
-                  )}
-                </section>
+                <NotificationPopover
+                  data={data}
+                  enableNotifications={enableNotifications}
+                  notificationPermission={notificationPermission}
+                  notifications={notifications}
+                  onOpen={(notification) =>
+                    openNotificationTarget(
+                      notification.target,
+                      notification.section,
+                    )
+                  }
+                  post={post}
+                  t={t}
+                />
               )}
             </div>
             <button

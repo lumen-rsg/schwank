@@ -263,6 +263,7 @@ export function MedicationsView({
             return (
               <article
                 className={`panel medication-card${medication.active ? '' : ' paused'}`}
+                data-notification-target={`medication:${medication.id}`}
                 key={medication.id}
               >
                 <header>

@@ -151,6 +151,7 @@ export function ChatView({
             messages.map((message) => (
               <div
                 className={message.mine ? 'message mine' : 'message'}
+                data-notification-target={`chat:${message.id}`}
                 key={message.id}
               >
                 <Avatar person={message} />

@@ -325,6 +325,56 @@ export const chatReadState = sqliteTable('chat_read_state', {
   updatedAt: text('updated_at').notNull(),
 });
 
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  userId: integer('user_id').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  medicationsEnabled: integer('medications_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+  paymentsEnabled: integer('payments_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+  tasksEnabled: integer('tasks_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+  remindersEnabled: integer('reminders_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+  chatEnabled: integer('chat_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+  advanceMinutes: integer('advance_minutes').notNull().default(4320),
+  quietHoursEnabled: integer('quiet_hours_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  quietStart: text('quiet_start').notNull().default('22:00'),
+  quietEnd: text('quiet_end').notNull().default('08:00'),
+  timezone: text('timezone').notNull().default('Europe/Moscow'),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const notificationStates = sqliteTable(
+  'notification_states',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    eventKey: text('event_key').notNull(),
+    deliveredAt: text('delivered_at'),
+    snoozedUntil: text('snoozed_until'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_notification_states_user_event').on(
+      table.userId,
+      table.eventKey,
+    ),
+    index('idx_notification_states_user_updated').on(
+      table.userId,
+      table.updatedAt,
+    ),
+  ],
+);
+
 export const habitEntries = sqliteTable(
   'habit_entries',
   {

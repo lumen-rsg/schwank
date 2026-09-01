@@ -90,6 +90,8 @@ export async function manageHouseholdMember(owner: AuthUser, input: unknown) {
       'habit_entries',
       'messages',
       'chat_read_state',
+      'notification_preferences',
+      'notification_states',
       'purchase_ideas',
     ].map((table) =>
       env.DB.prepare(`DELETE FROM ${table} WHERE user_id=?`).bind(target.id),

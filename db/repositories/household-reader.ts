@@ -28,6 +28,8 @@ export async function readHouseholdData(user: AuthUser) {
     purchaseVotes,
     messages,
     messageStats,
+    notificationPreferences,
+    notificationStates,
     habits,
     water,
     foods,
@@ -138,6 +140,18 @@ export async function readHouseholdData(user: AuthUser) {
       .first<{ messageCount: number; unreadMessages: number | null }>(),
     db
       .prepare(
+        'SELECT enabled,medications_enabled AS medicationsEnabled,payments_enabled AS paymentsEnabled,tasks_enabled AS tasksEnabled,reminders_enabled AS remindersEnabled,chat_enabled AS chatEnabled,advance_minutes AS advanceMinutes,quiet_hours_enabled AS quietHoursEnabled,quiet_start AS quietStart,quiet_end AS quietEnd,timezone FROM notification_preferences WHERE user_id=?',
+      )
+      .bind(user.id)
+      .first(),
+    db
+      .prepare(
+        "SELECT event_key AS eventKey,delivered_at AS deliveredAt,snoozed_until AS snoozedUntil FROM notification_states WHERE user_id=? AND updated_at>=date('now','-90 days') ORDER BY updated_at DESC LIMIT 500",
+      )
+      .bind(user.id)
+      .all(),
+    db
+      .prepare(
         'SELECT h.id,h.user_id AS userId,h.habit,h.occurrences,h.cost,h.occurred_on AS occurredOn,h.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(h.user_id=?) AS mine FROM habit_entries h JOIN users u ON u.id=h.user_id WHERE h.occurred_on>=? ORDER BY h.occurred_on DESC,h.id DESC',
       )
       .bind(user.id, since.toISOString().slice(0, 10))
@@ -208,6 +222,20 @@ export async function readHouseholdData(user: AuthUser) {
     messageCount: Number(messageStats?.messageCount ?? 0),
     messagesHasMore: Number(messageStats?.messageCount ?? 0) > 50,
     unreadMessages: Number(messageStats?.unreadMessages ?? 0),
+    notificationPreferences: notificationPreferences ?? {
+      enabled: true,
+      medicationsEnabled: true,
+      paymentsEnabled: true,
+      tasksEnabled: true,
+      remindersEnabled: true,
+      chatEnabled: true,
+      advanceMinutes: 4320,
+      quietHoursEnabled: false,
+      quietStart: '22:00',
+      quietEnd: '08:00',
+      timezone: 'Europe/Moscow',
+    },
+    notificationStates: notificationStates.results,
     habits: habits.results,
     water: water.results,
     foods: foods.results,

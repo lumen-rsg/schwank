@@ -157,6 +157,9 @@ export async function ensureDatabase() {
     db
       .prepare('DELETE FROM messages WHERE created_at < ?')
       .bind(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()),
+    db
+      .prepare('DELETE FROM notification_states WHERE updated_at < ?')
+      .bind(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
   ]);
   await db.prepare('PRAGMA optimize').run();
 }

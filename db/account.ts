@@ -33,6 +33,8 @@ export async function exportAccountData(user: AuthUser) {
     water,
     habits,
     messages,
+    notificationPreferences,
+    notificationStates,
     purchaseIdeas,
     purchaseVotes,
     recipes,
@@ -95,6 +97,14 @@ export async function exportAccountData(user: AuthUser) {
       user.id,
     ),
     userRows(
+      'SELECT enabled,medications_enabled AS medicationsEnabled,payments_enabled AS paymentsEnabled,tasks_enabled AS tasksEnabled,reminders_enabled AS remindersEnabled,chat_enabled AS chatEnabled,advance_minutes AS advanceMinutes,quiet_hours_enabled AS quietHoursEnabled,quiet_start AS quietStart,quiet_end AS quietEnd,timezone,updated_at AS updatedAt FROM notification_preferences WHERE user_id=?',
+      user.id,
+    ),
+    userRows(
+      'SELECT event_key AS eventKey,delivered_at AS deliveredAt,snoozed_until AS snoozedUntil,updated_at AS updatedAt FROM notification_states WHERE user_id=? ORDER BY id',
+      user.id,
+    ),
+    userRows(
       'SELECT id,title,description,estimated_cost AS estimatedCost,status,created_at AS createdAt,COALESCE(updated_at,created_at) AS updatedAt FROM purchase_ideas WHERE user_id=? ORDER BY id',
       user.id,
     ),
@@ -141,6 +151,8 @@ export async function exportAccountData(user: AuthUser) {
       water,
       habits,
       messages,
+      notificationPreferences,
+      notificationStates,
       purchaseIdeas,
       purchaseVotes,
       recipes,
@@ -193,6 +205,8 @@ export async function deleteAccount(user: AuthUser, input: unknown) {
       'habit_entries',
       'messages',
       'chat_read_state',
+      'notification_preferences',
+      'notification_states',
       'purchase_ideas',
     ].map((table) =>
       env.DB.prepare(`DELETE FROM ${table} WHERE user_id=?`).bind(user.id),

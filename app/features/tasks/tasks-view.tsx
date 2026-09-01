@@ -205,7 +205,11 @@ export function TasksView({
                         ? 'done'
                         : 'todo';
                   return (
-                    <article className="task-card" key={task.id}>
+                    <article
+                      className="task-card"
+                      data-notification-target={`task:${task.id}`}
+                      key={task.id}
+                    >
                       <div className="card-meta">
                         <span className="task-tag">{task.tag}</span>
                         <div className="task-card-actions">

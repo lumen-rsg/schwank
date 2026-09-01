@@ -129,7 +129,7 @@ function installIpcHandlers() {
     }
   });
 
-  ipcMain.handle('desktop:notify', (event, title, body) => {
+  ipcMain.handle('desktop:notify', (event, title, body, target) => {
     if (!isRemoteSender(event))
       throw new Error('Untrusted notification request.');
     if (mainWindow?.isFocused() || !Notification.isSupported()) return false;
@@ -151,6 +151,10 @@ function installIpcHandlers() {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
+      mainWindow.webContents.send(
+        'desktop:notification-click',
+        String(target ?? '').slice(0, 120),
+      );
     });
     notification.show();
     return true;

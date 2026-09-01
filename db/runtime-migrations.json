@@ -175,5 +175,15 @@
       "CREATE TABLE `chat_read_state` (\n\t`user_id` integer PRIMARY KEY NOT NULL,\n\t`last_read_message_id` integer DEFAULT 0 NOT NULL,\n\t`updated_at` text NOT NULL\n);",
       "ALTER TABLE `messages` ADD `edited_at` text;"
     ]
+  },
+  {
+    "id": "0016_equal_maddog",
+    "hash": "cda67591737195a4694e600dedc2b7224a403c24f519a747fd815421787c32df",
+    "statements": [
+      "CREATE TABLE `notification_preferences` (\n\t`user_id` integer PRIMARY KEY NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`medications_enabled` integer DEFAULT true NOT NULL,\n\t`payments_enabled` integer DEFAULT true NOT NULL,\n\t`tasks_enabled` integer DEFAULT true NOT NULL,\n\t`reminders_enabled` integer DEFAULT true NOT NULL,\n\t`chat_enabled` integer DEFAULT true NOT NULL,\n\t`advance_minutes` integer DEFAULT 4320 NOT NULL,\n\t`quiet_hours_enabled` integer DEFAULT false NOT NULL,\n\t`quiet_start` text DEFAULT '22:00' NOT NULL,\n\t`quiet_end` text DEFAULT '08:00' NOT NULL,\n\t`timezone` text DEFAULT 'Europe/Moscow' NOT NULL,\n\t`updated_at` text NOT NULL\n);",
+      "CREATE TABLE `notification_states` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`event_key` text NOT NULL,\n\t`delivered_at` text,\n\t`snoozed_until` text,\n\t`updated_at` text NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idx_notification_states_user_event` ON `notification_states` (`user_id`,`event_key`);",
+      "CREATE INDEX `idx_notification_states_user_updated` ON `notification_states` (`user_id`,`updated_at`);"
+    ]
   }
 ]

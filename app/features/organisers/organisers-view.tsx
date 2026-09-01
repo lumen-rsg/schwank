@@ -255,7 +255,10 @@ function ReminderRow({
   const recurrenceKey =
     reminder.recurrence === 'none' ? 'oneTime' : reminder.recurrence;
   return (
-    <article className={`reminder-row ${timing}`}>
+    <article
+      className={`reminder-row ${timing}`}
+      data-notification-target={`reminder:${reminder.id}`}
+    >
       <div className="reminder-main">
         {reminder.owned ? (
           <button

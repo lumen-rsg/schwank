@@ -500,6 +500,7 @@ export function SpendingView({
               return (
                 <section
                   className={`payment-card${!payment.active ? ' paused' : ''}${overdue ? ' overdue' : ''}`}
+                  data-notification-target={`payment:${payment.id}`}
                   key={payment.id}
                 >
                   <header>

@@ -11,6 +11,11 @@ import {
 } from '@/lib/household-calculations';
 import { advanceReminderDate, type ReminderRecurrence } from '@/lib/reminders';
 import {
+  cleanNotificationEventKey,
+  cleanNotificationPreferences,
+  notificationSnoozeOptions,
+} from '../notifications';
+import {
   DataError,
   cleanDate,
   cleanDateTime,
@@ -146,6 +151,49 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
   await ensureDatabase();
   const db = env.DB;
   const legacyId = String(userId);
+  if (body.type === 'notification-preferences') {
+    const preferences = cleanNotificationPreferences(body);
+    return db
+      .prepare(
+        'INSERT INTO notification_preferences (user_id,enabled,medications_enabled,payments_enabled,tasks_enabled,reminders_enabled,chat_enabled,advance_minutes,quiet_hours_enabled,quiet_start,quiet_end,timezone,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET enabled=excluded.enabled,medications_enabled=excluded.medications_enabled,payments_enabled=excluded.payments_enabled,tasks_enabled=excluded.tasks_enabled,reminders_enabled=excluded.reminders_enabled,chat_enabled=excluded.chat_enabled,advance_minutes=excluded.advance_minutes,quiet_hours_enabled=excluded.quiet_hours_enabled,quiet_start=excluded.quiet_start,quiet_end=excluded.quiet_end,timezone=excluded.timezone,updated_at=excluded.updated_at',
+      )
+      .bind(
+        userId,
+        preferences.enabled,
+        preferences.medicationsEnabled,
+        preferences.paymentsEnabled,
+        preferences.tasksEnabled,
+        preferences.remindersEnabled,
+        preferences.chatEnabled,
+        preferences.advanceMinutes,
+        preferences.quietHoursEnabled,
+        preferences.quietStart,
+        preferences.quietEnd,
+        preferences.timezone,
+        new Date().toISOString(),
+      )
+      .run();
+  }
+  if (body.type === 'notification-snooze') {
+    const eventKey = cleanNotificationEventKey(body.eventKey);
+    const minutes = Number(body.minutes);
+    if (
+      !notificationSnoozeOptions.includes(
+        minutes as (typeof notificationSnoozeOptions)[number],
+      )
+    )
+      throw new DataError('Choose a valid notification snooze time.');
+    const now = new Date();
+    const snoozedUntil = new Date(
+      now.getTime() + minutes * 60_000,
+    ).toISOString();
+    return db
+      .prepare(
+        'INSERT INTO notification_states (user_id,event_key,delivered_at,snoozed_until,updated_at) VALUES (?,?,NULL,?,?) ON CONFLICT(user_id,event_key) DO UPDATE SET delivered_at=NULL,snoozed_until=excluded.snoozed_until,updated_at=excluded.updated_at',
+      )
+      .bind(userId, eventKey, snoozedUntil, now.toISOString())
+      .run();
+  }
   if (body.type === 'nutrition') {
     const meal = cleanNutritionFields(body);
     return db

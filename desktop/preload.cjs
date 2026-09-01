@@ -6,6 +6,13 @@ contextBridge.exposeInMainWorld('schwankDesktop', {
   platform: process.platform,
   getState: () => ipcRenderer.invoke('desktop:get-state'),
   connect: (serverUrl) => ipcRenderer.invoke('desktop:connect', serverUrl),
-  notify: (title, body) => ipcRenderer.invoke('desktop:notify', title, body),
+  notify: (title, body, target) =>
+    ipcRenderer.invoke('desktop:notify', title, body, target),
+  onNotificationClick: (callback) => {
+    const listener = (_event, target) => callback(String(target || ''));
+    ipcRenderer.on('desktop:notification-click', listener);
+    return () =>
+      ipcRenderer.removeListener('desktop:notification-click', listener);
+  },
   openSettings: () => ipcRenderer.invoke('desktop:open-settings'),
 });

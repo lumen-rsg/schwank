@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type SubmitEvent } from 'react';
+import { useEffect, useState, type SubmitEvent } from 'react';
 import {
   ArrowRight,
   Languages,
@@ -15,7 +15,25 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const { language, setLanguage, t } = useLanguage();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [enrollment, setEnrollment] = useState<{
+    firstUser: boolean;
+    registrationOpen: boolean;
+  } | null>(null);
   const registering = mode === 'register';
+
+  useEffect(() => {
+    if (!registering) return;
+    void fetch('/api/auth/enrollment', { cache: 'no-store' })
+      .then(
+        (response) =>
+          response.json() as Promise<{
+            firstUser: boolean;
+            registrationOpen: boolean;
+          }>,
+      )
+      .then(setEnrollment)
+      .catch(() => setEnrollment(null));
+  }, [registering]);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,6 +49,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           name: form.get('name'),
           email: form.get('email'),
           password: form.get('password'),
+          inviteCode: form.get('inviteCode'),
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -89,6 +108,24 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               />
             </label>
           )}
+          {registering && enrollment && !enrollment.firstUser && (
+            <label>
+              <span>{t('inviteCode')}</span>
+              <input
+                name="inviteCode"
+                autoComplete="off"
+                placeholder={t('inviteCodePlaceholder')}
+                maxLength={32}
+                required
+                disabled={!enrollment.registrationOpen}
+              />
+              <small>
+                {enrollment.registrationOpen
+                  ? t('inviteCodeHint')
+                  : t('registrationClosed')}
+              </small>
+            </label>
+          )}
           <label>
             <span>{t('email')}</span>
             <input
@@ -116,7 +153,15 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               {error}
             </div>
           )}
-          <button className="primary-button auth-submit" disabled={busy}>
+          <button
+            className="primary-button auth-submit"
+            disabled={
+              busy ||
+              (registering &&
+                enrollment !== null &&
+                !enrollment.registrationOpen)
+            }
+          >
             {busy ? (
               <LoaderCircle className="spin" size={17} />
             ) : (

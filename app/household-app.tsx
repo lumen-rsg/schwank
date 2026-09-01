@@ -35,6 +35,7 @@ import {
   Home,
   Image as ImageIcon,
   Info,
+  KeyRound,
   Languages,
   ListChecks,
   ListTodo,
@@ -4607,6 +4608,7 @@ function HomeView({
   user,
   post,
   t,
+  language,
 }: {
   data: Data;
   user: AuthUser;
@@ -4770,6 +4772,9 @@ function HomeView({
               {user.aiConsent ? t('disableAiConsent') : t('enableAiConsent')}
             </button>
           </article>
+          {user.role === 'owner' && (
+            <EnrollmentCard t={t} language={language} />
+          )}
           <article className="panel members-panel">
             <div className="panel-heading">
               <div>
@@ -4803,6 +4808,110 @@ function HomeView({
         </div>
       </div>
     </>
+  );
+}
+
+function EnrollmentCard({ t, language }: { t: T; language: Language }) {
+  const [settings, setSettings] = useState<{
+    registrationOpen: boolean;
+    inviteExpiresAt: string | null;
+  } | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    void fetch('/api/household/enrollment', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        return response.json() as Promise<{
+          registrationOpen: boolean;
+          inviteExpiresAt: string | null;
+        }>;
+      })
+      .then(setSettings)
+      .catch(() => setError(t('storageFailed')));
+  }, [t]);
+
+  async function update(action: 'rotate' | 'close') {
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/household/enrollment', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        registrationOpen?: boolean;
+        inviteExpiresAt?: string | null;
+        inviteCode?: string;
+      };
+      if (!response.ok) throw new Error(payload.error || t('saveFailed'));
+      setSettings({
+        registrationOpen: Boolean(payload.registrationOpen),
+        inviteExpiresAt: payload.inviteExpiresAt ?? null,
+      });
+      setInviteCode(payload.inviteCode ?? '');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('saveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="panel enrollment-card">
+      <div className="enrollment-icon">
+        <KeyRound size={18} />
+      </div>
+      <div>
+        <span className="eyebrow">{t('ownerOnly')}</span>
+        <h2>{t('enrollmentTitle')}</h2>
+        <p>{t('enrollmentCopy')}</p>
+        <strong>
+          {settings?.registrationOpen && settings.inviteExpiresAt
+            ? t('enrollmentOpen', {
+                date: new Intl.DateTimeFormat(language, {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }).format(new Date(settings.inviteExpiresAt)),
+              })
+            : t('enrollmentClosed')}
+        </strong>
+        {inviteCode && (
+          <button
+            className="invite-code"
+            type="button"
+            title={t('inviteCodeOnce')}
+            onClick={() => void navigator.clipboard?.writeText(inviteCode)}
+          >
+            {inviteCode}
+          </button>
+        )}
+        {inviteCode && <small>{t('inviteCodeOnce')}</small>}
+        {error && <div className="auth-error">{error}</div>}
+      </div>
+      <div className="enrollment-actions">
+        <button
+          className="primary-button"
+          disabled={busy}
+          onClick={() => void update('rotate')}
+        >
+          {t('createInvite')}
+        </button>
+        {settings?.registrationOpen && (
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => void update('close')}
+          >
+            {t('closeRegistration')}
+          </button>
+        )}
+      </div>
+    </article>
   );
 }
 

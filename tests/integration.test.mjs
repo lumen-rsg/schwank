@@ -143,11 +143,11 @@ async function jsonRequest(path, options = {}) {
   return { response, body };
 }
 
-async function register(name, email, password) {
+async function register(name, email, password, inviteCode) {
   const result = await jsonRequest('/api/auth/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin },
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, inviteCode }),
   });
   const cookie = result.response.headers.get('set-cookie')?.split(';')[0];
   return { ...result, cookie };
@@ -180,6 +180,12 @@ void test(
     const anonymous = await jsonRequest('/api/schwank');
     assert.equal(anonymous.response.status, 401);
 
+    const freshEnrollment = await jsonRequest('/api/auth/enrollment');
+    assert.deepEqual(freshEnrollment.body, {
+      firstUser: true,
+      registrationOpen: true,
+    });
+
     const rejectedOrigin = await jsonRequest('/api/auth/register', {
       method: 'POST',
       headers: {
@@ -202,10 +208,50 @@ void test(
     assert.equal(alice.response.status, 201);
     assert.ok(alice.cookie);
 
+    const closedEnrollment = await jsonRequest('/api/auth/enrollment');
+    assert.deepEqual(closedEnrollment.body, {
+      firstUser: false,
+      registrationOpen: false,
+    });
+
+    const bobWithoutInvite = await register(
+      'Bob Test',
+      'bob@example.test',
+      'bob-password-12345',
+    );
+    assert.equal(bobWithoutInvite.response.status, 403);
+
+    const ownerSettings = await jsonRequest('/api/household/enrollment', {
+      headers: { cookie: alice.cookie },
+    });
+    assert.equal(ownerSettings.response.status, 200);
+    assert.equal(ownerSettings.body.registrationOpen, false);
+
+    const invite = await jsonRequest('/api/household/enrollment', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: alice.cookie,
+        origin,
+      },
+      body: JSON.stringify({ action: 'rotate' }),
+    });
+    assert.equal(invite.response.status, 200);
+    assert.match(invite.body.inviteCode, /^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+
+    const invalidInvite = await register(
+      'Mallory Test',
+      'mallory@example.test',
+      'mallory-password-123',
+      'WRONG-CODE',
+    );
+    assert.equal(invalidInvite.response.status, 403);
+
     const duplicate = await register(
       'Alice Duplicate',
       'alice@example.test',
       'another-password-123',
+      invite.body.inviteCode,
     );
     assert.equal(duplicate.response.status, 409);
 
@@ -213,9 +259,25 @@ void test(
       'Bob Test',
       'bob@example.test',
       'bob-password-12345',
+      invite.body.inviteCode,
     );
     assert.equal(bob.response.status, 201);
     assert.ok(bob.cookie);
+
+    const memberSettings = await jsonRequest('/api/household/enrollment', {
+      headers: { cookie: bob.cookie },
+    });
+    assert.equal(memberSettings.response.status, 403);
+    const memberRotate = await jsonRequest('/api/household/enrollment', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bob.cookie,
+        origin,
+      },
+      body: JSON.stringify({ action: 'rotate' }),
+    });
+    assert.equal(memberRotate.response.status, 403);
 
     const wrongPassword = await jsonRequest('/api/auth/login', {
       method: 'POST',

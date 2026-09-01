@@ -13,6 +13,7 @@ export type AuthUser = {
   initials: string;
   color: string;
   avatar: string | null;
+  role: 'owner' | 'member';
   calorieGoal: number;
   proteinGoal: number;
   carbGoal: number;
@@ -110,13 +111,16 @@ function normalizeRegistration(input: unknown) {
   const email = stringField(record, 'email').trim().toLowerCase();
   const name = stringField(record, 'name').trim().replace(/\s+/g, ' ');
   const password = stringField(record, 'password');
+  const inviteCode = stringField(record, 'inviteCode');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
     throw new AuthError('Enter a valid email address.', 400);
   if (name.length < 2 || name.length > 40)
     throw new AuthError('Your name must be between 2 and 40 characters.', 400);
   if (password.length < 12 || password.length > 128)
     throw new AuthError('Use a password between 12 and 128 characters.', 400);
-  return { email, name, password };
+  if (inviteCode.length > 32)
+    throw new AuthError('Enter a valid household invite code.', 403);
+  return { email, name, password, inviteCode };
 }
 
 export class AuthError extends Error {
@@ -126,6 +130,85 @@ export class AuthError extends Error {
   ) {
     super(message);
   }
+}
+
+function normalizeInviteCode(value: string) {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function createInviteCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  const code = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]);
+  return `${code.slice(0, 5).join('')}-${code.slice(5).join('')}`;
+}
+
+export async function readPublicEnrollmentStatus() {
+  await ensureDatabase();
+  const users = await env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM users',
+  ).first<{ count: number }>();
+  const firstUser = Number(users?.count ?? 0) === 0;
+  if (firstUser) return { firstUser: true, registrationOpen: true };
+  const settings = await env.DB.prepare(
+    'SELECT registration_open AS registrationOpen,invite_expires_at AS inviteExpiresAt FROM household_settings WHERE id=1',
+  ).first<{
+    registrationOpen: boolean | number;
+    inviteExpiresAt: string | null;
+  }>();
+  const registrationOpen = Boolean(
+    settings?.registrationOpen &&
+    settings.inviteExpiresAt &&
+    settings.inviteExpiresAt > new Date().toISOString(),
+  );
+  return { firstUser: false, registrationOpen };
+}
+
+export async function readEnrollmentSettings(user: AuthUser) {
+  await ensureDatabase();
+  if (user.role !== 'owner')
+    throw new AuthError('Only the household owner can manage enrollment.', 403);
+  const settings = await env.DB.prepare(
+    'SELECT registration_open AS registrationOpen,invite_expires_at AS inviteExpiresAt FROM household_settings WHERE id=1',
+  ).first<{
+    registrationOpen: boolean | number;
+    inviteExpiresAt: string | null;
+  }>();
+  return {
+    registrationOpen: Boolean(settings?.registrationOpen),
+    inviteExpiresAt: settings?.inviteExpiresAt ?? null,
+  };
+}
+
+export async function updateEnrollmentSettings(user: AuthUser, input: unknown) {
+  await ensureDatabase();
+  if (user.role !== 'owner')
+    throw new AuthError('Only the household owner can manage enrollment.', 403);
+  const action =
+    input && typeof input === 'object'
+      ? (input as Record<string, unknown>).action
+      : null;
+  if (action === 'close') {
+    await env.DB.prepare(
+      'UPDATE household_settings SET registration_open=0,invite_code_hash=NULL,invite_expires_at=NULL WHERE id=1',
+    ).run();
+    return { registrationOpen: false, inviteExpiresAt: null };
+  }
+  if (action !== 'rotate')
+    throw new AuthError('Choose a valid enrollment action.', 400);
+  const inviteCode = createInviteCode();
+  const inviteExpiresAt = new Date(
+    Date.now() + 7 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  await env.DB.prepare(
+    'UPDATE household_settings SET registration_open=1,invite_code_hash=?,invite_expires_at=? WHERE id=1',
+  )
+    .bind(await sha256(normalizeInviteCode(inviteCode)), inviteExpiresAt)
+    .run();
+  return { registrationOpen: true, inviteExpiresAt, inviteCode };
 }
 
 async function createSession(userId: number) {
@@ -145,7 +228,33 @@ async function createSession(userId: number) {
 
 export async function registerUser(input: unknown) {
   await ensureDatabase();
-  const { email, name, password } = normalizeRegistration(input);
+  const { email, name, password, inviteCode } = normalizeRegistration(input);
+  const userCount = await env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM users',
+  ).first<{ count: number }>();
+  const firstUser = Number(userCount?.count ?? 0) === 0;
+  if (!firstUser) {
+    const enrollment = await env.DB.prepare(
+      'SELECT registration_open AS registrationOpen,invite_code_hash AS inviteCodeHash,invite_expires_at AS inviteExpiresAt FROM household_settings WHERE id=1',
+    ).first<{
+      registrationOpen: boolean | number;
+      inviteCodeHash: string | null;
+      inviteExpiresAt: string | null;
+    }>();
+    if (!enrollment?.registrationOpen)
+      throw new AuthError('Registration is closed for this household.', 403);
+    const candidateHash = await sha256(normalizeInviteCode(inviteCode));
+    const validExpiry =
+      enrollment.inviteExpiresAt &&
+      enrollment.inviteExpiresAt > new Date().toISOString();
+    if (
+      !inviteCode ||
+      !enrollment.inviteCodeHash ||
+      !validExpiry ||
+      !constantTimeEqual(candidateHash, enrollment.inviteCodeHash)
+    )
+      throw new AuthError('Enter a valid household invite code.', 403);
+  }
   const existing = await env.DB.prepare('SELECT id FROM users WHERE email=?')
     .bind(email)
     .first();
@@ -155,7 +264,7 @@ export async function registerUser(input: unknown) {
   const passwordHash = await hashPassword(password, salt);
   try {
     const result = await env.DB.prepare(
-      'INSERT INTO users (email,display_name,initials,color,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?)',
+      'INSERT INTO users (email,display_name,initials,color,password_hash,password_salt,role,created_at) VALUES (?,?,?,?,?,?,?,?)',
     )
       .bind(
         email,
@@ -164,6 +273,7 @@ export async function registerUser(input: unknown) {
         colorFor(email),
         passwordHash,
         bytesToBase64(salt),
+        firstUser ? 'owner' : 'member',
         new Date().toISOString(),
       )
       .run();
@@ -183,7 +293,7 @@ export async function loginUser(input: unknown) {
   const email = stringField(record, 'email').trim().toLowerCase();
   const password = stringField(record, 'password');
   const user = await env.DB.prepare(
-    'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE email=?',
+    'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,role,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE email=?',
   )
     .bind(email)
     .first<StoredUser>();
@@ -218,7 +328,7 @@ export async function getUserFromCookie(
   if (!token) return null;
   const tokenHash = await sha256(token);
   return env.DB.prepare(
-    `SELECT u.id,u.email,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,u.calorie_goal AS calorieGoal,u.protein_goal AS proteinGoal,u.carb_goal AS carbGoal,u.fat_goal AS fatGoal,u.water_goal AS waterGoal,u.maintenance_calories AS maintenanceCalories,u.height_cm AS heightCm,u.weight_kg AS weightKg,u.age,u.sex,u.activity,u.nutrition_plan AS nutritionPlan,u.diet,u.ai_consent AS aiConsent FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`,
+    `SELECT u.id,u.email,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,u.role,u.calorie_goal AS calorieGoal,u.protein_goal AS proteinGoal,u.carb_goal AS carbGoal,u.fat_goal AS fatGoal,u.water_goal AS waterGoal,u.maintenance_calories AS maintenanceCalories,u.height_cm AS heightCm,u.weight_kg AS weightKg,u.age,u.sex,u.activity,u.nutrition_plan AS nutritionPlan,u.diet,u.ai_consent AS aiConsent FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`,
   )
     .bind(tokenHash, new Date().toISOString())
     .first<AuthUser>();

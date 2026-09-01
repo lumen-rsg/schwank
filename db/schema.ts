@@ -18,6 +18,7 @@ export const users = sqliteTable(
     avatarData: text('avatar_data'),
     passwordHash: text('password_hash').notNull(),
     passwordSalt: text('password_salt').notNull(),
+    role: text('role').notNull().default('member'),
     calorieGoal: integer('calorie_goal').notNull().default(2200),
     proteinGoal: integer('protein_goal').notNull().default(140),
     carbGoal: integer('carb_goal').notNull().default(250),
@@ -81,6 +82,11 @@ export const householdSettings = sqliteTable('household_settings', {
   photoData: text('photo_data'),
   updatedAt: text('updated_at').notNull(),
   updatedBy: integer('updated_by'),
+  registrationOpen: integer('registration_open', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  inviteCodeHash: text('invite_code_hash'),
+  inviteExpiresAt: text('invite_expires_at'),
 });
 
 export const tasks = sqliteTable(

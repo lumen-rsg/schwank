@@ -177,7 +177,7 @@ export async function readHouseholdData(user: AuthUser) {
   ] = await Promise.all([
     db
       .prepare(
-        'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE id=?',
+        'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,role,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE id=?',
       )
       .bind(user.id)
       .first<AuthUser>(),

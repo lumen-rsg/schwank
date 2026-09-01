@@ -5,14 +5,12 @@ import {
   readEnrollmentSettings,
   updateEnrollmentSettings,
 } from '@/db/auth';
+import { apiErrorResponse } from '@/lib/api-errors';
 
 function errorResponse(error: unknown) {
-  const status = error instanceof AuthError ? error.status : 400;
-  const message =
-    error instanceof AuthError
-      ? error.message
-      : 'Enrollment settings could not be updated.';
-  return Response.json({ error: message }, { status });
+  return apiErrorResponse(error, {
+    message: 'Enrollment settings could not be updated.',
+  });
 }
 
 export async function GET(request: Request) {

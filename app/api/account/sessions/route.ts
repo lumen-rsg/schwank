@@ -6,12 +6,10 @@ import {
   listUserSessions,
   revokeUserSession,
 } from '@/db/auth';
+import { apiErrorResponse } from '@/lib/api-errors';
 
 function failure(error: unknown) {
-  const status = error instanceof AuthError ? error.status : 400;
-  const message =
-    error instanceof AuthError ? error.message : 'Session request failed.';
-  return Response.json({ error: message }, { status });
+  return apiErrorResponse(error, { message: 'Session request failed.' });
 }
 
 export async function GET(request: Request) {

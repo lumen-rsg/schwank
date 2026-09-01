@@ -4,11 +4,15 @@ import {
   type DataAction,
 } from '@/db/data';
 import { assertSameOrigin, getRequestUser } from '@/db/auth';
+import { ApiError, apiErrorResponse } from '@/lib/api-errors';
 
 export async function GET(request: Request) {
   const user = await getRequestUser(request);
   if (!user)
-    return Response.json({ error: 'Sign in required.' }, { status: 401 });
+    return apiErrorResponse(
+      new ApiError('Sign in required.', 401, 'auth_required'),
+      { message: 'Sign in required.' },
+    );
   return Response.json(await readHouseholdData(user));
 }
 
@@ -16,18 +20,11 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await getRequestUser(request);
-    if (!user)
-      return Response.json({ error: 'Sign in required.' }, { status: 401 });
+    if (!user) throw new ApiError('Sign in required.', 401, 'auth_required');
     const action = (await request.json()) as DataAction;
     const result = await writeHouseholdData(user.id, action);
     return Response.json({ ok: true, result });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unable to save data';
-    const status =
-      error && typeof error === 'object' && 'status' in error
-        ? Number(error.status)
-        : 400;
-    return Response.json({ error: message }, { status });
+    return apiErrorResponse(error, { message: 'Unable to save data.' });
   }
 }

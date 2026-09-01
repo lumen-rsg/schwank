@@ -10,6 +10,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useLanguage, type Language } from './i18n';
+import { apiErrorMessage } from './api-error-copy';
+import type { ApiErrorPayload } from '@/lib/api-errors';
 
 export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const { language, setLanguage, t } = useLanguage();
@@ -52,14 +54,14 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           inviteCode: form.get('inviteCode'),
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<ApiErrorPayload>;
       if (response.ok) {
         window.location.assign('/');
         return;
       }
-      setError(payload.error || t('somethingWrong'));
+      setError(apiErrorMessage(payload, t, 'somethingWrong'));
     } catch {
       setError(t('somethingWrong'));
     } finally {

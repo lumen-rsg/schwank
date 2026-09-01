@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from './setup';
+import { ApiError } from '@/lib/api-errors';
 
 export const SESSION_COOKIE = 'schwank_session';
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
@@ -91,7 +92,11 @@ export async function assertAuthRateLimit(
     }>();
   const now = new Date();
   if (row?.blockedUntil && row.blockedUntil > now.toISOString())
-    throw new AuthError('Too many attempts. Try again later.', 429);
+    throw new AuthError(
+      'Too many attempts. Try again later.',
+      429,
+      'rate_limited',
+    );
   const windowMilliseconds = RATE_LIMITS[scope].windowSeconds * 1000;
   if (
     row &&
@@ -135,7 +140,11 @@ export async function recordAuthFailure(
     .bind(bucketHash, scope, attempts, windowStartedAt, blockedUntil)
     .run();
   if (blockedUntil)
-    throw new AuthError('Too many attempts. Try again later.', 429);
+    throw new AuthError(
+      'Too many attempts. Try again later.',
+      429,
+      'rate_limited',
+    );
 }
 
 export async function clearAuthRateLimit(
@@ -219,18 +228,15 @@ function normalizeRegistration(input: unknown) {
   if (password.length < 12 || password.length > 128)
     throw new AuthError('Use a password between 12 and 128 characters.', 400);
   if (inviteCode.length > 32)
-    throw new AuthError('Enter a valid household invite code.', 403);
+    throw new AuthError(
+      'Enter a valid household invite code.',
+      403,
+      'invalid_invite',
+    );
   return { email, name, password, inviteCode };
 }
 
-export class AuthError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
-  }
-}
+export class AuthError extends ApiError {}
 
 function normalizeInviteCode(value: string) {
   return value
@@ -270,7 +276,11 @@ export async function readPublicEnrollmentStatus() {
 export async function readEnrollmentSettings(user: AuthUser) {
   await ensureDatabase();
   if (user.role !== 'owner')
-    throw new AuthError('Only the household owner can manage enrollment.', 403);
+    throw new AuthError(
+      'Only the household owner can manage enrollment.',
+      403,
+      'owner_required',
+    );
   const settings = await env.DB.prepare(
     'SELECT registration_open AS registrationOpen,invite_expires_at AS inviteExpiresAt FROM household_settings WHERE id=1',
   ).first<{
@@ -286,7 +296,11 @@ export async function readEnrollmentSettings(user: AuthUser) {
 export async function updateEnrollmentSettings(user: AuthUser, input: unknown) {
   await ensureDatabase();
   if (user.role !== 'owner')
-    throw new AuthError('Only the household owner can manage enrollment.', 403);
+    throw new AuthError(
+      'Only the household owner can manage enrollment.',
+      403,
+      'owner_required',
+    );
   const action =
     input && typeof input === 'object'
       ? (input as Record<string, unknown>).action
@@ -354,7 +368,11 @@ export async function registerUser(input: unknown, request?: Request) {
       inviteExpiresAt: string | null;
     }>();
     if (!enrollment?.registrationOpen)
-      throw new AuthError('Registration is closed for this household.', 403);
+      throw new AuthError(
+        'Registration is closed for this household.',
+        403,
+        'registration_closed',
+      );
     const candidateHash = await sha256(normalizeInviteCode(inviteCode));
     const validExpiry =
       enrollment.inviteExpiresAt &&
@@ -365,13 +383,21 @@ export async function registerUser(input: unknown, request?: Request) {
       !validExpiry ||
       !constantTimeEqual(candidateHash, enrollment.inviteCodeHash)
     )
-      throw new AuthError('Enter a valid household invite code.', 403);
+      throw new AuthError(
+        'Enter a valid household invite code.',
+        403,
+        'invalid_invite',
+      );
   }
   const existing = await env.DB.prepare('SELECT id FROM users WHERE email=?')
     .bind(email)
     .first();
   if (existing)
-    throw new AuthError('An account with that email already exists.', 409);
+    throw new AuthError(
+      'An account with that email already exists.',
+      409,
+      'email_exists',
+    );
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const passwordHash = await hashPassword(password, salt);
   try {
@@ -392,7 +418,11 @@ export async function registerUser(input: unknown, request?: Request) {
     const userId = Number(result.meta.last_row_id);
     return { token: await createSession(userId, request), userId };
   } catch {
-    throw new AuthError('An account with that email already exists.', 409);
+    throw new AuthError(
+      'An account with that email already exists.',
+      409,
+      'email_exists',
+    );
   }
 }
 
@@ -420,7 +450,11 @@ export async function loginUser(input: unknown, request?: Request) {
     !password ||
     !constantTimeEqual(candidateHash, user?.passwordHash ?? fallbackHash)
   )
-    throw new AuthError('Email or password is incorrect.', 401);
+    throw new AuthError(
+      'Email or password is incorrect.',
+      401,
+      'invalid_credentials',
+    );
   return { token: await createSession(user.id, request), userId: user.id };
 }
 
@@ -449,7 +483,8 @@ export type SessionSummary = {
 export async function listUserSessions(user: AuthUser, request: Request) {
   await ensureDatabase();
   const tokenHash = await requestTokenHash(request);
-  if (!tokenHash) throw new AuthError('Sign in required.', 401);
+  if (!tokenHash)
+    throw new AuthError('Sign in required.', 401, 'auth_required');
   const result = await env.DB.prepare(
     'SELECT id,user_agent AS userAgent,created_at AS createdAt,expires_at AS expiresAt,(token_hash=?) AS current FROM sessions WHERE user_id=? AND expires_at>? ORDER BY created_at DESC,id DESC',
   )
@@ -472,13 +507,14 @@ export async function revokeUserSession(
   if (!Number.isSafeInteger(sessionId) || sessionId < 1)
     throw new AuthError('Choose a valid session.', 400);
   const tokenHash = await requestTokenHash(request);
-  if (!tokenHash) throw new AuthError('Sign in required.', 401);
+  if (!tokenHash)
+    throw new AuthError('Sign in required.', 401, 'auth_required');
   const session = await env.DB.prepare(
     'SELECT id,(token_hash=?) AS current FROM sessions WHERE id=? AND user_id=?',
   )
     .bind(tokenHash, sessionId, user.id)
     .first<{ id: number; current: boolean | number }>();
-  if (!session) throw new AuthError('Session not found.', 404);
+  if (!session) throw new AuthError('Session not found.', 404, 'not_found');
   await env.DB.prepare('DELETE FROM sessions WHERE id=? AND user_id=?')
     .bind(sessionId, user.id)
     .run();
@@ -509,19 +545,27 @@ export async function changeUserPassword(
   )
     .bind(user.id)
     .first<{ passwordHash: string; passwordSalt: string }>();
-  if (!stored) throw new AuthError('Sign in required.', 401);
+  if (!stored) throw new AuthError('Sign in required.', 401, 'auth_required');
   const candidateHash = await hashPassword(
     currentPassword,
     base64ToBytes(stored.passwordSalt),
   );
   if (!constantTimeEqual(candidateHash, stored.passwordHash))
-    throw new AuthError('Your current password is incorrect.', 403);
+    throw new AuthError(
+      'Your current password is incorrect.',
+      403,
+      'invalid_current_password',
+    );
   const repeatedHash = await hashPassword(
     newPassword,
     base64ToBytes(stored.passwordSalt),
   );
   if (constantTimeEqual(repeatedHash, stored.passwordHash))
-    throw new AuthError('Choose a password you have not just been using.', 400);
+    throw new AuthError(
+      'Choose a password you have not just been using.',
+      400,
+      'password_reuse',
+    );
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const passwordHash = await hashPassword(newPassword, salt);
@@ -575,7 +619,7 @@ export async function destroyRequestSession(request: Request) {
 export function assertSameOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (origin && origin !== new URL(request.url).origin)
-    throw new AuthError('Request origin was rejected.', 403);
+    throw new AuthError('Request origin was rejected.', 403, 'origin_rejected');
 }
 export function sessionCookie(token: string, request: Request) {
   const secure = new URL(request.url).protocol === 'https:' ? '; Secure' : '';

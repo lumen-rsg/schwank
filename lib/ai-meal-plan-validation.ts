@@ -1,3 +1,5 @@
+import { ApiError, type ApiErrorCode } from './api-errors';
+
 export const mealPlanCourses = [
   'breakfast',
   'starter',
@@ -11,12 +13,17 @@ export const mealPlanUnits = ['g', 'kg', 'ml', 'l', 'pcs'] as const;
 export type AiMealPlanCourse = (typeof mealPlanCourses)[number];
 export type AiMealPlanUnit = (typeof mealPlanUnits)[number];
 
-export class AiPlannerError extends Error {
+export class AiPlannerError extends ApiError {
   constructor(
     message: string,
-    public status = 400,
+    status = 400,
+    code: ApiErrorCode = status === 503
+      ? 'ai_unavailable'
+      : status >= 500
+        ? 'ai_failed'
+        : 'validation_failed',
   ) {
-    super(message);
+    super(message, status, code);
   }
 }
 

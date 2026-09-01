@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { isAiConfigured } from './ai-config';
 import type { AuthUser } from './auth';
 import { ensureDatabase } from './setup';
+import { ApiError } from '@/lib/api-errors';
 import {
   advancePaymentDate,
   calculateNutrition,
@@ -129,14 +130,7 @@ const cleanRecipeCourse = (value: unknown): RecipeCourse | null =>
     ? (value as RecipeCourse)
     : null;
 
-export class DataError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
+export class DataError extends ApiError {}
 
 function cleanImage(value: unknown, maximum: number) {
   const image = typeof value === 'string' ? value : '';
@@ -1154,5 +1148,5 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       db.prepare('DELETE FROM recipes WHERE id=?').bind(recipeId),
     ]);
   }
-  throw new DataError('Unknown data action.');
+  throw new DataError('Unknown data action.', 400, 'unknown_action');
 }

@@ -69,7 +69,9 @@ import {
   Wine,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
+import type { ApiErrorCode, ApiErrorPayload } from '@/lib/api-errors';
 import { deriveDueNotifications } from '@/lib/notifications';
+import { apiErrorMessage } from './api-error-copy';
 import { useLanguage, type CopyKey, type Language } from './i18n';
 
 type Visibility = 'private' | 'shared';
@@ -311,7 +313,7 @@ type AiStreamEvent =
     }
   | { type: 'delta'; delta: string }
   | { type: 'result'; result: AiPlanResult }
-  | { type: 'error'; error: string; status?: number };
+  | { type: 'error'; error: string; code?: ApiErrorCode; status?: number };
 type Data = {
   currentUser: AuthUser;
   members: Member[];
@@ -700,9 +702,9 @@ export default function HouseholdApp({
       window.location.assign('/login');
       return false;
     }
-    const result = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
+    const result = (await response
+      .json()
+      .catch(() => ({}))) as Partial<ApiErrorPayload>;
     if (response.ok) {
       await load();
       setNotice(
@@ -711,7 +713,7 @@ export default function HouseholdApp({
       setTimeout(() => setNotice(''), 1600);
       return true;
     }
-    setNotice(result.error || t('saveFailed'));
+    setNotice(apiErrorMessage(result, t, 'saveFailed'));
     return false;
   };
   async function logout() {
@@ -2211,10 +2213,10 @@ function WeeklyMealPlanner({
         }),
       });
       if (!response.ok) {
-        const result = (await response.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(result.error || t('aiGenerationFailed'));
+        const result = (await response
+          .json()
+          .catch(() => ({}))) as Partial<ApiErrorPayload>;
+        throw new Error(apiErrorMessage(result, t, 'aiGenerationFailed'));
       }
       if (!response.body) throw new Error(t('aiOutputUnavailable'));
       const reader = response.body.getReader();
@@ -2240,7 +2242,7 @@ function WeeklyMealPlanner({
           streamedResult = event.result;
           appendStatus(t('aiOutputFinished'));
         } else if (event.type === 'error') {
-          throw new Error(event.error || t('aiGenerationFailed'));
+          throw new Error(apiErrorMessage(event, t, 'aiGenerationFailed'));
         }
       };
       while (true) {
@@ -4854,7 +4856,12 @@ function AccountSecurityCard({ t, language }: { t: T; language: Language }) {
       window.location.assign('/login');
       return;
     }
-    if (!response.ok) throw new Error(t('storageFailed'));
+    if (!response.ok) {
+      const errorPayload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<ApiErrorPayload>;
+      throw new Error(apiErrorMessage(errorPayload, t, 'storageFailed'));
+    }
     const payload = (await response.json()) as { sessions: AccountSession[] };
     setSessions(payload.sessions);
   }, [t]);
@@ -4883,10 +4890,11 @@ function AccountSecurityCard({ t, language }: { t: T; language: Language }) {
           newPassword: values.get('newPassword'),
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) throw new Error(payload.error || t('saveFailed'));
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<ApiErrorPayload>;
+      if (!response.ok)
+        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
       form.reset();
       setMessage(t('passwordChanged'));
       await loadSessions();
@@ -4907,11 +4915,13 @@ function AccountSecurityCard({ t, language }: { t: T; language: Language }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id }),
       });
-      const payload = (await response.json().catch(() => ({}))) as {
-        error?: string;
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<ApiErrorPayload> & {
         currentRevoked?: boolean;
       };
-      if (!response.ok) throw new Error(payload.error || t('saveFailed'));
+      if (!response.ok)
+        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
       if (payload.currentRevoked) {
         window.location.assign('/login');
         return;
@@ -5026,13 +5036,13 @@ function EnrollmentCard({ t, language }: { t: T; language: Language }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const payload = (await response.json()) as {
-        error?: string;
+      const payload = (await response.json()) as Partial<ApiErrorPayload> & {
         registrationOpen?: boolean;
         inviteExpiresAt?: string | null;
         inviteCode?: string;
       };
-      if (!response.ok) throw new Error(payload.error || t('saveFailed'));
+      if (!response.ok)
+        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
       setSettings({
         registrationOpen: Boolean(payload.registrationOpen),
         inviteExpiresAt: payload.inviteExpiresAt ?? null,

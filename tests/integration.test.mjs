@@ -179,6 +179,7 @@ void test(
   async () => {
     const anonymous = await jsonRequest('/api/schwank');
     assert.equal(anonymous.response.status, 401);
+    assert.equal(anonymous.body.code, 'auth_required');
 
     const freshEnrollment = await jsonRequest('/api/auth/enrollment');
     assert.deepEqual(freshEnrollment.body, {
@@ -199,6 +200,7 @@ void test(
       }),
     });
     assert.equal(rejectedOrigin.response.status, 403);
+    assert.equal(rejectedOrigin.body.code, 'origin_rejected');
 
     const alice = await register(
       'Alice Test',
@@ -220,6 +222,7 @@ void test(
       'bob-password-12345',
     );
     assert.equal(bobWithoutInvite.response.status, 403);
+    assert.equal(bobWithoutInvite.body.code, 'registration_closed');
 
     const ownerSettings = await jsonRequest('/api/household/enrollment', {
       headers: { cookie: alice.cookie },
@@ -246,6 +249,7 @@ void test(
       'WRONG-CODE',
     );
     assert.equal(invalidInvite.response.status, 403);
+    assert.equal(invalidInvite.body.code, 'invalid_invite');
 
     const duplicate = await register(
       'Alice Duplicate',
@@ -254,6 +258,7 @@ void test(
       invite.body.inviteCode,
     );
     assert.equal(duplicate.response.status, 409);
+    assert.equal(duplicate.body.code, 'email_exists');
 
     const bob = await register(
       'Bob Test',
@@ -268,6 +273,7 @@ void test(
       headers: { cookie: bob.cookie },
     });
     assert.equal(memberSettings.response.status, 403);
+    assert.equal(memberSettings.body.code, 'owner_required');
     const memberRotate = await jsonRequest('/api/household/enrollment', {
       method: 'POST',
       headers: {
@@ -278,6 +284,7 @@ void test(
       body: JSON.stringify({ action: 'rotate' }),
     });
     assert.equal(memberRotate.response.status, 403);
+    assert.equal(memberRotate.body.code, 'owner_required');
 
     for (let attempt = 1; attempt < 10; attempt += 1) {
       const rejectedRegistration = await register(
@@ -295,6 +302,7 @@ void test(
       'WRONG-CODE',
     );
     assert.equal(limitedRegistration.response.status, 429);
+    assert.equal(limitedRegistration.body.code, 'rate_limited');
 
     const wrongPassword = await jsonRequest('/api/auth/login', {
       method: 'POST',
@@ -305,6 +313,7 @@ void test(
       }),
     });
     assert.equal(wrongPassword.response.status, 401);
+    assert.equal(wrongPassword.body.code, 'invalid_credentials');
 
     const login = await jsonRequest('/api/auth/login', {
       method: 'POST',
@@ -338,6 +347,7 @@ void test(
       }),
     });
     assert.equal(limitedLogin.response.status, 429);
+    assert.equal(limitedLogin.body.code, 'rate_limited');
     const stillLimitedLogin = await jsonRequest('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin },
@@ -347,6 +357,7 @@ void test(
       }),
     });
     assert.equal(stillLimitedLogin.response.status, 429);
+    assert.equal(stillLimitedLogin.body.code, 'rate_limited');
 
     const today = new Date().toISOString().slice(0, 10);
     const records = [
@@ -508,6 +519,102 @@ void test(
       200,
     );
 
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'food-add',
+          name: 'Policy test rice',
+          quantity: 2,
+          unit: 'kg',
+          category: 'Dry goods',
+        })
+      ).response.status,
+      200,
+    );
+    const sharedFood = (await household(bob.cookie)).foods.find(
+      (food) => food.name === 'Policy test rice',
+    );
+    assert.ok(sharedFood);
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'food-adjust',
+          id: sharedFood.id,
+          delta: 1,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'food-remove',
+          id: sharedFood.id,
+        })
+      ).response.status,
+      200,
+    );
+
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'recipe-add',
+          name: 'Policy test porridge',
+          course: 'breakfast',
+          servings: 3,
+          instructions: 'Synthetic integration recipe',
+          ingredients: [{ name: 'Oats', quantity: 300, unit: 'g' }],
+        })
+      ).response.status,
+      200,
+    );
+    const sharedRecipe = (await household(bob.cookie)).recipes.find(
+      (recipe) => recipe.name === 'Policy test porridge',
+    );
+    assert.ok(sharedRecipe);
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'meal-plan-save',
+          weekStart: today,
+          entries: [
+            {
+              dayIndex: 0,
+              course: 'breakfast',
+              recipeId: sharedRecipe.id,
+            },
+          ],
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).weeklyPlan.some(
+        (meal) => meal.recipeId === sharedRecipe.id,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'recipe-remove',
+          id: sharedRecipe.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'home',
+          name: 'Policy test home',
+          address: 'Synthetic address',
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal((await household(alice.cookie)).home.name, 'Policy test home');
+
     const aliceData = await household(alice.cookie);
     const bobData = await household(bob.cookie);
     const bobSerialized = JSON.stringify(bobData);
@@ -576,6 +683,7 @@ void test(
     const forbiddenMutations = [
       { type: 'task-status', id: sharedTask.id, status: 'done' },
       { type: 'recurring-payment-toggle', id: sharedPayment.id, active: false },
+      { type: 'recurring-payment-pay', id: sharedPayment.id },
       { type: 'organiser-toggle', id: sharedItem.id, done: true },
       { type: 'reminder-toggle', id: sharedReminder.id, done: true },
       { type: 'medication-toggle', id: sharedMedication.id, active: false },
@@ -589,7 +697,14 @@ void test(
     for (const mutation of forbiddenMutations) {
       const result = await action(bob.cookie, mutation);
       assert.equal(result.response.status, 403, JSON.stringify(mutation));
+      assert.equal(result.body.code, 'forbidden', JSON.stringify(mutation));
     }
+
+    const unknownAction = await action(bob.cookie, {
+      type: 'not-a-real-action',
+    });
+    assert.equal(unknownAction.response.status, 400);
+    assert.equal(unknownAction.body.code, 'unknown_action');
 
     assert.equal(
       (
@@ -623,6 +738,17 @@ void test(
       (session) => !session.current,
     );
     assert.ok(oldSession);
+    const crossUserSession = await jsonRequest('/api/account/sessions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bob.cookie,
+        origin,
+      },
+      body: JSON.stringify({ sessionId: oldSession.id }),
+    });
+    assert.equal(crossUserSession.response.status, 404);
+    assert.equal(crossUserSession.body.code, 'not_found');
     const revoked = await jsonRequest('/api/account/sessions', {
       method: 'POST',
       headers: {
@@ -653,6 +779,22 @@ void test(
       }),
     });
     assert.equal(wrongCurrentPassword.response.status, 403);
+    assert.equal(wrongCurrentPassword.body.code, 'invalid_current_password');
+
+    const reusedPassword = await jsonRequest('/api/account/password', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: loginCookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'alice-password-123',
+        newPassword: 'alice-password-123',
+      }),
+    });
+    assert.equal(reusedPassword.response.status, 400);
+    assert.equal(reusedPassword.body.code, 'password_reuse');
 
     const changedPassword = await jsonRequest('/api/account/password', {
       method: 'POST',
@@ -694,6 +836,7 @@ void test(
       }),
     });
     assert.equal(oldPasswordLogin.response.status, 401);
+    assert.equal(oldPasswordLogin.body.code, 'invalid_credentials');
 
     await stopServer();
     const restoreParent = await mkdtemp(join(tmpdir(), 'schwank-restore-'));

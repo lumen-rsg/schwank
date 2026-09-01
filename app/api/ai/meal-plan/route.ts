@@ -1,16 +1,12 @@
-import {
-  AiPlannerError,
-  generateAiMealPlan,
-  type AiPlannerProgress,
-} from '@/db/ai-planner';
+import { generateAiMealPlan, type AiPlannerProgress } from '@/db/ai-planner';
 import { assertSameOrigin, AuthError, getRequestUser } from '@/db/auth';
+import { apiErrorDetails, apiErrorResponse } from '@/lib/api-errors';
 
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await getRequestUser(request);
-    if (!user)
-      return Response.json({ error: 'Sign in required.' }, { status: 401 });
+    if (!user) throw new AuthError('Sign in required.', 401, 'auth_required');
     const input = await request.json();
     const encoder = new TextEncoder();
     const abortController = new AbortController();
@@ -57,15 +53,15 @@ export async function POST(request: Request) {
           })
           .catch((error) => {
             flushDelta();
-            const status =
-              error instanceof AiPlannerError || error instanceof AuthError
-                ? error.status
-                : 500;
-            const message =
-              error instanceof AiPlannerError || error instanceof AuthError
-                ? error.message
-                : 'The AI planner could not complete this request.';
-            send({ type: 'error', error: message, status });
+            const details = apiErrorDetails(error, {
+              message: 'The AI planner could not complete this request.',
+              code: 'ai_failed',
+            });
+            send({
+              type: 'error',
+              ...details.body,
+              status: details.status,
+            });
           })
           .finally(() => {
             if (flushTimer) clearTimeout(flushTimer);
@@ -88,14 +84,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    const status =
-      error instanceof AiPlannerError || error instanceof AuthError
-        ? error.status
-        : 500;
-    const message =
-      error instanceof AiPlannerError || error instanceof AuthError
-        ? error.message
-        : 'The AI planner could not complete this request.';
-    return Response.json({ error: message }, { status });
+    return apiErrorResponse(error, {
+      message: 'The AI planner could not complete this request.',
+      code: 'ai_failed',
+    });
   }
 }

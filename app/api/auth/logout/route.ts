@@ -3,6 +3,7 @@ import {
   destroyRequestSession,
   expiredSessionCookie,
 } from '@/db/auth';
+import { apiErrorResponse } from '@/lib/api-errors';
 
 export async function POST(request: Request) {
   try {
@@ -12,10 +13,9 @@ export async function POST(request: Request) {
       { ok: true },
       { headers: { 'set-cookie': expiredSessionCookie() } },
     );
-  } catch {
-    return Response.json(
-      { error: 'Logout could not be completed.' },
-      { status: 400 },
-    );
+  } catch (error) {
+    return apiErrorResponse(error, {
+      message: 'Logout could not be completed.',
+    });
   }
 }

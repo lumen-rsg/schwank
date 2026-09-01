@@ -231,6 +231,41 @@ export const medicationDoses = sqliteTable(
   ],
 );
 
+export const purchaseIdeas = sqliteTable(
+  'purchase_ideas',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    estimatedCost: real('estimated_cost'),
+    status: text('status').notNull().default('open'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_purchase_ideas_status_created').on(
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const purchaseVotes = sqliteTable(
+  'purchase_votes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    ideaId: integer('idea_id').notNull(),
+    userId: integer('user_id').notNull(),
+    vote: integer('vote').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_purchase_votes_idea_user').on(table.ideaId, table.userId),
+    index('idx_purchase_votes_idea').on(table.ideaId),
+  ],
+);
+
 export const messages = sqliteTable(
   'messages',
   {

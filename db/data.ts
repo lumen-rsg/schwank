@@ -222,6 +222,8 @@ export async function readHouseholdData(user: AuthUser) {
     reminders,
     medicationRows,
     medicationDoses,
+    purchaseIdeas,
+    purchaseVotes,
     messages,
     habits,
     water,
@@ -297,6 +299,18 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
+        "SELECT p.id,p.title,p.description,p.estimated_cost AS estimatedCost,p.status,p.created_at AS createdAt,(p.user_id=?) AS owned,u.display_name AS createdByName,u.initials,u.color,u.avatar_data AS avatar FROM purchase_ideas p JOIN users u ON u.id=p.user_id WHERE p.status!='archived' ORDER BY CASE p.status WHEN 'open' THEN 0 ELSE 1 END,p.id DESC",
+      )
+      .bind(user.id)
+      .all(),
+    db
+      .prepare(
+        "SELECT v.id,v.idea_id AS ideaId,v.vote,v.updated_at AS updatedAt,(v.user_id=?) AS mine,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM purchase_votes v JOIN purchase_ideas p ON p.id=v.idea_id JOIN users u ON u.id=v.user_id WHERE p.status!='archived' ORDER BY v.updated_at,v.id",
+      )
+      .bind(user.id)
+      .all(),
+    db
+      .prepare(
         'SELECT m.id,m.body,m.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(m.user_id=?) AS mine FROM messages m JOIN users u ON u.id=m.user_id ORDER BY m.created_at',
       )
       .bind(user.id)
@@ -361,6 +375,8 @@ export async function readHouseholdData(user: AuthUser) {
     reminders: reminders.results,
     medications,
     medicationDoses: medicationDoses.results,
+    purchaseIdeas: purchaseIdeas.results,
+    purchaseVotes: purchaseVotes.results,
     messages: messages.results,
     habits: habits.results,
     water: water.results,
@@ -653,6 +669,60 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       )
       .bind(medicationId, userId, scheduledFor, new Date().toISOString())
       .run();
+  }
+  if (body.type === 'purchase-idea') {
+    const title = cleanText(body.title, 100);
+    const description = cleanText(body.description, 800);
+    const estimatedCost = cleanNumber(body.estimatedCost);
+    if (!title) throw new DataError('Purchase idea name is required.');
+    return db
+      .prepare(
+        "INSERT INTO purchase_ideas (user_id,title,description,estimated_cost,status,created_at) VALUES (?,?,?,?, 'open',?)",
+      )
+      .bind(
+        userId,
+        title,
+        description,
+        estimatedCost > 0 ? estimatedCost : null,
+        new Date().toISOString(),
+      )
+      .run();
+  }
+  if (body.type === 'purchase-vote') {
+    const ideaId = cleanNumber(body.id);
+    const vote = Number(body.vote);
+    const idea = await db
+      .prepare("SELECT id FROM purchase_ideas WHERE id=? AND status='open'")
+      .bind(ideaId)
+      .first();
+    if (!idea) throw new DataError('That purchase idea is closed.', 403);
+    if (vote === 0)
+      return db
+        .prepare('DELETE FROM purchase_votes WHERE idea_id=? AND user_id=?')
+        .bind(ideaId, userId)
+        .run();
+    if (vote !== 1 && vote !== -1)
+      throw new DataError('Choose a vote for or against this purchase.');
+    const now = new Date().toISOString();
+    return db
+      .prepare(
+        'INSERT INTO purchase_votes (idea_id,user_id,vote,created_at,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(idea_id,user_id) DO UPDATE SET vote=excluded.vote,updated_at=excluded.updated_at',
+      )
+      .bind(ideaId, userId, vote, now, now)
+      .run();
+  }
+  if (body.type === 'purchase-status') {
+    const status = ['open', 'bought', 'archived'].includes(String(body.status))
+      ? String(body.status)
+      : null;
+    if (!status) throw new DataError('Choose a valid purchase status.');
+    const result = await db
+      .prepare('UPDATE purchase_ideas SET status=? WHERE id=? AND user_id=?')
+      .bind(status, cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That purchase idea cannot be changed.', 403);
+    return result;
   }
   if (body.type === 'message') {
     const message = cleanText(body.body, 2_000);

@@ -67,6 +67,12 @@ export async function ensureDatabase() {
     db.prepare(
       'CREATE TABLE IF NOT EXISTS medication_doses (id INTEGER PRIMARY KEY AUTOINCREMENT, medication_id INTEGER NOT NULL, user_id INTEGER NOT NULL, scheduled_for TEXT NOT NULL, taken_at TEXT NOT NULL)',
     ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS purchase_ideas (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', estimated_cost REAL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','bought','archived')), created_at TEXT NOT NULL)",
+    ),
+    db.prepare(
+      'CREATE TABLE IF NOT EXISTS purchase_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, idea_id INTEGER NOT NULL, user_id INTEGER NOT NULL, vote INTEGER NOT NULL CHECK (vote IN (-1,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+    ),
   ]);
   await ensureColumn('users', 'avatar_data', 'TEXT');
   await ensureColumn('users', 'water_goal', 'INTEGER NOT NULL DEFAULT 2000');
@@ -174,6 +180,15 @@ export async function ensureDatabase() {
     ),
     db.prepare(
       'CREATE INDEX IF NOT EXISTS idx_medication_doses_user_date ON medication_doses(user_id,scheduled_for)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_purchase_ideas_status_created ON purchase_ideas(status,created_at)',
+    ),
+    db.prepare(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_votes_idea_user ON purchase_votes(idea_id,user_id)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_purchase_votes_idea ON purchase_votes(idea_id)',
     ),
     db
       .prepare(

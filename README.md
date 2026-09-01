@@ -8,6 +8,10 @@ The Orange Pi is the household server and the single source of truth. It owns th
 
 Electron does not run on iOS or Android. A future mobile client can reuse the same server API. See [`docs/desktop.md`](docs/desktop.md) for Orange Pi setup, desktop usage, security details, installer commands, and the multi-platform GitHub Actions workflow.
 
+The Pass 8 operations runbook covers versioned health checks, privacy-safe
+structured logs, bounded journals, encrypted scheduled backups, and restore
+drills in [`docs/operations.md`](docs/operations.md).
+
 ## Data layer
 
 All household records are stored in a durable local D1/SQLite database behind the stable `db/data.ts` facade. Reads, household mutations, food-planning mutations, and input validation live in separate repository/service modules. The browser only keeps temporary interface state; accounts, sessions, food batches, recipes, meals, water, habit activity, tasks, expenses, recurring payments, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.

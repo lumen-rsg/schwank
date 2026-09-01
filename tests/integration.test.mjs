@@ -174,6 +174,37 @@ async function household(cookie) {
   return result.body;
 }
 
+void test('reports versioned liveness and migration-aware readiness', async () => {
+  const live = await jsonRequest('/api/health/live', {
+    headers: { 'x-request-id': 'integration-live-01' },
+  });
+  assert.equal(live.response.status, 200);
+  assert.equal(
+    live.response.headers.get('x-request-id'),
+    'integration-live-01',
+  );
+  assert.equal(live.body.ok, true);
+  assert.equal(live.body.service, 'schwank-server');
+  assert.equal(live.body.version, '0.1.0');
+  assert.equal(live.body.apiVersion, 1);
+  assert.match(live.body.serverTime, /^\d{4}-\d{2}-\d{2}T/);
+
+  const ready = await jsonRequest('/api/health', {
+    headers: { 'x-request-id': 'integration-ready-01' },
+  });
+  assert.equal(ready.response.status, 200);
+  assert.equal(
+    ready.response.headers.get('x-request-id'),
+    'integration-ready-01',
+  );
+  assert.equal(ready.body.ok, true);
+  assert.equal(ready.body.database, 'ready');
+  assert.deepEqual(ready.body.schema, {
+    appliedMigrations: 19,
+    expectedMigrations: 19,
+  });
+});
+
 void test(
   'isolates authentication and private household data between two users',
   { timeout: 90_000 },
@@ -2166,6 +2197,15 @@ void test(
       .prepare('SELECT COUNT(*) AS count FROM tasks')
       .get().count;
     legacyDatabase.exec(`
+      DROP INDEX idx_expenses_visibility_date_id;
+      DROP INDEX idx_medication_doses_medication_date;
+      DROP INDEX idx_medications_visibility_active_id;
+      DROP INDEX idx_organisers_visibility_id;
+      DROP INDEX idx_recurring_payments_visibility_due_id;
+      DROP INDEX idx_reminders_visibility_due_id;
+      DROP INDEX idx_tasks_visibility_status_id;
+      DROP INDEX idx_users_active_name;
+      DELETE FROM __schwank_migrations WHERE id='0018_superb_korath';
       ALTER TABLE household_settings DROP COLUMN registration_open;
       ALTER TABLE household_settings DROP COLUMN invite_code_hash;
       ALTER TABLE household_settings DROP COLUMN invite_expires_at;
@@ -2203,7 +2243,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      18,
+      19,
     );
     repairedDatabase.close();
     await startServer(restoredState);

@@ -16,6 +16,24 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! tar -tzf "$backup_path" | awk '
+  {
+    if ($0 !~ /^\.wrangler\/state(\/|$)/) exit 1
+    count = split($0, segment, "/")
+    for (part = 1; part <= count; part += 1)
+      if (segment[part] == "..") exit 1
+  }
+'; then
+  echo "Backup contains a path outside .wrangler/state." >&2
+  exit 1
+fi
+if ! tar -tvzf "$backup_path" | awk '
+  substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { exit 1 }
+'; then
+  echo "Backup contains a link or unsupported file type." >&2
+  exit 1
+fi
+
 verification_directory=$(mktemp -d)
 cleanup() {
   rm -rf "$verification_directory"

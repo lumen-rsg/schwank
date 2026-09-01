@@ -6,6 +6,7 @@ import {
 import { assertSameOrigin, getRequestUser } from '@/db/auth';
 import { prepareDataLiveUpdate, recordLiveUpdate } from '@/db/live-updates';
 import { ApiError, apiErrorResponse } from '@/lib/api-errors';
+import { errorName, requestId, structuredLog } from '@/lib/structured-logs';
 
 export async function GET(request: Request) {
   const user = await getRequestUser(request);
@@ -18,18 +19,48 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const id = requestId(request);
+  const startedAt = performance.now();
+  let actionType = 'invalid';
   try {
     assertSameOrigin(request);
     const user = await getRequestUser(request);
     if (!user) throw new ApiError('Sign in required.', 401, 'auth_required');
     const action = (await request.json()) as DataAction;
+    actionType = typeof action.type === 'string' ? action.type : 'invalid';
     const liveUpdate = await prepareDataLiveUpdate(user.id, action);
     await writeHouseholdData(user.id, action);
     await recordLiveUpdate(liveUpdate).catch((error) =>
-      console.error('Could not record live update.', error),
+      structuredLog('error', 'live-update.record.failed', {
+        requestId: id,
+        action: actionType,
+        error: errorName(error),
+      }),
     );
-    return Response.json({ ok: true, data: await readHouseholdData(user) });
+    const data = await readHouseholdData(user);
+    structuredLog('info', 'api.mutation', {
+      requestId: id,
+      action: actionType,
+      userId: user.id,
+      status: 200,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+    return Response.json(
+      { ok: true, data },
+      { headers: { 'x-request-id': id } },
+    );
   } catch (error) {
-    return apiErrorResponse(error, { message: 'Unable to save data.' });
+    const response = apiErrorResponse(error, {
+      message: 'Unable to save data.',
+    });
+    structuredLog(response.status >= 500 ? 'error' : 'warn', 'api.mutation', {
+      requestId: id,
+      action: actionType,
+      status: response.status,
+      durationMs: Math.round(performance.now() - startedAt),
+      error: errorName(error),
+    });
+    response.headers.set('x-request-id', id);
+    return response;
   }
 }

@@ -194,5 +194,19 @@
       "CREATE INDEX `idx_live_update_events_audience_id` ON `live_update_events` (`audience_user_id`,`id`);",
       "CREATE INDEX `idx_live_update_events_created` ON `live_update_events` (`created_at`);"
     ]
+  },
+  {
+    "id": "0018_superb_korath",
+    "hash": "dfdc8117be8cece4e000910aa7819bd54b29e9d1d46123b6a1ede7e05f87dc7a",
+    "statements": [
+      "CREATE INDEX `idx_expenses_visibility_date_id` ON `expenses` (`visibility`,`spent_on`,`id`);",
+      "CREATE INDEX `idx_medication_doses_medication_date` ON `medication_doses` (`medication_id`,`scheduled_for`);",
+      "CREATE INDEX `idx_medications_visibility_active_id` ON `medications` (`visibility`,`active`,`id`);",
+      "CREATE INDEX `idx_organisers_visibility_id` ON `organiser_items` (`visibility`,`id`);",
+      "CREATE INDEX `idx_recurring_payments_visibility_due_id` ON `recurring_payments` (`visibility`,`next_due_on`,`id`);",
+      "CREATE INDEX `idx_reminders_visibility_due_id` ON `reminders` (`visibility`,`remind_at`,`id`);",
+      "CREATE INDEX `idx_tasks_visibility_status_id` ON `tasks` (`visibility`,`status`,`id`);",
+      "CREATE INDEX `idx_users_active_name` ON `users` (`deleted_at`,`display_name`);"
+    ]
   }
 ]

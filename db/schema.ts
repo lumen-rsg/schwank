@@ -38,7 +38,10 @@ export const users = sqliteTable(
       .default(false),
     createdAt: text('created_at').notNull(),
   },
-  (table) => [uniqueIndex('idx_users_email').on(table.email)],
+  (table) => [
+    uniqueIndex('idx_users_email').on(table.email),
+    index('idx_users_active_name').on(table.deletedAt, table.displayName),
+  ],
 );
 
 export const sessions = sqliteTable(
@@ -119,6 +122,11 @@ export const tasks = sqliteTable(
       table.visibility,
       table.status,
     ),
+    index('idx_tasks_visibility_status_id').on(
+      table.visibility,
+      table.status,
+      table.id,
+    ),
     uniqueIndex('idx_tasks_source_reminder').on(table.sourceReminderId),
   ],
 );
@@ -141,6 +149,11 @@ export const expenses = sqliteTable(
       table.userId,
       table.visibility,
       table.spentOn,
+    ),
+    index('idx_expenses_visibility_date_id').on(
+      table.visibility,
+      table.spentOn,
+      table.id,
     ),
   ],
 );
@@ -183,6 +196,11 @@ export const recurringPayments = sqliteTable(
       table.visibility,
       table.nextDueOn,
     ),
+    index('idx_recurring_payments_visibility_due_id').on(
+      table.visibility,
+      table.nextDueOn,
+      table.id,
+    ),
   ],
 );
 
@@ -198,6 +216,7 @@ export const organiserItems = sqliteTable(
   },
   (table) => [
     index('idx_organisers_user_visibility').on(table.userId, table.visibility),
+    index('idx_organisers_visibility_id').on(table.visibility, table.id),
   ],
 );
 
@@ -218,6 +237,11 @@ export const reminders = sqliteTable(
       table.userId,
       table.visibility,
       table.remindAt,
+    ),
+    index('idx_reminders_visibility_due_id').on(
+      table.visibility,
+      table.remindAt,
+      table.id,
     ),
   ],
 );
@@ -245,6 +269,11 @@ export const medications = sqliteTable(
       table.visibility,
       table.active,
     ),
+    index('idx_medications_visibility_active_id').on(
+      table.visibility,
+      table.active,
+      table.id,
+    ),
   ],
 );
 
@@ -265,6 +294,10 @@ export const medicationDoses = sqliteTable(
     ),
     index('idx_medication_doses_user_date').on(
       table.userId,
+      table.scheduledFor,
+    ),
+    index('idx_medication_doses_medication_date').on(
+      table.medicationId,
       table.scheduledFor,
     ),
   ],

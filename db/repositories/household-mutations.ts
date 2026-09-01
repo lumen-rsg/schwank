@@ -53,6 +53,45 @@ async function cleanTaskFields(
   };
 }
 
+function cleanExpenseFields(body: DataAction) {
+  const label = cleanText(body.label, 100);
+  const amount = cleanNumber(body.amount);
+  if (!label || amount <= 0)
+    throw new DataError('Expense name and amount are required.');
+  return {
+    label,
+    amount,
+    category: cleanExpenseCategory(body.category),
+    spentOn: cleanDate(body.spentOn),
+    visibility: cleanVisibility(body.visibility),
+  };
+}
+
+function cleanRecurringPaymentFields(body: DataAction) {
+  const kind = cleanPaymentKind(body.kind);
+  const label = cleanText(body.label, 100);
+  const amount = cleanNumber(body.amount);
+  const billingCycle = body.billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  const nextDueOn = cleanPaymentDate(body.nextDueOn);
+  const remainingAmount =
+    kind === 'loan' && cleanNumber(body.remainingAmount) > 0
+      ? cleanNumber(body.remainingAmount)
+      : null;
+  if (!kind || !label || amount <= 0)
+    throw new DataError(
+      'Payment name, type, amount, and due date are required.',
+    );
+  return {
+    kind,
+    label,
+    amount,
+    billingCycle,
+    nextDueOn,
+    remainingAmount,
+    visibility: cleanVisibility(body.visibility),
+  };
+}
+
 export async function writeHouseholdData(userId: number, body: DataAction) {
   await ensureDatabase();
   const db = env.DB;
@@ -140,55 +179,100 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     return result;
   }
   if (body.type === 'expense') {
-    const label = cleanText(body.label, 100);
-    const amount = cleanNumber(body.amount);
-    if (!label || amount <= 0)
-      throw new DataError('Expense name and amount are required.');
+    const expense = cleanExpenseFields(body);
     return db
       .prepare(
         'INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on) VALUES (?,?,?,?,?,?,?)',
       )
       .bind(
         userId,
-        cleanVisibility(body.visibility),
-        label,
-        amount,
-        cleanExpenseCategory(body.category),
+        expense.visibility,
+        expense.label,
+        expense.amount,
+        expense.category,
         legacyId,
-        today(),
+        expense.spentOn,
       )
       .run();
   }
+  if (body.type === 'expense-update') {
+    const expense = cleanExpenseFields(body);
+    const result = await db
+      .prepare(
+        'UPDATE expenses SET visibility=?,label=?,amount=?,category=?,spent_on=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        expense.visibility,
+        expense.label,
+        expense.amount,
+        expense.category,
+        expense.spentOn,
+        cleanNumber(body.id),
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That expense cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'expense-remove') {
+    const result = await db
+      .prepare('DELETE FROM expenses WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That expense cannot be removed.', 403);
+    return result;
+  }
   if (body.type === 'recurring-payment') {
-    const kind = cleanPaymentKind(body.kind);
-    const label = cleanText(body.label, 100);
-    const amount = cleanNumber(body.amount);
-    const billingCycle = body.billingCycle === 'yearly' ? 'yearly' : 'monthly';
-    const nextDueOn = cleanPaymentDate(body.nextDueOn);
-    const remainingAmount =
-      kind === 'loan' && cleanNumber(body.remainingAmount) > 0
-        ? cleanNumber(body.remainingAmount)
-        : null;
-    if (!kind || !label || amount <= 0)
-      throw new DataError(
-        'Payment name, type, amount, and due date are required.',
-      );
+    const payment = cleanRecurringPaymentFields(body);
     return db
       .prepare(
         'INSERT INTO recurring_payments (user_id,visibility,kind,label,amount,billing_cycle,next_due_on,remaining_amount,active,created_at) VALUES (?,?,?,?,?,?,?,?,1,?)',
       )
       .bind(
         userId,
-        cleanVisibility(body.visibility),
-        kind,
-        label,
-        amount,
-        billingCycle,
-        nextDueOn,
-        remainingAmount,
+        payment.visibility,
+        payment.kind,
+        payment.label,
+        payment.amount,
+        payment.billingCycle,
+        payment.nextDueOn,
+        payment.remainingAmount,
         new Date().toISOString(),
       )
       .run();
+  }
+  if (body.type === 'recurring-payment-update') {
+    const payment = cleanRecurringPaymentFields(body);
+    const result = await db
+      .prepare(
+        'UPDATE recurring_payments SET visibility=?,kind=?,label=?,amount=?,billing_cycle=?,next_due_on=?,remaining_amount=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        payment.visibility,
+        payment.kind,
+        payment.label,
+        payment.amount,
+        payment.billingCycle,
+        payment.nextDueOn,
+        payment.remainingAmount,
+        cleanNumber(body.id),
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That payment cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'recurring-payment-remove') {
+    const result = await db
+      .prepare('DELETE FROM recurring_payments WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That payment cannot be removed.', 403);
+    return result;
   }
   if (body.type === 'recurring-payment-pay') {
     const payment = await db
@@ -228,7 +312,7 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     return db.batch([
       db
         .prepare(
-          'INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on) VALUES (?,?,?,?,?,?,?)',
+          'INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on,recurring_payment_id) VALUES (?,?,?,?,?,?,?,?)',
         )
         .bind(
           userId,
@@ -238,6 +322,7 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
           category,
           legacyId,
           today(),
+          payment.id,
         ),
       db
         .prepare(
@@ -261,6 +346,31 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       .run();
     if (!result.meta.changes)
       throw new DataError('That payment cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'spending-budget') {
+    const requestedCategory = cleanText(body.category, 30);
+    const category =
+      requestedCategory === 'all'
+        ? 'all'
+        : cleanExpenseCategory(requestedCategory);
+    const monthlyLimit = cleanNumber(body.monthlyLimit);
+    if (monthlyLimit <= 0)
+      throw new DataError('Enter a monthly budget greater than zero.');
+    return db
+      .prepare(
+        'INSERT INTO spending_budgets (user_id,category,monthly_limit,updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id,category) DO UPDATE SET monthly_limit=excluded.monthly_limit,updated_at=excluded.updated_at',
+      )
+      .bind(userId, category, monthlyLimit, new Date().toISOString())
+      .run();
+  }
+  if (body.type === 'spending-budget-remove') {
+    const result = await db
+      .prepare('DELETE FROM spending_budgets WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That budget cannot be removed.', 403);
     return result;
   }
   if (body.type === 'organiser') {

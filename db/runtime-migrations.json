@@ -136,5 +136,14 @@
     "id": "0010_narrow_nico_minoru",
     "hash": "e7585a3f5204efcad464cd17209de2faa6e328046e546909c4f38e81e0abc598",
     "statements": ["ALTER TABLE `users` ADD `deleted_at` text;"]
+  },
+  {
+    "id": "0011_nebulous_supernaut",
+    "hash": "640a9a5536fe96d2631f609f2f2786d48bdbb4a519ee1c9fc7eb49b3c9a052aa",
+    "statements": [
+      "CREATE TABLE `spending_budgets` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`category` text NOT NULL,\n\t`monthly_limit` real NOT NULL,\n\t`updated_at` text NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idx_spending_budgets_user_category` ON `spending_budgets` (`user_id`,`category`);",
+      "ALTER TABLE `expenses` ADD `recurring_payment_id` integer;"
+    ]
   }
 ]

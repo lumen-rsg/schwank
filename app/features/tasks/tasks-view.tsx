@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Edit3, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Edit3, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { dateKey } from '../../client/dates';
 import { formatDate } from '../../client/format';
@@ -295,6 +295,7 @@ export function TasksView({
                           <PrivacySelect t={t} defaultValue={task.visibility} />
                           <div className="task-edit-actions">
                             <button className="primary-button">
+                              <Check size={14} />
                               {t('save')}
                             </button>
                             <button

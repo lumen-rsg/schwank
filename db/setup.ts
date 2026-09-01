@@ -56,6 +56,11 @@ async function hasMigrationSchema(id: string) {
       (await hasColumn('sessions', 'user_agent'))
     );
   if (id === '0010_narrow_nico_minoru') return hasColumn('users', 'deleted_at');
+  if (id.startsWith('0011_'))
+    return (
+      (await hasColumn('expenses', 'recurring_payment_id')) &&
+      (await hasTable('spending_budgets'))
+    );
   return null;
 }
 
@@ -104,7 +109,8 @@ async function applyRuntimeMigrations() {
   // the normal migration path repairs the installation without touching data.
   for (const migration of runtimeMigrations.slice(3)) {
     if (!applied.has(migration.id)) continue;
-    if (await hasMigrationSchema(migration.id)) continue;
+    const schemaState = await hasMigrationSchema(migration.id);
+    if (schemaState === null || schemaState) continue;
     await db
       .prepare('DELETE FROM __schwank_migrations WHERE id=?')
       .bind(migration.id)

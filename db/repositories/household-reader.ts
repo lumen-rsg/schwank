@@ -17,6 +17,7 @@ export async function readHouseholdData(user: AuthUser) {
     nutrition,
     tasks,
     expenses,
+    spendingBudgets,
     recurringPayments,
     organisers,
     reminders,
@@ -63,9 +64,15 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        "SELECT id,label,amount,category,spent_on AS spentOn,visibility,(user_id=?) AS owned FROM expenses WHERE user_id=? OR visibility='shared' ORDER BY id DESC",
+        "SELECT id,label,amount,category,spent_on AS spentOn,recurring_payment_id AS recurringPaymentId,visibility,(user_id=?) AS owned FROM expenses WHERE user_id=? OR visibility='shared' ORDER BY spent_on DESC,id DESC",
       )
       .bind(user.id, user.id)
+      .all(),
+    db
+      .prepare(
+        'SELECT id,category,monthly_limit AS monthlyLimit,updated_at AS updatedAt FROM spending_budgets WHERE user_id=? ORDER BY category',
+      )
+      .bind(user.id)
       .all(),
     db
       .prepare(
@@ -175,6 +182,7 @@ export async function readHouseholdData(user: AuthUser) {
     tasks: tasks.results,
     expenses: expenses.results,
     recurringPayments: recurringPayments.results,
+    spendingBudgets: spendingBudgets.results,
     organisers: organisers.results,
     reminders: reminders.results,
     medications,

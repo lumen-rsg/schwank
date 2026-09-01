@@ -6,22 +6,33 @@ import {
   Check,
   CircleDollarSign,
   CreditCard,
+  Edit3,
+  History,
   Home,
   Pause,
   Play,
   Plus,
+  Trash2,
   WalletCards,
 } from 'lucide-react';
+import { dateKey } from '../../client/dates';
 import { formatDate, money, percentage } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
+  ConfirmAction,
   Empty,
   PageTitle,
   PrivacyBadge,
   PrivacySelect,
 } from '../../components/app-ui';
 import type { CopyKey, Language } from '../../i18n';
+import {
+  expensesInRange,
+  monthlyBudgetSpend,
+  normalizeExpenseCategory,
+  type SpendingRange,
+} from '../../../lib/spending-calculations';
 import type { Data, Post, T } from '../types';
 
 const expenseCategoryOptions: Array<{ value: string; key: CopyKey }> = [
@@ -37,20 +48,6 @@ const expenseCategoryOptions: Array<{ value: string; key: CopyKey }> = [
   { value: 'leisure', key: 'leisure' },
   { value: 'other', key: 'other' },
 ];
-const expenseCategoryAliases: Record<string, string> = {
-  Groceries: 'groceries',
-  Housing: 'housing',
-  Utilities: 'utilities',
-  Furniture: 'furniture',
-  Transport: 'transport',
-  Other: 'other',
-  Продукты: 'groceries',
-  Жильё: 'housing',
-  'Коммунальные услуги': 'utilities',
-  Мебель: 'furniture',
-  Транспорт: 'transport',
-  Другое: 'other',
-};
 const spendingColors = [
   '#e86b43',
   '#708c67',
@@ -64,12 +61,8 @@ const spendingColors = [
   '#6f8fa8',
   '#91926b',
 ];
-const normalizedExpenseCategory = (category: string) =>
-  expenseCategoryOptions.some((option) => option.value === category)
-    ? category
-    : expenseCategoryAliases[category] || 'other';
 const expenseCategoryLabel = (category: string, t: T) => {
-  const normalized = normalizedExpenseCategory(category);
+  const normalized = normalizeExpenseCategory(category);
   const option = expenseCategoryOptions.find(
     (candidate) => candidate.value === normalized,
   );
@@ -77,23 +70,33 @@ const expenseCategoryLabel = (category: string, t: T) => {
 };
 export function SpendingView({
   data,
-  total,
   post,
   t,
   language,
 }: {
   data: Data;
-  total: number;
   post: Post;
   t: T;
   language: Language;
 }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [expenseSort, setExpenseSort] = useState('newest');
+  const [dateRange, setDateRange] = useState<SpendingRange>('month');
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
+  const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const expenseForm = useRef<HTMLFormElement>(null);
+  const currentDate = dateKey(new Date());
+  const rangeExpenses = useMemo(
+    () => expensesInRange(data.expenses, dateRange, currentDate),
+    [currentDate, data.expenses, dateRange],
+  );
+  const rangeTotal = rangeExpenses.reduce(
+    (sum, expense) => sum + Number(expense.amount),
+    0,
+  );
   const categories = useMemo(() => {
-    const totals = data.expenses.reduce<Record<string, number>>((all, item) => {
-      const category = normalizedExpenseCategory(item.category);
+    const totals = rangeExpenses.reduce<Record<string, number>>((all, item) => {
+      const category = normalizeExpenseCategory(item.category);
       all[category] = (all[category] || 0) + Number(item.amount);
       return all;
     }, {});
@@ -105,26 +108,26 @@ export function SpendingView({
         value,
         color: spendingColors[index % spendingColors.length],
       }));
-  }, [data.expenses, t]);
+  }, [rangeExpenses, t]);
   const wheelBackground = useMemo(() => {
-    if (!total) return '#ece8e0';
+    if (!rangeTotal) return '#ece8e0';
     let start = 0;
     return `conic-gradient(${categories
       .map((category) => {
-        const end = start + (category.value / total) * 100;
+        const end = start + (category.value / rangeTotal) * 100;
         const segment = `${category.color} ${start}% ${end}%`;
         start = end;
         return segment;
       })
       .join(',')})`;
-  }, [categories, total]);
+  }, [categories, rangeTotal]);
   const visibleExpenses = useMemo(
     () =>
-      data.expenses
+      rangeExpenses
         .filter(
           (expense) =>
             categoryFilter === 'all' ||
-            normalizedExpenseCategory(expense.category) === categoryFilter,
+            normalizeExpenseCategory(expense.category) === categoryFilter,
         )
         .sort((left, right) => {
           if (expenseSort === 'highest')
@@ -137,7 +140,10 @@ export function SpendingView({
             direction * (left.id - right.id)
           );
         }),
-    [categoryFilter, data.expenses, expenseSort],
+    [categoryFilter, expenseSort, rangeExpenses],
+  );
+  const paymentHistory = data.expenses.filter(
+    (expense) => expense.recurringPaymentId !== null,
   );
   const monthlyCommitments = data.recurringPayments
     .filter((payment) => payment.active)
@@ -150,7 +156,6 @@ export function SpendingView({
   const nextMonth = new Date();
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
   const defaultDueDate = nextMonth.toISOString().slice(0, 10);
-  const currentDate = new Date().toISOString().slice(0, 10);
   return (
     <>
       <PageTitle
@@ -160,8 +165,24 @@ export function SpendingView({
       />
       <div className="feature-grid">
         <article className="panel spend-hero">
-          <span>{t('totalVisible')}</span>
-          <strong>{money(total, language)}</strong>
+          <div className="spend-summary-heading">
+            <span>{t('totalVisible')}</span>
+            <label>
+              <span className="sr-only">{t('dateRange')}</span>
+              <select
+                value={dateRange}
+                onChange={(event) =>
+                  setDateRange(event.target.value as SpendingRange)
+                }
+              >
+                <option value="month">{t('currentMonth')}</option>
+                <option value="30-days">{t('last30Days')}</option>
+                <option value="90-days">{t('last90Days')}</option>
+                <option value="all">{t('allTime')}</option>
+              </select>
+            </label>
+          </div>
+          <strong>{money(rangeTotal, language)}</strong>
           <div className="spending-wheel-layout">
             {categories.length ? (
               <>
@@ -170,7 +191,7 @@ export function SpendingView({
                   style={{ background: wheelBackground }}
                 >
                   <span aria-hidden="true">
-                    <b>{data.expenses.length}</b>
+                    <b>{rangeExpenses.length}</b>
                     {t('entries')}
                   </span>
                   <figcaption className="sr-only">
@@ -181,7 +202,7 @@ export function SpendingView({
                           {category.label}: {money(category.value, language)},{' '}
                           {t('percentOfSpending', {
                             percent: percentage(
-                              category.value / total,
+                              category.value / rangeTotal,
                               language,
                             ),
                           })}
@@ -212,7 +233,7 @@ export function SpendingView({
                       <span className="spending-wheel-value">
                         <b>{money(category.value, language)}</b>
                         <small>
-                          {percentage(category.value / total, language)}
+                          {percentage(category.value / rangeTotal, language)}
                         </small>
                       </span>
                     </button>
@@ -225,18 +246,26 @@ export function SpendingView({
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() =>
+                    onClick={() => {
+                      if (data.expenses.length) {
+                        setDateRange('all');
+                        return;
+                      }
                       expenseForm.current
                         ?.querySelector<HTMLInputElement>('[name="label"]')
-                        ?.focus()
-                    }
+                        ?.focus();
+                    }}
                   >
                     <Plus size={15} />
-                    {t('addFirstExpense')}
+                    {data.expenses.length
+                      ? t('showAllExpenses')
+                      : t('addFirstExpense')}
                   </button>
                 }
               >
-                {t('noExpenses')}
+                {data.expenses.length
+                  ? t('noExpensesInRange')
+                  : t('noExpenses')}
               </Empty>
             )}
           </div>
@@ -272,6 +301,13 @@ export function SpendingView({
                 ))}
               </select>
             </label>
+            <Field
+              name="spentOn"
+              label={t('transactionDate')}
+              type="date"
+              defaultValue={currentDate}
+              max={currentDate}
+            />
             <PrivacySelect t={t} />
             <button className="primary-button">
               <Plus size={16} />
@@ -280,6 +316,111 @@ export function SpendingView({
           </form>
         </article>
       </div>
+      <article className="panel budget-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{t('monthlyBudgets')}</h2>
+            <span>{t('monthlyBudgetsCopy')}</span>
+          </div>
+        </div>
+        <form
+          className="budget-form"
+          onSubmit={(event) => submitForm(event, post, 'spending-budget')}
+        >
+          <label className="form-field">
+            <span>{t('budgetCategory')}</span>
+            <select name="category" defaultValue="all">
+              <option value="all">{t('totalBudget')}</option>
+              {expenseCategoryOptions.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {t(option.key)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field
+            name="monthlyLimit"
+            label={t('monthlyLimitRub')}
+            type="number"
+            min="0.01"
+            max={1_000_000}
+            step="0.01"
+          />
+          <button className="primary-button">
+            <Check size={15} />
+            {t('saveBudget')}
+          </button>
+        </form>
+        {data.spendingBudgets.length ? (
+          <div className="budget-grid">
+            {data.spendingBudgets.map((budget) => {
+              const spent = monthlyBudgetSpend(
+                data.expenses,
+                budget.category,
+                currentDate,
+              );
+              const limit = Number(budget.monthlyLimit);
+              const remaining = limit - spent;
+              const label =
+                budget.category === 'all'
+                  ? t('totalBudget')
+                  : expenseCategoryLabel(budget.category, t);
+              return (
+                <section
+                  className={`budget-card${remaining < 0 ? ' over' : ''}`}
+                  key={budget.id}
+                >
+                  <header>
+                    <strong>{label}</strong>
+                    <ConfirmAction
+                      className="task-icon-button danger"
+                      label={t('removeBudget', { category: label })}
+                      title={t('removeBudgetTitle')}
+                      description={t('removeBudgetWarning', {
+                        category: label,
+                      })}
+                      confirmLabel={t('delete')}
+                      cancelLabel={t('cancel')}
+                      onConfirm={() =>
+                        post({
+                          type: 'spending-budget-remove',
+                          id: budget.id,
+                        })
+                      }
+                    >
+                      <Trash2 size={13} />
+                    </ConfirmAction>
+                  </header>
+                  <progress
+                    max={limit}
+                    value={Math.min(spent, limit)}
+                    aria-label={t('budgetProgress', {
+                      category: label,
+                      spent: money(spent, language),
+                      limit: money(limit, language),
+                    })}
+                  />
+                  <div>
+                    <span>{t('spentThisMonth')}</span>
+                    <b>{money(spent, language)}</b>
+                  </div>
+                  <small>
+                    {remaining >= 0
+                      ? t('budgetRemaining', {
+                          amount: money(remaining, language),
+                        })
+                      : t('budgetOver', {
+                          amount: money(Math.abs(remaining), language),
+                        })}
+                  </small>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty>{t('noBudgets')}</Empty>
+        )}
+      </article>
       <article className="panel recurring-panel">
         <div className="panel-heading recurring-heading">
           <div>
@@ -377,8 +518,132 @@ export function SpendingView({
                       </small>
                       <strong>{payment.label}</strong>
                     </div>
-                    <PrivacyBadge visibility={payment.visibility} t={t} />
+                    <div className="payment-card-actions">
+                      <PrivacyBadge visibility={payment.visibility} t={t} />
+                      {Boolean(payment.owned) && (
+                        <>
+                          <button
+                            type="button"
+                            className="task-icon-button"
+                            aria-label={t('editPayment', {
+                              payment: payment.label,
+                            })}
+                            onClick={() =>
+                              setEditingPaymentId((current) =>
+                                current === payment.id ? null : payment.id,
+                              )
+                            }
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <ConfirmAction
+                            className="task-icon-button danger"
+                            label={t('deletePayment', {
+                              payment: payment.label,
+                            })}
+                            title={t('deletePaymentTitle')}
+                            description={t('deletePaymentWarning', {
+                              payment: payment.label,
+                            })}
+                            confirmLabel={t('delete')}
+                            cancelLabel={t('cancel')}
+                            onConfirm={async () => {
+                              const removed = await post({
+                                type: 'recurring-payment-remove',
+                                id: payment.id,
+                              });
+                              if (removed) setEditingPaymentId(null);
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </ConfirmAction>
+                        </>
+                      )}
+                    </div>
                   </header>
+                  {editingPaymentId === payment.id && (
+                    <form
+                      className="payment-edit-form"
+                      onSubmit={async (event) => {
+                        const saved = await submitForm(
+                          event,
+                          post,
+                          'recurring-payment-update',
+                          { id: String(payment.id) },
+                        );
+                        if (saved) setEditingPaymentId(null);
+                      }}
+                    >
+                      <label className="form-field">
+                        <span>{t('paymentType')}</span>
+                        <select name="kind" defaultValue={payment.kind}>
+                          <option value="subscription">
+                            {t('subscription')}
+                          </option>
+                          <option value="loan">{t('loanPayment')}</option>
+                          <option value="rent">{t('apartmentRent')}</option>
+                        </select>
+                      </label>
+                      <Field
+                        name="label"
+                        label={t('paymentName')}
+                        defaultValue={payment.label}
+                        maxLength={100}
+                      />
+                      <Field
+                        name="amount"
+                        label={t('paymentAmount')}
+                        type="number"
+                        min="0.01"
+                        max={1_000_000}
+                        step="0.01"
+                        defaultValue={String(payment.amount)}
+                      />
+                      <label className="form-field">
+                        <span>{t('billingCycle')}</span>
+                        <select
+                          name="billingCycle"
+                          defaultValue={payment.billingCycle}
+                        >
+                          <option value="monthly">{t('monthly')}</option>
+                          <option value="yearly">{t('yearly')}</option>
+                        </select>
+                      </label>
+                      <Field
+                        name="nextDueOn"
+                        label={t('nextDueDate')}
+                        type="date"
+                        defaultValue={payment.nextDueOn}
+                      />
+                      <Field
+                        name="remainingAmount"
+                        label={t('loanRemaining')}
+                        type="number"
+                        min={0}
+                        max={1_000_000}
+                        defaultValue={
+                          payment.remainingAmount === null
+                            ? ''
+                            : String(payment.remainingAmount)
+                        }
+                        required={false}
+                      />
+                      <PrivacySelect t={t} defaultValue={payment.visibility} />
+                      <div className="payment-edit-actions">
+                        <button className="primary-button">
+                          <Check size={14} />
+                          {t('save')}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => setEditingPaymentId(null)}
+                        >
+                          {t('cancel')}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                   <div className="payment-amount-row">
                     <strong>{money(Number(payment.amount), language)}</strong>
                     <span>
@@ -446,6 +711,34 @@ export function SpendingView({
           )}
         </div>
       </article>
+      <article className="panel payment-history-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{t('paymentHistory')}</h2>
+            <span>{t('paymentHistoryCopy')}</span>
+          </div>
+          <History size={18} aria-hidden="true" />
+        </div>
+        {paymentHistory.length ? (
+          <div className="payment-history-list">
+            {paymentHistory.map((expense) => (
+              <div key={expense.id}>
+                <span className="expense-icon">
+                  <Check size={15} />
+                </span>
+                <div>
+                  <strong>{expense.label}</strong>
+                  <small>{formatDate(expense.spentOn, language)}</small>
+                </div>
+                <PrivacyBadge visibility={expense.visibility} t={t} />
+                <b>{money(Number(expense.amount), language)}</b>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty>{t('noPaymentHistory')}</Empty>
+        )}
+      </article>
       <article className="panel table-panel">
         <div className="panel-heading">
           <div>
@@ -486,30 +779,142 @@ export function SpendingView({
         <div className="expense-list">
           {visibleExpenses.length ? (
             visibleExpenses.map((item) => (
-              <div key={item.id}>
+              <div
+                className={`expense-row${editingExpenseId === item.id ? ' editing' : ''}`}
+                key={item.id}
+              >
                 <span className="expense-icon">
                   <WalletCards size={16} />
                 </span>
-                <div>
-                  <strong>{item.label}</strong>
-                  <small>
-                    {expenseCategoryLabel(item.category, t)} ·{' '}
-                    {formatDate(item.spentOn, language)}
-                    {!item.owned ? ` · ${t('sharedHousemate')}` : ''}
-                  </small>
-                </div>
-                <PrivacyBadge visibility={item.visibility} t={t} />
-                <b>{money(Number(item.amount), language)}</b>
+                {editingExpenseId === item.id ? (
+                  <form
+                    className="expense-edit-form"
+                    onSubmit={async (event) => {
+                      const saved = await submitForm(
+                        event,
+                        post,
+                        'expense-update',
+                        { id: String(item.id) },
+                      );
+                      if (saved) setEditingExpenseId(null);
+                    }}
+                  >
+                    <Field
+                      name="label"
+                      label={t('whatWasIt')}
+                      defaultValue={item.label}
+                      maxLength={100}
+                    />
+                    <Field
+                      name="amount"
+                      label={t('amountRub')}
+                      type="number"
+                      min="0.01"
+                      max={1_000_000}
+                      step="0.01"
+                      defaultValue={String(item.amount)}
+                    />
+                    <label className="form-field">
+                      <span>{t('category')}</span>
+                      <select
+                        name="category"
+                        defaultValue={normalizeExpenseCategory(item.category)}
+                      >
+                        {expenseCategoryOptions.map((option) => (
+                          <option value={option.value} key={option.value}>
+                            {t(option.key)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <Field
+                      name="spentOn"
+                      label={t('transactionDate')}
+                      type="date"
+                      defaultValue={item.spentOn}
+                      max={currentDate}
+                    />
+                    <PrivacySelect t={t} defaultValue={item.visibility} />
+                    <div className="expense-edit-actions">
+                      <button className="primary-button">
+                        <Check size={14} />
+                        {t('save')}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setEditingExpenseId(null)}
+                      >
+                        {t('cancel')}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <small>
+                        {expenseCategoryLabel(item.category, t)} ·{' '}
+                        {formatDate(item.spentOn, language)}
+                        {item.recurringPaymentId !== null
+                          ? ` · ${t('scheduledPayment')}`
+                          : ''}
+                        {!item.owned ? ` · ${t('sharedHousemate')}` : ''}
+                      </small>
+                    </div>
+                    <PrivacyBadge visibility={item.visibility} t={t} />
+                    <b>{money(Number(item.amount), language)}</b>
+                    {Boolean(item.owned) && (
+                      <div className="expense-item-actions">
+                        <button
+                          type="button"
+                          className="task-icon-button"
+                          aria-label={t('editExpense', {
+                            expense: item.label,
+                          })}
+                          onClick={() => setEditingExpenseId(item.id)}
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <ConfirmAction
+                          className="task-icon-button danger"
+                          label={t('deleteExpense', {
+                            expense: item.label,
+                          })}
+                          title={t('deleteExpenseTitle')}
+                          description={t('deleteExpenseWarning', {
+                            expense: item.label,
+                          })}
+                          confirmLabel={t('delete')}
+                          cancelLabel={t('cancel')}
+                          onConfirm={async () => {
+                            const removed = await post({
+                              type: 'expense-remove',
+                              id: item.id,
+                            });
+                            if (removed) setEditingExpenseId(null);
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </ConfirmAction>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             ))
           ) : (
             <Empty
               action={
-                categoryFilter !== 'all' ? (
+                data.expenses.length &&
+                (categoryFilter !== 'all' || dateRange !== 'all') ? (
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() => setCategoryFilter('all')}
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setDateRange('all');
+                    }}
                   >
                     {t('clearFilters')}
                   </button>
@@ -529,7 +934,7 @@ export function SpendingView({
                 )
               }
             >
-              {t('noExpenses')}
+              {data.expenses.length ? t('noExpensesInRange') : t('noExpenses')}
             </Empty>
           )}
         </div>

@@ -22,6 +22,7 @@ function emptyHousehold(user: AuthUser): Data {
     tasks: [],
     expenses: [],
     recurringPayments: [],
+    spendingBudgets: [],
     organisers: [],
     reminders: [],
     medications: [],

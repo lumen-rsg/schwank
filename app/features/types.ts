@@ -53,8 +53,15 @@ export type Expense = {
   amount: number;
   category: string;
   spentOn: string;
+  recurringPaymentId: number | null;
   visibility: Visibility;
   owned: boolean | number;
+};
+export type SpendingBudget = {
+  id: number;
+  category: string;
+  monthlyLimit: number;
+  updatedAt: string;
 };
 export type RecurringPayment = {
   id: number;
@@ -260,6 +267,7 @@ export type Data = {
   tasks: Task[];
   expenses: Expense[];
   recurringPayments: RecurringPayment[];
+  spendingBudgets: SpendingBudget[];
   organisers: Organiser[];
   reminders: Reminder[];
   medications: Medication[];

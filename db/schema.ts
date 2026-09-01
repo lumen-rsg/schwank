@@ -132,12 +132,30 @@ export const expenses = sqliteTable(
     category: text('category').notNull(),
     paidBy: text('paid_by').notNull(),
     spentOn: text('spent_on').notNull(),
+    recurringPaymentId: integer('recurring_payment_id'),
   },
   (table) => [
     index('idx_expenses_user_visibility_date').on(
       table.userId,
       table.visibility,
       table.spentOn,
+    ),
+  ],
+);
+
+export const spendingBudgets = sqliteTable(
+  'spending_budgets',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    category: text('category').notNull(),
+    monthlyLimit: real('monthly_limit').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_spending_budgets_user_category').on(
+      table.userId,
+      table.category,
     ),
   ],
 );

@@ -141,7 +141,7 @@ export default function HouseholdApp({
     ) : active === 'wishlist' ? (
       <WishlistView {...common} />
     ) : active === 'spending' ? (
-      <SpendingView {...common} total={totalSpend} />
+      <SpendingView {...common} />
     ) : active === 'organisers' ? (
       <OrganisersView {...common} />
     ) : active === 'chat' ? (

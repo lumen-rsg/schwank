@@ -24,6 +24,7 @@ export async function exportAccountData(user: AuthUser) {
     nutrition,
     tasks,
     expenses,
+    spendingBudgets,
     recurringPayments,
     organisers,
     reminders,
@@ -54,7 +55,11 @@ export async function exportAccountData(user: AuthUser) {
       user.id,
     ),
     userRows(
-      'SELECT id,visibility,label,amount,category,spent_on AS spentOn FROM expenses WHERE user_id=? ORDER BY id',
+      'SELECT id,visibility,label,amount,category,spent_on AS spentOn,recurring_payment_id AS recurringPaymentId FROM expenses WHERE user_id=? ORDER BY id',
+      user.id,
+    ),
+    userRows(
+      'SELECT id,category,monthly_limit AS monthlyLimit,updated_at AS updatedAt FROM spending_budgets WHERE user_id=? ORDER BY id',
       user.id,
     ),
     userRows(
@@ -128,6 +133,7 @@ export async function exportAccountData(user: AuthUser) {
       tasks,
       expenses,
       recurringPayments,
+      spendingBudgets,
       organisers,
       reminders,
       medications,
@@ -179,6 +185,7 @@ export async function deleteAccount(user: AuthUser, input: unknown) {
       'tasks',
       'expenses',
       'recurring_payments',
+      'spending_budgets',
       'organiser_items',
       'reminders',
       'medications',

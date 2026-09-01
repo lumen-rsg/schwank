@@ -493,6 +493,16 @@ void test(
     assert.equal(
       (
         await action(alice.cookie, {
+          type: 'spending-budget',
+          category: 'all',
+          monthlyLimit: 25_000,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
           type: 'habit',
           habit: 'vaping',
           occurrences: 1,
@@ -690,6 +700,9 @@ void test(
     const sharedTask = bobData.tasks.find(
       (task) => task.title === 'Alice shared task',
     );
+    const sharedExpense = bobData.expenses.find(
+      (expense) => expense.label === 'Alice shared expense',
+    );
     const sharedPayment = bobData.recurringPayments.find(
       (payment) => payment.label === 'Alice shared payment',
     );
@@ -705,7 +718,13 @@ void test(
     const publicIdea = bobData.purchaseIdeas.find(
       (idea) => idea.title === 'Alice public purchase idea',
     );
-    assert.ok(sharedTask && sharedPayment && sharedItem && sharedReminder);
+    assert.ok(
+      sharedTask &&
+        sharedExpense &&
+        sharedPayment &&
+        sharedItem &&
+        sharedReminder,
+    );
     assert.ok(sharedMedication && publicIdea);
 
     const forbiddenMutations = [
@@ -720,8 +739,29 @@ void test(
         visibility: 'shared',
       },
       { type: 'task-remove', id: sharedTask.id },
+      {
+        type: 'expense-update',
+        id: sharedExpense.id,
+        label: 'Bob cannot edit this expense',
+        amount: 250,
+        category: 'groceries',
+        spentOn: today,
+        visibility: 'shared',
+      },
+      { type: 'expense-remove', id: sharedExpense.id },
       { type: 'recurring-payment-toggle', id: sharedPayment.id, active: false },
       { type: 'recurring-payment-pay', id: sharedPayment.id },
+      {
+        type: 'recurring-payment-update',
+        id: sharedPayment.id,
+        kind: 'rent',
+        label: 'Bob cannot edit this payment',
+        amount: 450,
+        billingCycle: 'monthly',
+        nextDueOn: '2030-01-13',
+        visibility: 'shared',
+      },
+      { type: 'recurring-payment-remove', id: sharedPayment.id },
       { type: 'organiser-toggle', id: sharedItem.id, done: true },
       { type: 'reminder-toggle', id: sharedReminder.id, done: true },
       { type: 'medication-toggle', id: sharedMedication.id, active: false },
@@ -741,6 +781,150 @@ void test(
       );
       assert.equal(result.body.code, 'forbidden', JSON.stringify(mutation));
     }
+
+    const historicalExpenseResult = await action(alice.cookie, {
+      type: 'expense',
+      label: 'Correctable historical expense',
+      amount: 321,
+      category: 'other',
+      spentOn: '2026-01-15',
+      visibility: 'shared',
+    });
+    assert.equal(historicalExpenseResult.response.status, 200);
+    const historicalExpense = historicalExpenseResult.body.data.expenses.find(
+      (expense) => expense.label === 'Correctable historical expense',
+    );
+    assert.ok(historicalExpense);
+    assert.equal(historicalExpense.spentOn, '2026-01-15');
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'expense-remove',
+          id: historicalExpense.id,
+        })
+      ).response.status,
+      403,
+    );
+    const correctedExpenseResult = await action(alice.cookie, {
+      type: 'expense-update',
+      id: historicalExpense.id,
+      label: 'Corrected private expense',
+      amount: 123.45,
+      category: 'utilities',
+      spentOn: '2026-02-16',
+      visibility: 'private',
+    });
+    assert.equal(correctedExpenseResult.response.status, 200);
+    const correctedExpense = correctedExpenseResult.body.data.expenses.find(
+      (expense) => expense.id === historicalExpense.id,
+    );
+    assert.equal(correctedExpense.amount, 123.45);
+    assert.equal(correctedExpense.spentOn, '2026-02-16');
+    assert.equal(
+      (await household(bob.cookie)).expenses.some(
+        (expense) => expense.id === historicalExpense.id,
+      ),
+      false,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'expense-remove',
+          id: historicalExpense.id,
+        })
+      ).response.status,
+      200,
+    );
+
+    const budgetResult = await action(alice.cookie, {
+      type: 'spending-budget',
+      category: 'groceries',
+      monthlyLimit: 15_000,
+    });
+    assert.equal(budgetResult.response.status, 200);
+    const groceryBudget = budgetResult.body.data.spendingBudgets.find(
+      (budget) => budget.category === 'groceries',
+    );
+    assert.ok(groceryBudget);
+    assert.equal((await household(bob.cookie)).spendingBudgets.length, 0);
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'spending-budget-remove',
+          id: groceryBudget.id,
+        })
+      ).response.status,
+      403,
+    );
+    const updatedBudgetResult = await action(alice.cookie, {
+      type: 'spending-budget',
+      category: 'groceries',
+      monthlyLimit: 18_000,
+    });
+    assert.equal(updatedBudgetResult.response.status, 200);
+    assert.equal(
+      updatedBudgetResult.body.data.spendingBudgets.filter(
+        (budget) => budget.category === 'groceries',
+      ).length,
+      1,
+    );
+    assert.equal(
+      updatedBudgetResult.body.data.spendingBudgets.find(
+        (budget) => budget.category === 'groceries',
+      ).monthlyLimit,
+      18_000,
+    );
+
+    const updatedPaymentResult = await action(alice.cookie, {
+      type: 'recurring-payment-update',
+      id: sharedPayment.id,
+      kind: 'rent',
+      label: 'Updated shared rent',
+      amount: 450,
+      billingCycle: 'monthly',
+      nextDueOn: '2030-01-13',
+      visibility: 'shared',
+    });
+    assert.equal(updatedPaymentResult.response.status, 200);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'recurring-payment-pay',
+          id: sharedPayment.id,
+        })
+      ).response.status,
+      200,
+    );
+    const paymentHistoryExpense = (await household(bob.cookie)).expenses.find(
+      (expense) => expense.recurringPaymentId === sharedPayment.id,
+    );
+    assert.ok(paymentHistoryExpense);
+    assert.equal(paymentHistoryExpense.label, 'Updated shared rent');
+    assert.equal(paymentHistoryExpense.amount, 450);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'recurring-payment-remove',
+          id: sharedPayment.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).expenses.some(
+        (expense) => expense.id === paymentHistoryExpense.id,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'spending-budget-remove',
+          id: groceryBudget.id,
+        })
+      ).response.status,
+      200,
+    );
 
     const privateAssignment = await action(alice.cookie, {
       type: 'task',
@@ -1063,7 +1247,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      11,
+      12,
     );
     repairedDatabase.close();
     await startServer(restoredState);
@@ -1090,6 +1274,11 @@ void test(
       /^attachment; filename="schwank-account-\d{4}-\d{2}-\d{2}\.json"$/,
     );
     assert.equal(exportResult.body.account.email, 'alice@example.test');
+    assert.equal(exportResult.body.records.spendingBudgets.length, 1);
+    assert.equal(
+      exportResult.body.records.spendingBudgets[0].monthlyLimit,
+      25_000,
+    );
     assert.equal(
       exportResult.body.records.tasks.some(
         (task) => task.title === 'Alice private task',

@@ -15,11 +15,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.PUBLIC_APP_URL ?? 'http://localhost:3000'),
   title: 'schwank — Our shared home',
-  description: 'One cozy place for meals, money, tasks, lists, and household chat.',
+  description:
+    'One cozy place for meals, money, tasks, lists, and household chat.',
   openGraph: {
     title: 'schwank — Our shared home',
     description: 'Meals, money, tasks, lists & chat.',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'schwank — Our shared home' }],
+    images: [
+      {
+        url: '/og.png',
+        width: 1200,
+        height: 630,
+        alt: 'schwank — Our shared home',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',

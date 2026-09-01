@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export type Language = 'en' | 'ru';
 
@@ -1000,22 +1000,26 @@ export function useLanguage() {
     queueMicrotask(() => setLanguageState(next));
     document.documentElement.lang = next;
   }, []);
-  function setLanguage(next: Language) {
+  const setLanguage = useCallback((next: Language) => {
     localStorage.setItem('schwank-language', next);
     document.documentElement.lang = next;
     setLanguageState(next);
     window.dispatchEvent(new CustomEvent('schwank-language', { detail: next }));
-  }
+  }, []);
   useEffect(() => {
     const handler = (event: Event) =>
       setLanguageState((event as CustomEvent<Language>).detail);
     window.addEventListener('schwank-language', handler);
     return () => window.removeEventListener('schwank-language', handler);
   }, []);
+  const t = useCallback(
+    (key: CopyKey, variables?: Record<string, string | number>) =>
+      translate(language, key, variables),
+    [language],
+  );
   return {
     language,
     setLanguage,
-    t: (key: CopyKey, variables?: Record<string, string | number>) =>
-      translate(language, key, variables),
+    t,
   };
 }

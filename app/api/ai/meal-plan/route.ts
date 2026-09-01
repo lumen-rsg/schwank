@@ -14,11 +14,9 @@ export async function POST(request: Request) {
     const input = await request.json();
     const encoder = new TextEncoder();
     const abortController = new AbortController();
-    request.signal.addEventListener(
-      'abort',
-      () => abortController.abort(),
-      { once: true },
-    );
+    request.signal.addEventListener('abort', () => abortController.abort(), {
+      once: true,
+    });
     let streamOpen = true;
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -44,8 +42,7 @@ export async function POST(request: Request) {
           }
           pendingDelta += event.delta;
           if (pendingDelta.length >= 256) flushDelta();
-          else if (!flushTimer)
-            flushTimer = setTimeout(flushDelta, 50);
+          else if (!flushTimer) flushTimer = setTimeout(flushDelta, 50);
         };
         send({ type: 'status', stage: 'starting' });
         void generateAiMealPlan(

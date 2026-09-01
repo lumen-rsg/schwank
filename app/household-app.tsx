@@ -1,7 +1,8 @@
 'use client';
-/* oxlint-disable next(no-img-element) */
 
+import Image from 'next/image';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -65,6 +66,7 @@ import {
   Wine,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
+import { deriveDueNotifications } from '@/lib/notifications';
 import { useLanguage, type CopyKey, type Language } from './i18n';
 
 type Visibility = 'private' | 'shared';
@@ -182,14 +184,6 @@ type PurchaseVote = {
   initials: string;
   color: string;
   avatar: string | null;
-};
-type DueNotification = {
-  key: string;
-  title: string;
-  body: string;
-  section: string;
-  dueAt: string;
-  visibility: Visibility;
 };
 type Message = {
   id: number;
@@ -442,7 +436,17 @@ function Avatar({
       className={small ? 'avatar avatar-small' : 'avatar'}
       style={{ backgroundColor: person.color }}
     >
-      {person.avatar ? <img src={person.avatar} alt="" /> : person.initials}
+      {person.avatar ? (
+        <Image
+          src={person.avatar}
+          alt=""
+          width={small ? 27 : 34}
+          height={small ? 27 : 34}
+          unoptimized
+        />
+      ) : (
+        person.initials
+      )}
     </span>
   );
 }
@@ -548,83 +552,6 @@ function LanguageSwitch({
   );
 }
 
-function dueNotifications(data: Data, t: T, language: Language) {
-  const now = new Date();
-  const todayKey = dateKey(now);
-  const threeDaysFromNow = new Date(now);
-  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-  const paymentReminderKey = dateKey(threeDaysFromNow);
-  const events: DueNotification[] = [];
-
-  for (const medication of data.medications) {
-    if (
-      !medication.active ||
-      medication.startOn > todayKey ||
-      (medication.endOn && medication.endOn < todayKey)
-    )
-      continue;
-    for (const time of medication.scheduleTimes) {
-      const scheduledFor = `${todayKey}T${time}`;
-      if (
-        new Date(`${scheduledFor}:00`).getTime() > now.getTime() ||
-        data.medicationDoses.some(
-          (dose) =>
-            dose.medicationId === medication.id &&
-            dose.scheduledFor === scheduledFor,
-        )
-      )
-        continue;
-      events.push({
-        key: `medication:${medication.id}:${scheduledFor}`,
-        title: t('medicationDue'),
-        body: `${medication.name} · ${medication.dosage} · ${time}`,
-        section: 'medications',
-        dueAt: scheduledFor,
-        visibility: medication.visibility,
-      });
-    }
-  }
-
-  for (const payment of data.recurringPayments) {
-    if (!payment.active || payment.nextDueOn > paymentReminderKey) continue;
-    events.push({
-      key: `payment:${payment.id}:${payment.nextDueOn}`,
-      title: t('paymentDue'),
-      body: `${payment.label} · ${money(Number(payment.amount), language)} · ${formatMoneyDate(payment.nextDueOn, language)}`,
-      section: 'spending',
-      dueAt: `${payment.nextDueOn}T09:00`,
-      visibility: payment.visibility,
-    });
-  }
-
-  for (const task of data.tasks) {
-    if (task.status === 'done' || !task.dueOn || task.dueOn > todayKey)
-      continue;
-    events.push({
-      key: `task:${task.id}:${task.dueOn}`,
-      title: t('taskDue'),
-      body: task.title,
-      section: 'tasks',
-      dueAt: `${task.dueOn}T09:00`,
-      visibility: task.visibility,
-    });
-  }
-
-  for (const reminder of data.reminders) {
-    if (reminder.done || new Date(reminder.remindAt).getTime() > now.getTime())
-      continue;
-    events.push({
-      key: `reminder:${reminder.id}:${reminder.remindAt}`,
-      title: t('reminderDue'),
-      body: reminder.label,
-      section: 'organisers',
-      dueAt: reminder.remindAt,
-      visibility: reminder.visibility,
-    });
-  }
-  return events.sort((left, right) => left.dueAt.localeCompare(right.dueAt));
-}
-
 export default function HouseholdApp({
   initialUser,
 }: {
@@ -642,43 +569,46 @@ export default function HouseholdApp({
   const lastMessageId = useRef<number | null>(null);
   const loadInProgress = useRef(false);
   const deliveredNotificationKeys = useRef(new Set<string>());
-  async function load(silent = false) {
-    if (loadInProgress.current) return;
-    loadInProgress.current = true;
-    try {
-      const response = await fetch('/api/schwank', { cache: 'no-store' });
-      if (response.status === 401) {
-        window.location.assign('/login');
-        return;
+  const load = useCallback(
+    async (silent = false) => {
+      if (loadInProgress.current) return;
+      loadInProgress.current = true;
+      try {
+        const response = await fetch('/api/schwank', { cache: 'no-store' });
+        if (response.status === 401) {
+          window.location.assign('/login');
+          return;
+        }
+        if (!response.ok) throw new Error();
+        const nextData = (await response.json()) as Data;
+        const newestMessageId = nextData.messages.reduce(
+          (maximum, message) => Math.max(maximum, message.id),
+          0,
+        );
+        if (lastMessageId.current !== null) {
+          const newMessage = nextData.messages
+            .filter(
+              (message) =>
+                message.id > (lastMessageId.current ?? 0) && !message.mine,
+            )
+            .at(-1);
+          if (newMessage)
+            void window.schwankDesktop?.notify(
+              'schwank',
+              `${newMessage.name}: ${newMessage.body}`,
+            );
+        }
+        lastMessageId.current = newestMessageId;
+        setData(nextData);
+      } catch {
+        if (!silent) setNotice(t('storageFailed'));
+      } finally {
+        setLoading(false);
+        loadInProgress.current = false;
       }
-      if (!response.ok) throw new Error();
-      const nextData = (await response.json()) as Data;
-      const newestMessageId = nextData.messages.reduce(
-        (maximum, message) => Math.max(maximum, message.id),
-        0,
-      );
-      if (lastMessageId.current !== null) {
-        const newMessage = nextData.messages
-          .filter(
-            (message) =>
-              message.id > (lastMessageId.current ?? 0) && !message.mine,
-          )
-          .at(-1);
-        if (newMessage)
-          void window.schwankDesktop?.notify(
-            'schwank',
-            `${newMessage.name}: ${newMessage.body}`,
-          );
-      }
-      lastMessageId.current = newestMessageId;
-      setData(nextData);
-    } catch {
-      if (!silent) setNotice(t('storageFailed'));
-    } finally {
-      setLoading(false);
-      loadInProgress.current = false;
-    }
-  }
+    },
+    [t],
+  );
   useEffect(() => {
     const storageKey = `schwank-notifications:${initialUser.id}`;
     try {
@@ -693,7 +623,7 @@ export default function HouseholdApp({
       else if ('Notification' in window && window.isSecureContext)
         setNotificationPermission(Notification.permission);
     });
-    void load();
+    queueMicrotask(() => void load());
     const interval = window.setInterval(() => void load(true), 30_000);
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') void load(true);
@@ -703,9 +633,9 @@ export default function HouseholdApp({
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refreshVisible);
     };
-  }, [initialUser.id]);
+  }, [initialUser.id, load]);
   const notifications = useMemo(
-    () => dueNotifications(data, t, language),
+    () => deriveDueNotifications(data, t, language),
     [data, language, t],
   );
   useEffect(() => {
@@ -4603,7 +4533,14 @@ function ChatView({
       <article className="chat-room panel">
         <header>
           {data.home.photo ? (
-            <img className="chat-home-photo" src={data.home.photo} alt="" />
+            <Image
+              className="chat-home-photo"
+              src={data.home.photo}
+              alt=""
+              width={34}
+              height={34}
+              unoptimized
+            />
           ) : (
             <span className="tinted-icon green">
               <MessageCircle size={18} />

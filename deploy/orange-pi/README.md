@@ -38,3 +38,30 @@ AI_MODEL=deepseek-v4-pro
 Enter the key directly on the board, then restart `schwank`. Never commit or
 transfer the populated file. The server runtime passes this file explicitly to
 Wrangler because the compiled configuration lives under `dist/server`.
+
+## Backups before upgrades
+
+Install `sqlite3` on the board once so backups can be checked:
+
+```sh
+sudo apt-get install sqlite3
+```
+
+Before replacing `dist`, changing the runtime, or applying a schema change, run
+the checked-in cold-backup script from the repository checkout:
+
+```sh
+./deploy/orange-pi/backup.sh
+./deploy/orange-pi/verify-backup.sh /home/orangepi/schwank-backups/schwank-state-TIMESTAMP.tar.gz
+```
+
+The backup script briefly stops `schwank`, archives only the persistent
+Wrangler/D1 state with mode `600`, restarts the service even when archiving
+fails, and waits for the health endpoint before reporting success. It never
+copies `.dev.vars` or the AI key. Keep at least the latest verified backup
+until the upgraded server has passed its restart smoke test.
+
+Restoration remains an explicit operator action: stop `schwank`, preserve the
+current `.wrangler/state`, extract the selected archive from the server root,
+then restart and check `/api/health`. Never restore while the service is
+running.

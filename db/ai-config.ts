@@ -42,9 +42,7 @@ export function getAiConfiguration(): AiConfiguration {
       endpoint: 'https://api.deepseek.com/responses',
       apiKey: value(env.AI_API_KEY) || value(env.DEEPSEEK_API_KEY),
       model:
-        value(env.AI_MODEL) ||
-        value(env.DEEPSEEK_MODEL) ||
-        'deepseek-v4-pro',
+        value(env.AI_MODEL) || value(env.DEEPSEEK_MODEL) || 'deepseek-v4-pro',
     };
   }
 

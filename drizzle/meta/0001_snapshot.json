@@ -53,9 +53,7 @@
       "indexes": {
         "idx_expenses_date": {
           "name": "idx_expenses_date",
-          "columns": [
-            "spent_on"
-          ],
+          "columns": ["spent_on"],
           "isUnique": false
         }
       },
@@ -169,9 +167,7 @@
       "indexes": {
         "idx_messages_created": {
           "name": "idx_messages_created",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         }
       },
@@ -243,10 +239,7 @@
       "indexes": {
         "idx_nutrition_member_date": {
           "name": "idx_nutrition_member_date",
-          "columns": [
-            "member_id",
-            "eaten_on"
-          ],
+          "columns": ["member_id", "eaten_on"],
           "isUnique": false
         }
       },
@@ -346,9 +339,7 @@
       "indexes": {
         "idx_tasks_status": {
           "name": "idx_tasks_status",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         }
       },

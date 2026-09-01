@@ -1,69 +1,27 @@
 import { env } from 'cloudflare:workers';
+import {
+  AiPlannerError,
+  aiMealPlanResponseSchema,
+  cleanAiMealPlanPreferences,
+  validateAiMealPlanProposal,
+} from '@/lib/ai-meal-plan-validation';
 import { getAiConfiguration } from './ai-config';
 import { ensureDatabase } from './setup';
 
-const courses = [
-  'breakfast',
-  'starter',
-  'main',
-  'dinner',
-  'salad',
-  'dessert',
-] as const;
-const units = ['g', 'kg', 'ml', 'l', 'pcs'] as const;
-type Course = (typeof courses)[number];
-
-export class AiPlannerError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
-
-type Preferences = {
-  includeFoods: string[];
-  excludeFoods: string[];
-  cuisines: string[];
-  notes: string;
-  useInventoryFirst: boolean;
-  includeNutrition: boolean;
-  language: 'en' | 'ru';
-  frequencies: Record<Course, number>;
-};
-
-export type AiMealPlanProposal = {
-  summary: string;
-  nutritionRationale: string;
-  recipes: Array<{
-    key: string;
-    sourceRecipeId: number;
-    name: string;
-    course: Course;
-    description: string;
-    caloriesPerServing: number;
-    proteinPerServing: number;
-    carbsPerServing: number;
-    fatPerServing: number;
-    ingredients: Array<{
-      name: string;
-      quantity: number;
-      unit: (typeof units)[number];
-    }>;
-    instructions: string;
-  }>;
-  schedule: Array<{
-    dayIndex: number;
-    course: Course;
-    recipeKey: string;
-  }>;
-};
+export {
+  AiPlannerError,
+  type AiMealPlanProposal,
+} from '@/lib/ai-meal-plan-validation';
 
 export type AiPlannerProgress =
   | {
       type: 'status';
-      stage: 'preparing' | 'context' | 'requesting' | 'receiving' | 'validating';
+      stage:
+        | 'preparing'
+        | 'context'
+        | 'requesting'
+        | 'receiving'
+        | 'validating';
       provider?: string;
       model?: string;
     }
@@ -75,191 +33,6 @@ const DEEPSEEK_MAX_OUTPUT_TOKENS = 384 * 1024;
 const DEFAULT_MAX_OUTPUT_TOKENS = 16_000;
 const DEEPSEEK_GENERATION_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_GENERATION_TIMEOUT_MS = 90_000;
-
-const asInputText = (value: unknown) =>
-  typeof value === 'string' || typeof value === 'number' ? String(value) : '';
-
-const cleanList = (value: unknown, maximum: number) =>
-  (Array.isArray(value) ? value : asInputText(value).split(','))
-    .map((item) => asInputText(item).trim().slice(0, 60))
-    .filter(Boolean)
-    .slice(0, maximum);
-
-function cleanPreferences(value: unknown): Preferences {
-  const record =
-    value && typeof value === 'object'
-      ? (value as Record<string, unknown>)
-      : {};
-  const rawFrequencies =
-    record.frequencies && typeof record.frequencies === 'object'
-      ? (record.frequencies as Record<string, unknown>)
-      : {};
-  const frequencies = Object.fromEntries(
-    courses.map((course) => [
-      course,
-      Math.max(0, Math.min(7, Math.round(Number(rawFrequencies[course]) || 0))),
-    ]),
-  ) as Record<Course, number>;
-  if (!Object.values(frequencies).some(Boolean))
-    throw new AiPlannerError('Choose at least one meal for the week.');
-  return {
-    includeFoods: cleanList(record.includeFoods, 20),
-    excludeFoods: cleanList(record.excludeFoods, 20),
-    cuisines: cleanList(record.cuisines, 12),
-    notes: asInputText(record.notes).trim().slice(0, 1200),
-    useInventoryFirst: record.useInventoryFirst !== false,
-    includeNutrition: record.includeNutrition === true,
-    language: record.language === 'ru' ? 'ru' : 'en',
-    frequencies,
-  };
-}
-
-const responseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['summary', 'nutritionRationale', 'recipes', 'schedule'],
-  properties: {
-    summary: { type: 'string' },
-    nutritionRationale: { type: 'string' },
-    recipes: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: [
-          'key',
-          'sourceRecipeId',
-          'name',
-          'course',
-          'description',
-          'caloriesPerServing',
-          'proteinPerServing',
-          'carbsPerServing',
-          'fatPerServing',
-          'ingredients',
-          'instructions',
-        ],
-        properties: {
-          key: { type: 'string' },
-          sourceRecipeId: { type: 'integer' },
-          name: { type: 'string' },
-          course: { type: 'string', enum: courses },
-          description: { type: 'string' },
-          caloriesPerServing: { type: 'number' },
-          proteinPerServing: { type: 'number' },
-          carbsPerServing: { type: 'number' },
-          fatPerServing: { type: 'number' },
-          ingredients: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['name', 'quantity', 'unit'],
-              properties: {
-                name: { type: 'string' },
-                quantity: { type: 'number' },
-                unit: { type: 'string', enum: units },
-              },
-            },
-          },
-          instructions: { type: 'string' },
-        },
-      },
-    },
-    schedule: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['dayIndex', 'course', 'recipeKey'],
-        properties: {
-          dayIndex: { type: 'integer' },
-          course: { type: 'string', enum: courses },
-          recipeKey: { type: 'string' },
-        },
-      },
-    },
-  },
-} as const;
-
-function validateProposal(value: unknown, preferences: Preferences) {
-  if (!value || typeof value !== 'object')
-    throw new AiPlannerError('The AI returned an invalid meal plan.', 502);
-  const proposal = value as AiMealPlanProposal;
-  if (!Array.isArray(proposal.recipes) || !Array.isArray(proposal.schedule))
-    throw new AiPlannerError('The AI returned an incomplete meal plan.', 502);
-  if (proposal.recipes.length < 1 || proposal.recipes.length > 42)
-    throw new AiPlannerError(
-      'The AI returned too many or too few recipes.',
-      502,
-    );
-  if (
-    new Set(proposal.recipes.map((recipe) => recipe.key)).size !==
-    proposal.recipes.length
-  )
-    throw new AiPlannerError('The AI returned duplicate recipe keys.', 502);
-  const recipeByKey = new Map(
-    proposal.recipes.map((recipe) => [recipe.key, recipe]),
-  );
-  for (const recipe of proposal.recipes) {
-    if (
-      !recipe.key ||
-      !recipe.name ||
-      !courses.includes(recipe.course) ||
-      !Array.isArray(recipe.ingredients) ||
-      recipe.ingredients.length < 1 ||
-      recipe.ingredients.length > 30 ||
-      recipe.ingredients.some(
-        (ingredient) =>
-          !ingredient.name ||
-          !(ingredient.quantity > 0) ||
-          !units.includes(ingredient.unit),
-      )
-    )
-      throw new AiPlannerError('The AI returned an invalid recipe.', 502);
-  }
-  const validSuggestions = proposal.schedule.filter((meal) => {
-    const recipe = recipeByKey.get(meal.recipeKey);
-    return (
-      Number.isInteger(meal.dayIndex) &&
-      meal.dayIndex >= 0 &&
-      meal.dayIndex <= 6 &&
-      courses.includes(meal.course) &&
-      recipe?.course === meal.course
-    );
-  });
-  const schedule: AiMealPlanProposal['schedule'] = [];
-  for (const course of courses) {
-    const frequency = preferences.frequencies[course];
-    if (!frequency) continue;
-    const recipeKeys = proposal.recipes
-      .filter((recipe) => recipe.course === course)
-      .map((recipe) => recipe.key);
-    if (!recipeKeys.length)
-      throw new AiPlannerError(
-        `The AI returned no ${course} recipe for the requested plan.`,
-        502,
-      );
-    const suggestedKeys = validSuggestions
-      .filter((meal) => meal.course === course)
-      .map((meal) => meal.recipeKey);
-    const days =
-      frequency === 1
-        ? [3]
-        : Array.from({ length: frequency }, (_, index) =>
-            Math.round((index * 6) / (frequency - 1)),
-          );
-    days.forEach((dayIndex, index) => {
-      schedule.push({
-        dayIndex,
-        course,
-        recipeKey:
-          suggestedKeys[index] || recipeKeys[index % recipeKeys.length],
-      });
-    });
-  }
-  return { ...proposal, schedule };
-}
 
 export async function generateAiMealPlan(
   userId: number,
@@ -276,7 +49,7 @@ export async function generateAiMealPlan(
       'AI planning is not configured. Add AI_API_KEY to .dev.vars on the server.',
       503,
     );
-  const preferences = cleanPreferences(input);
+  const preferences = cleanAiMealPlanPreferences(input);
   onProgress({
     type: 'status',
     stage: 'preparing',
@@ -396,7 +169,7 @@ export async function generateAiMealPlan(
             type: 'json_schema',
             name: 'schwank_weekly_meal_plan',
             strict: true,
-            schema: responseSchema,
+            schema: aiMealPlanResponseSchema,
           },
         },
       }),
@@ -407,11 +180,11 @@ export async function generateAiMealPlan(
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError')
-      throw new AiPlannerError('AI generation was cancelled or timed out.', 504);
-    throw new AiPlannerError(
-      `${ai.providerName} could not be reached.`,
-      502,
-    );
+      throw new AiPlannerError(
+        'AI generation was cancelled or timed out.',
+        504,
+      );
+    throw new AiPlannerError(`${ai.providerName} could not be reached.`, 502);
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as Record<
@@ -545,7 +318,7 @@ export async function generateAiMealPlan(
     );
   }
   return {
-    proposal: validateProposal(parsed, preferences),
+    proposal: validateAiMealPlanProposal(parsed, preferences),
     model: ai.model,
     nutritionContributors: profiles.results.length,
   };

@@ -98,17 +98,18 @@ function colorFor(value: string) {
   return colors[hash % colors.length];
 }
 
+function stringField(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === 'string' ? value : '';
+}
+
 function normalizeRegistration(input: unknown) {
   if (!input || typeof input !== 'object')
     throw new AuthError('Please complete every field.', 400);
   const record = input as Record<string, unknown>;
-  const email = String(record.email ?? '')
-    .trim()
-    .toLowerCase();
-  const name = String(record.name ?? '')
-    .trim()
-    .replace(/\s+/g, ' ');
-  const password = String(record.password ?? '');
+  const email = stringField(record, 'email').trim().toLowerCase();
+  const name = stringField(record, 'name').trim().replace(/\s+/g, ' ');
+  const password = stringField(record, 'password');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
     throw new AuthError('Enter a valid email address.', 400);
   if (name.length < 2 || name.length > 40)
@@ -179,10 +180,8 @@ export async function loginUser(input: unknown) {
     string,
     unknown
   >;
-  const email = String(record.email ?? '')
-    .trim()
-    .toLowerCase();
-  const password = String(record.password ?? '');
+  const email = stringField(record, 'email').trim().toLowerCase();
+  const password = stringField(record, 'password');
   const user = await env.DB.prepare(
     'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE email=?',
   )

@@ -20,8 +20,16 @@
     "desktop:dist:mac": "electron-builder --mac --arm64",
     "desktop:dist:linux": "electron-builder --linux AppImage --x64",
     "desktop:dist:windows": "electron-builder --win --x64",
-    "lint": "oxlint",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:deployment && npm run server:build && npm run test:integration",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
+    "test": "npm run test:unit && npm run desktop:check",
+    "test:integration": "node --test tests/integration.test.mjs",
+    "test:deployment": "sh -n deploy/orange-pi/backup.sh deploy/orange-pi/verify-backup.sh && node --test tests/deployment-backup.test.mjs",
+    "test:unit": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --deny-warnings",
     "format": "oxfmt",
+    "format:check": "oxfmt --check .",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
@@ -62,6 +70,7 @@
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "vite": "^8.2.2",
     "wrangler": "^4.127.1"

@@ -51,7 +51,7 @@ export async function exportAccountData(user: AuthUser) {
       user.id,
     ),
     userRows(
-      'SELECT id,visibility,title,status,tag,due,due_on AS dueOn FROM tasks WHERE user_id=? ORDER BY id',
+      'SELECT id,visibility,title,status,tag,due,due_on AS dueOn,source_reminder_id AS sourceReminderId FROM tasks WHERE user_id=? ORDER BY id',
       user.id,
     ),
     userRows(
@@ -71,7 +71,7 @@ export async function exportAccountData(user: AuthUser) {
       user.id,
     ),
     userRows(
-      'SELECT id,visibility,label,remind_at AS remindAt,done,created_at AS createdAt FROM reminders WHERE user_id=? ORDER BY id',
+      'SELECT id,visibility,label,remind_at AS remindAt,recurrence,done,created_at AS createdAt FROM reminders WHERE user_id=? ORDER BY id',
       user.id,
     ),
     userRows(

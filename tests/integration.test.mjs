@@ -888,7 +888,31 @@ void test(
       },
       { type: 'recurring-payment-remove', id: sharedPayment.id },
       { type: 'organiser-toggle', id: sharedItem.id, done: true },
+      {
+        type: 'organiser-update',
+        id: sharedItem.id,
+        list: 'Bob cannot move this item',
+        label: 'Bob cannot edit this item',
+        visibility: 'shared',
+      },
+      { type: 'organiser-remove', id: sharedItem.id },
       { type: 'reminder-toggle', id: sharedReminder.id, done: true },
+      {
+        type: 'reminder-update',
+        id: sharedReminder.id,
+        label: 'Bob cannot edit this reminder',
+        remindAt: '2030-01-15T10:00',
+        recurrence: 'weekly',
+        visibility: 'shared',
+      },
+      {
+        type: 'reminder-snooze',
+        id: sharedReminder.id,
+        minutes: 60,
+        snoozeUntil: '2030-01-15T10:00',
+      },
+      { type: 'reminder-to-task', id: sharedReminder.id },
+      { type: 'reminder-remove', id: sharedReminder.id },
       { type: 'medication-toggle', id: sharedMedication.id, active: false },
       {
         type: 'medication-update',
@@ -943,6 +967,170 @@ void test(
       );
       assert.equal(result.body.code, 'forbidden', JSON.stringify(mutation));
     }
+
+    const organiserCreate = await action(alice.cookie, {
+      type: 'organiser',
+      list: 'Correctable list',
+      label: 'Correctable item',
+      visibility: 'shared',
+    });
+    assert.equal(organiserCreate.response.status, 200);
+    const correctableItem = organiserCreate.body.data.organisers.find(
+      (item) => item.label === 'Correctable item',
+    );
+    assert.ok(correctableItem);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'organiser-update',
+          id: correctableItem.id,
+          list: 'Moved list',
+          label: 'Corrected item',
+          visibility: 'shared',
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(bob.cookie)).organisers.some(
+        (item) => item.id === correctableItem.id && item.list === 'Moved list',
+      ),
+      true,
+    );
+
+    const recurringReminderCreate = await action(alice.cookie, {
+      type: 'reminder',
+      label: 'Recurring household reminder',
+      remindAt: '2030-01-20T09:00',
+      recurrence: 'daily',
+      visibility: 'shared',
+    });
+    assert.equal(recurringReminderCreate.response.status, 200);
+    const recurringReminder = recurringReminderCreate.body.data.reminders.find(
+      (reminder) => reminder.label === 'Recurring household reminder',
+    );
+    assert.ok(recurringReminder);
+    assert.equal(recurringReminder.recurrence, 'daily');
+    const advancedReminder = await action(alice.cookie, {
+      type: 'reminder-toggle',
+      id: recurringReminder.id,
+      done: true,
+    });
+    assert.equal(advancedReminder.response.status, 200);
+    const nextRecurringReminder = advancedReminder.body.data.reminders.find(
+      (reminder) => reminder.id === recurringReminder.id,
+    );
+    assert.equal(nextRecurringReminder.remindAt, '2030-01-21T09:00');
+    assert.equal(Boolean(nextRecurringReminder.done), false);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'reminder-to-task',
+          id: recurringReminder.id,
+        })
+      ).response.status,
+      400,
+    );
+
+    const taskReminderCreate = await action(alice.cookie, {
+      type: 'reminder',
+      label: 'Reminder to convert',
+      remindAt: '2030-02-01T10:30',
+      recurrence: 'none',
+      visibility: 'shared',
+    });
+    assert.equal(taskReminderCreate.response.status, 200);
+    const taskReminder = taskReminderCreate.body.data.reminders.find(
+      (reminder) => reminder.label === 'Reminder to convert',
+    );
+    assert.ok(taskReminder);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'reminder-update',
+          id: taskReminder.id,
+          label: 'Corrected reminder to convert',
+          remindAt: '2030-02-02T11:00',
+          recurrence: 'none',
+          visibility: 'shared',
+        })
+      ).response.status,
+      200,
+    );
+    const snoozedReminder = await action(alice.cookie, {
+      type: 'reminder-snooze',
+      id: taskReminder.id,
+      minutes: 15,
+      snoozeUntil: '2030-02-02T11:15',
+    });
+    assert.equal(snoozedReminder.response.status, 200);
+    assert.match(
+      snoozedReminder.body.data.reminders.find(
+        (reminder) => reminder.id === taskReminder.id,
+      ).remindAt,
+      /^2030-02-02T11:15$/,
+    );
+    for (let attempt = 0; attempt < 2; attempt += 1)
+      assert.equal(
+        (
+          await action(alice.cookie, {
+            type: 'reminder-to-task',
+            id: taskReminder.id,
+          })
+        ).response.status,
+        200,
+      );
+    const convertedData = await household(alice.cookie);
+    const convertedTasks = convertedData.tasks.filter(
+      (task) => Number(task.sourceReminderId) === taskReminder.id,
+    );
+    assert.equal(convertedTasks.length, 1);
+    assert.equal(convertedTasks[0].title, 'Corrected reminder to convert');
+    assert.equal(convertedTasks[0].visibility, 'shared');
+    const convertedReminder = convertedData.reminders.find(
+      (reminder) => reminder.id === taskReminder.id,
+    );
+    assert.equal(Boolean(convertedReminder.done), true);
+    assert.equal(convertedReminder.convertedTaskId, convertedTasks[0].id);
+    assert.equal(
+      (await household(bob.cookie)).tasks.some(
+        (task) => task.id === convertedTasks[0].id,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'reminder-remove',
+          id: taskReminder.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).tasks.some(
+        (task) => task.id === convertedTasks[0].id,
+      ),
+      true,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'reminder-remove',
+          id: recurringReminder.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'organiser-remove',
+          id: correctableItem.id,
+        })
+      ).response.status,
+      200,
+    );
 
     const yesterdayDate = new Date(`${today}T12:00:00Z`);
     yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
@@ -1674,7 +1862,7 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      14,
+      15,
     );
     repairedDatabase.close();
     await startServer(restoredState);

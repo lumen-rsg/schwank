@@ -9,6 +9,7 @@ import {
   type NutritionActivity,
   type NutritionPlan,
 } from '@/lib/household-calculations';
+import { advanceReminderDate, type ReminderRecurrence } from '@/lib/reminders';
 import {
   DataError,
   cleanDate,
@@ -19,6 +20,7 @@ import {
   cleanOptionalDate,
   cleanPaymentDate,
   cleanPaymentKind,
+  cleanReminderRecurrence,
   cleanText,
   cleanVisibility,
   today,
@@ -472,30 +474,147 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       throw new DataError('That item cannot be changed.', 403);
     return result;
   }
+  if (body.type === 'organiser-update') {
+    const itemId = cleanNumber(body.id);
+    const label = cleanText(body.label, 100);
+    const list = cleanText(body.list, 50);
+    if (!label || !list)
+      throw new DataError('List and item names are required.');
+    const result = await db
+      .prepare(
+        'UPDATE organiser_items SET list=?,label=?,visibility=? WHERE id=? AND user_id=?',
+      )
+      .bind(list, label, cleanVisibility(body.visibility), itemId, userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That item cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'organiser-remove') {
+    const result = await db
+      .prepare('DELETE FROM organiser_items WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That item cannot be removed.', 403);
+    return result;
+  }
   if (body.type === 'reminder') {
     const label = cleanText(body.label, 120);
     const remindAt = cleanDateTime(body.remindAt);
+    const recurrence = cleanReminderRecurrence(body.recurrence);
     if (!label) throw new DataError('Reminder name is required.');
     return db
       .prepare(
-        'INSERT INTO reminders (user_id,visibility,label,remind_at,done,created_at) VALUES (?,?,?,?,0,?)',
+        'INSERT INTO reminders (user_id,visibility,label,remind_at,recurrence,done,created_at) VALUES (?,?,?,?,?,0,?)',
       )
       .bind(
         userId,
         cleanVisibility(body.visibility),
         label,
         remindAt,
+        recurrence,
         new Date().toISOString(),
       )
       .run();
   }
   if (body.type === 'reminder-toggle') {
+    const reminderId = cleanNumber(body.id);
+    const reminder = await db
+      .prepare(
+        'SELECT id,remind_at AS remindAt,recurrence FROM reminders WHERE id=? AND user_id=?',
+      )
+      .bind(reminderId, userId)
+      .first<{
+        id: number;
+        remindAt: string;
+        recurrence: ReminderRecurrence;
+      }>();
+    if (!reminder) throw new DataError('That reminder cannot be changed.', 403);
+    if (body.done && reminder.recurrence !== 'none')
+      return db
+        .prepare(
+          'UPDATE reminders SET remind_at=?,done=0 WHERE id=? AND user_id=?',
+        )
+        .bind(
+          advanceReminderDate(reminder.remindAt, reminder.recurrence),
+          reminderId,
+          userId,
+        )
+        .run();
     const result = await db
       .prepare('UPDATE reminders SET done=? WHERE id=? AND user_id=?')
-      .bind(body.done ? 1 : 0, cleanNumber(body.id), userId)
+      .bind(body.done ? 1 : 0, reminderId, userId)
       .run();
     if (!result.meta.changes)
       throw new DataError('That reminder cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'reminder-update') {
+    const reminderId = cleanNumber(body.id);
+    const label = cleanText(body.label, 120);
+    const remindAt = cleanDateTime(body.remindAt);
+    if (!label) throw new DataError('Reminder name is required.');
+    const result = await db
+      .prepare(
+        'UPDATE reminders SET label=?,remind_at=?,recurrence=?,visibility=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        label,
+        remindAt,
+        cleanReminderRecurrence(body.recurrence),
+        cleanVisibility(body.visibility),
+        reminderId,
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That reminder cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'reminder-snooze') {
+    const minutes = cleanNumber(body.minutes, 1_440);
+    if (![15, 60, 1_440].includes(minutes))
+      throw new DataError('Choose a valid snooze time.');
+    const snoozeUntil = cleanDateTime(body.snoozeUntil);
+    const result = await db
+      .prepare(
+        'UPDATE reminders SET remind_at=?,done=0 WHERE id=? AND user_id=? AND done=0',
+      )
+      .bind(snoozeUntil, cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That reminder cannot be snoozed.', 403);
+    return result;
+  }
+  if (body.type === 'reminder-to-task') {
+    const reminderId = cleanNumber(body.id);
+    const reminder = await db
+      .prepare('SELECT id,recurrence FROM reminders WHERE id=? AND user_id=?')
+      .bind(reminderId, userId)
+      .first<{ id: number; recurrence: ReminderRecurrence }>();
+    if (!reminder)
+      throw new DataError('That reminder cannot be converted.', 403);
+    if (reminder.recurrence !== 'none')
+      throw new DataError('Only one-time reminders can become tasks.');
+    return db.batch([
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO tasks (user_id,visibility,title,status,assignee_id,tag,due,due_on,source_reminder_id) SELECT user_id,visibility,label,'todo',CAST(user_id AS TEXT),'Reminder',substr(remind_at,1,10),substr(remind_at,1,10),id FROM reminders WHERE id=? AND user_id=?",
+        )
+        .bind(reminderId, userId),
+      db
+        .prepare('UPDATE reminders SET done=1 WHERE id=? AND user_id=?')
+        .bind(reminderId, userId),
+    ]);
+  }
+  if (body.type === 'reminder-remove') {
+    const result = await db
+      .prepare('DELETE FROM reminders WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That reminder cannot be removed.', 403);
     return result;
   }
   if (body.type === 'medication') {

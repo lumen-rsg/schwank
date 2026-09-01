@@ -65,7 +65,7 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        "SELECT t.id,t.title,t.status,t.tag,t.due,t.due_on AS dueOn,t.visibility,(t.user_id=?) AS owned,(CAST(t.assignee_id AS INTEGER)=?) AS assignedToMe,CAST(t.assignee_id AS INTEGER) AS assigneeId,a.display_name AS assigneeName,a.initials AS assigneeInitials,a.color AS assigneeColor,a.avatar_data AS assigneeAvatar FROM tasks t LEFT JOIN users a ON a.id=CAST(t.assignee_id AS INTEGER) AND a.deleted_at IS NULL WHERE t.user_id=? OR t.visibility='shared' ORDER BY t.id DESC",
+        "SELECT t.id,t.title,t.status,t.tag,t.due,t.due_on AS dueOn,t.source_reminder_id AS sourceReminderId,t.visibility,(t.user_id=?) AS owned,(CAST(t.assignee_id AS INTEGER)=?) AS assignedToMe,CAST(t.assignee_id AS INTEGER) AS assigneeId,a.display_name AS assigneeName,a.initials AS assigneeInitials,a.color AS assigneeColor,a.avatar_data AS assigneeAvatar FROM tasks t LEFT JOIN users a ON a.id=CAST(t.assignee_id AS INTEGER) AND a.deleted_at IS NULL WHERE t.user_id=? OR t.visibility='shared' ORDER BY t.id DESC",
       )
       .bind(user.id, user.id, user.id)
       .all(),
@@ -95,7 +95,7 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        "SELECT id,label,remind_at AS remindAt,done,visibility,(user_id=?) AS owned FROM reminders WHERE user_id=? OR visibility='shared' ORDER BY done,remind_at,id DESC",
+        "SELECT r.id,r.label,r.remind_at AS remindAt,r.recurrence,r.done,r.visibility,(r.user_id=?) AS owned,t.id AS convertedTaskId FROM reminders r LEFT JOIN tasks t ON t.source_reminder_id=r.id WHERE r.user_id=? OR r.visibility='shared' ORDER BY r.done,r.remind_at,r.id DESC",
       )
       .bind(user.id, user.id)
       .all(),

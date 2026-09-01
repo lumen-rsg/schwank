@@ -30,6 +30,7 @@ const task = (overrides: Partial<Task>): Task => ({
   assigneeInitials: null,
   assigneeColor: null,
   assigneeAvatar: null,
+  sourceReminderId: null,
   ...overrides,
 });
 

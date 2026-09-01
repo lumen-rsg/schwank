@@ -1,0 +1,231 @@
+/* Reminder scheduling and editable organiser lists */
+.reminder-panel .reminder-form {
+  grid-template-columns: 2fr 1.4fr 1fr 1fr auto;
+}
+.reminder-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 8px;
+}
+.reminder-toolbar > span {
+  color: #858880;
+  font-size: 8px;
+}
+.segmented-control {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f0ede6;
+}
+.segmented-control button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #73776f;
+  font-size: 8px;
+  font-weight: 700;
+}
+.segmented-control button[aria-pressed='true'] {
+  background: #fffdf9;
+  color: #4b5048;
+  box-shadow: 0 1px 4px #4b443417;
+}
+.reminder-row {
+  padding: 10px 0;
+  border-top: 1px solid #eeeae2;
+}
+.reminder-row.completed {
+  opacity: 0.72;
+}
+.reminder-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+.reminder-toggle,
+.reminder-main > .readonly-item {
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: transparent;
+  color: #4a4e47;
+  text-align: left;
+}
+.reminder-toggle > i {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d8d4cb;
+  border-radius: 6px;
+}
+.reminder-row.completed .reminder-toggle > i {
+  border-color: #758a70;
+  background: #758a70;
+  color: #fff;
+}
+.reminder-toggle > span,
+.reminder-main > .readonly-item > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.reminder-toggle strong,
+.reminder-main > .readonly-item strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reminder-toggle small,
+.reminder-main > .readonly-item small {
+  color: #868981;
+  font-size: 8px;
+}
+.reminder-badges,
+.reminder-actions,
+.check-item-meta,
+.inline-form-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.reminder-state,
+.reminder-recurrence,
+.task-created-button {
+  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 99px;
+  background: #f0eee8;
+  color: #70746c;
+  font-size: 7px;
+  font-weight: 750;
+}
+.reminder-state.due {
+  background: #f9e7df;
+  color: #af573e;
+}
+.reminder-state.upcoming {
+  background: #e8eee5;
+  color: #60745a;
+}
+.reminder-state.completed {
+  background: #eceae5;
+  color: #81847d;
+}
+.reminder-actions select {
+  width: 96px;
+  min-height: 32px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 8px;
+}
+.reminder-actions .icon-button,
+.check-item-meta .icon-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid #e2ded5;
+  border-radius: 8px;
+}
+.reminder-actions .danger,
+.check-item-meta .danger {
+  color: #a75a50;
+}
+.task-created-button {
+  cursor: pointer;
+  background: #e5eee2;
+  color: #5f7759;
+}
+.reminder-edit-form {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1fr 1fr auto;
+  align-items: end;
+  gap: 9px;
+  margin: 8px 0 2px 28px;
+  padding: 12px;
+  border-radius: 11px;
+  background: #f5f2ec;
+}
+.organiser-edit-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+}
+.check-item {
+  gap: 7px;
+}
+.check-item > .check-toggle {
+  min-width: 0;
+  border-top: 0;
+}
+.check-item-meta {
+  justify-content: flex-end;
+}
+@media (max-width: 1100px) {
+  .reminder-main {
+    grid-template-columns: minmax(180px, 1fr) auto;
+  }
+  .reminder-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  .reminder-edit-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .reminder-panel .reminder-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 680px) {
+  .reminder-panel .reminder-form,
+  .reminder-edit-form {
+    grid-template-columns: 1fr;
+  }
+  .reminder-toolbar,
+  .reminder-main {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+  .reminder-toolbar {
+    display: grid;
+  }
+  .segmented-control {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .reminder-badges,
+  .reminder-actions {
+    justify-content: flex-start;
+  }
+  .reminder-actions {
+    grid-column: auto;
+  }
+  .reminder-edit-form {
+    margin-left: 0;
+  }
+  .check-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

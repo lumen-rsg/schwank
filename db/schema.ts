@@ -111,6 +111,7 @@ export const tasks = sqliteTable(
     tag: text('tag').notNull().default('Home'),
     due: text('due').notNull().default('This week'),
     dueOn: text('due_on'),
+    sourceReminderId: integer('source_reminder_id'),
   },
   (table) => [
     index('idx_tasks_user_visibility_status').on(
@@ -118,6 +119,7 @@ export const tasks = sqliteTable(
       table.visibility,
       table.status,
     ),
+    uniqueIndex('idx_tasks_source_reminder').on(table.sourceReminderId),
   ],
 );
 
@@ -207,6 +209,7 @@ export const reminders = sqliteTable(
     visibility: text('visibility').notNull().default('private'),
     label: text('label').notNull(),
     remindAt: text('remind_at').notNull(),
+    recurrence: text('recurrence').notNull().default('none'),
     done: integer('done', { mode: 'boolean' }).notNull().default(false),
     createdAt: text('created_at').notNull(),
   },

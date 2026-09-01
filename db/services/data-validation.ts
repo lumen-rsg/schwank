@@ -1,4 +1,5 @@
 import { ApiError } from '@/lib/api-errors';
+import { reminderRecurrences, type ReminderRecurrence } from '@/lib/reminders';
 
 export type DataAction = Record<string, unknown>;
 export const today = () => new Date().toISOString().slice(0, 10);
@@ -75,6 +76,10 @@ export const cleanDateTime = (value: unknown) => {
     throw new DataError('Enter a valid reminder date and time.');
   return dateTime;
 };
+export const cleanReminderRecurrence = (value: unknown): ReminderRecurrence =>
+  reminderRecurrences.includes(value as ReminderRecurrence)
+    ? (value as ReminderRecurrence)
+    : 'none';
 export const cleanMedicationTimes = (value: unknown) => {
   const times = Array.from(
     new Set(

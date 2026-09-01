@@ -158,5 +158,14 @@
     "id": "0013_milky_mattie_franklin",
     "hash": "59fa378cbf70fa91165c22ab4512786eacfd007e781643cdfb8b9ed9f4ecd820",
     "statements": ["ALTER TABLE `purchase_ideas` ADD `updated_at` text;"]
+  },
+  {
+    "id": "0014_confused_bulldozer",
+    "hash": "3409de8c1255ce5cd8478bc9634c2f99542cee011e6f6c827e67e13f3549516b",
+    "statements": [
+      "ALTER TABLE `reminders` ADD `recurrence` text DEFAULT 'none' NOT NULL;",
+      "ALTER TABLE `tasks` ADD `source_reminder_id` integer;",
+      "CREATE UNIQUE INDEX `idx_tasks_source_reminder` ON `tasks` (`source_reminder_id`);"
+    ]
   }
 ]

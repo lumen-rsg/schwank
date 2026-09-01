@@ -56,6 +56,8 @@ The medication tracker is private by default and supports explicit household sha
 
 The household wishlist is always shared. Any member can suggest a purchase with an optional description and estimated price, cast one vote for or against it, change or withdraw that vote, and see how everyone voted. Ideas can be sorted by support, recency, or price. The person who suggested an item can edit it, mark it bought, archive it, or return it to voting; archived ideas remain in household history.
 
+Organiser items and reminders are private by default and can be shared explicitly. Their creator can correct or delete them. Reminders support one-time, daily, weekly, and monthly schedules, bounded snooze choices, chronological active/completed views, and duplicate-safe conversion of a one-time reminder into a Kanban task. Converted tasks keep the reminder's privacy and remain after the reminder is deleted.
+
 ## Local development
 
 Requires Node.js 22.13 or newer.

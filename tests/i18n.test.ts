@@ -7,6 +7,14 @@ void test('translates stable English and Russian copy', () => {
   assert.equal(translate('ru', 'overview'), 'Обзор');
   assert.equal(translate('en', 'wishlistArchive'), 'Archive history');
   assert.equal(translate('ru', 'wishlistArchive'), 'История архива');
+  assert.equal(
+    translate('en', 'completeRecurringReminder'),
+    'Complete {reminder} and schedule its next occurrence',
+  );
+  assert.equal(
+    translate('ru', 'completeRecurringReminder'),
+    'Завершить «{reminder}» и назначить следующее повторение',
+  );
 });
 
 void test('interpolates translated variables', () => {

@@ -1,5 +1,6 @@
 import type { AuthUser } from '@/db/auth';
 import type { ApiErrorCode } from '@/lib/api-errors';
+import type { ReminderRecurrence } from '@/lib/reminders';
 import type { CopyKey } from '../i18n';
 
 export type Visibility = 'private' | 'shared';
@@ -46,6 +47,7 @@ export type Task = {
   assigneeInitials: string | null;
   assigneeColor: string | null;
   assigneeAvatar: string | null;
+  sourceReminderId: number | null;
 };
 export type Expense = {
   id: number;
@@ -87,9 +89,11 @@ export type Reminder = {
   id: number;
   label: string;
   remindAt: string;
+  recurrence: ReminderRecurrence;
   done: boolean | number;
   visibility: Visibility;
   owned: boolean | number;
+  convertedTaskId: number | null;
 };
 export type Medication = {
   id: number;

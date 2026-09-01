@@ -27,6 +27,32 @@ import {
   type PaymentKind,
 } from '../services/data-validation';
 
+async function cleanTaskFields(
+  db: D1Database,
+  userId: number,
+  body: DataAction,
+) {
+  const title = cleanText(body.title, 120);
+  if (!title) throw new DataError('Task title is required.');
+  const visibility = cleanVisibility(body.visibility);
+  const assigneeId = cleanNumber(body.assigneeId || userId);
+  const assignee = await db
+    .prepare('SELECT id FROM users WHERE id=? AND deleted_at IS NULL')
+    .bind(assigneeId)
+    .first<{ id: number }>();
+  if (!assignee) throw new DataError('Choose a household member.');
+  if (assigneeId !== userId && visibility !== 'shared')
+    throw new DataError('A task assigned to a housemate must be shared.');
+  const dueOn = cleanPaymentDate(body.dueOn);
+  return {
+    title,
+    visibility,
+    assigneeId: String(assigneeId),
+    tag: cleanText(body.tag, 30, 'Home') || 'Home',
+    dueOn,
+  };
+}
+
 export async function writeHouseholdData(userId: number, body: DataAction) {
   await ensureDatabase();
   const db = env.DB;
@@ -52,32 +78,62 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       .run();
   }
   if (body.type === 'task') {
-    const title = cleanText(body.title, 120);
-    if (!title) throw new DataError('Task title is required.');
-    const dueOn = cleanPaymentDate(body.dueOn);
+    const task = await cleanTaskFields(db, userId, body);
     return db
       .prepare(
         'INSERT INTO tasks (user_id,visibility,title,status,assignee_id,tag,due,due_on) VALUES (?,?,?,?,?,?,?,?)',
       )
       .bind(
         userId,
-        cleanVisibility(body.visibility),
-        title,
+        task.visibility,
+        task.title,
         'todo',
-        legacyId,
-        cleanText(body.tag, 30, 'Home') || 'Home',
-        dueOn,
-        dueOn,
+        task.assigneeId,
+        task.tag,
+        task.dueOn,
+        task.dueOn,
       )
       .run();
+  }
+  if (body.type === 'task-update') {
+    const task = await cleanTaskFields(db, userId, body);
+    const result = await db
+      .prepare(
+        'UPDATE tasks SET visibility=?,title=?,assignee_id=?,tag=?,due=?,due_on=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        task.visibility,
+        task.title,
+        task.assigneeId,
+        task.tag,
+        task.dueOn,
+        task.dueOn,
+        cleanNumber(body.id),
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That task cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'task-remove') {
+    const result = await db
+      .prepare('DELETE FROM tasks WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That task cannot be removed.', 403);
+    return result;
   }
   if (body.type === 'task-status') {
     const status = ['todo', 'progress', 'done'].includes(String(body.status))
       ? String(body.status)
       : 'todo';
     const result = await db
-      .prepare('UPDATE tasks SET status=? WHERE id=? AND user_id=?')
-      .bind(status, cleanNumber(body.id), userId)
+      .prepare(
+        "UPDATE tasks SET status=? WHERE id=? AND (user_id=? OR (visibility='shared' AND assignee_id=?))",
+      )
+      .bind(status, cleanNumber(body.id), userId, legacyId)
       .run();
     if (!result.meta.changes)
       throw new DataError('That task cannot be changed.', 403);

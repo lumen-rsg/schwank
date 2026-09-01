@@ -3,11 +3,80 @@ import runtimeMigrations from './runtime-migrations.json';
 
 type AppliedMigration = { id: string; hash: string };
 
-async function hasApplicationSchema() {
+async function hasTable(name: string) {
   const row = await env.DB.prepare(
-    "SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name='users'",
-  ).first<{ found: number }>();
+    "SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name=?",
+  )
+    .bind(name)
+    .first<{ found: number }>();
   return Boolean(row?.found);
+}
+
+async function hasColumn(table: string, column: string) {
+  const rows = await env.DB.prepare(`PRAGMA table_info(\`${table}\`)`).all<{
+    name: string;
+  }>();
+  return rows.results.some((field) => field.name === column);
+}
+
+async function hasApplicationSchema() {
+  return hasTable('users');
+}
+
+async function hasMigrationSchema(id: string) {
+  if (id === '0003_luxuriant_blink')
+    return (
+      (await hasTable('weekly_meal_plan')) &&
+      (await hasColumn('recipes', 'course'))
+    );
+  if (id === '0004_grey_franklin_storm')
+    return hasColumn('users', 'ai_consent');
+  if (id === '0005_quick_mad_thinker') return hasTable('recurring_payments');
+  if (id === '0006_long_network')
+    return (
+      (await hasTable('medications')) &&
+      (await hasTable('medication_doses')) &&
+      (await hasTable('reminders')) &&
+      (await hasColumn('tasks', 'due_on'))
+    );
+  if (id === '0007_dapper_slyde')
+    return (
+      (await hasTable('purchase_ideas')) && (await hasTable('purchase_votes'))
+    );
+  if (id === '0008_complete_zeigeist')
+    return (
+      (await hasColumn('household_settings', 'registration_open')) &&
+      (await hasColumn('household_settings', 'invite_code_hash')) &&
+      (await hasColumn('household_settings', 'invite_expires_at')) &&
+      (await hasColumn('users', 'role'))
+    );
+  if (id === '0009_curly_hellcat')
+    return (
+      (await hasTable('auth_rate_limits')) &&
+      (await hasColumn('sessions', 'user_agent'))
+    );
+  if (id === '0010_narrow_nico_minoru') return hasColumn('users', 'deleted_at');
+  return null;
+}
+
+async function baselineLegacyMigrations() {
+  // The authenticated schema first appeared in 0002. Older installations may
+  // have that schema without a migration ledger, so infer only the contiguous
+  // migrations their tables and columns prove are present.
+  const baseline = runtimeMigrations.slice(0, 3);
+  for (const migration of runtimeMigrations.slice(3)) {
+    if (!(await hasMigrationSchema(migration.id))) break;
+    baseline.push(migration);
+  }
+  const appliedAt = new Date().toISOString();
+  await env.DB.batch(
+    baseline.map((migration) =>
+      env.DB.prepare(
+        'INSERT INTO __schwank_migrations (id,hash,applied_at) VALUES (?,?,?)',
+      ).bind(migration.id, migration.hash, appliedAt),
+    ),
+  );
+  return new Map(baseline.map((migration) => [migration.id, migration.hash]));
 }
 
 async function applyRuntimeMigrations() {
@@ -20,24 +89,27 @@ async function applyRuntimeMigrations() {
   const appliedRows = await db
     .prepare('SELECT id,hash FROM __schwank_migrations ORDER BY id')
     .all<AppliedMigration>();
-  const applied = new Map(
+  let applied = new Map(
     appliedRows.results.map((migration) => [migration.id, migration.hash]),
   );
 
-  // Databases created before the versioned runner already contain every
-  // checked-in migration. Baseline them once without replaying destructive SQL.
+  // Databases created before the versioned runner have no ledger. Baseline
+  // only the migrations their schema proves are present, then apply the rest.
   if (!applied.size && (await hasApplicationSchema())) {
-    const appliedAt = new Date().toISOString();
-    await db.batch(
-      runtimeMigrations.map((migration) =>
-        db
-          .prepare(
-            'INSERT INTO __schwank_migrations (id,hash,applied_at) VALUES (?,?,?)',
-          )
-          .bind(migration.id, migration.hash, appliedAt),
-      ),
-    );
-    return;
+    applied = await baselineLegacyMigrations();
+  }
+
+  // Versions of the runner before Pass 4 could mark every checked-in migration
+  // as applied on a legacy database. Remove only those false ledger entries so
+  // the normal migration path repairs the installation without touching data.
+  for (const migration of runtimeMigrations.slice(3)) {
+    if (!applied.has(migration.id)) continue;
+    if (await hasMigrationSchema(migration.id)) continue;
+    await db
+      .prepare('DELETE FROM __schwank_migrations WHERE id=?')
+      .bind(migration.id)
+      .run();
+    applied.delete(migration.id);
   }
 
   for (const migration of runtimeMigrations) {

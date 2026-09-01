@@ -40,6 +40,12 @@ export type Task = {
   dueOn: string | null;
   visibility: Visibility;
   owned: boolean | number;
+  assignedToMe: boolean | number;
+  assigneeId: number;
+  assigneeName: string | null;
+  assigneeInitials: string | null;
+  assigneeColor: string | null;
+  assigneeAvatar: string | null;
 };
 export type Expense = {
   id: number;

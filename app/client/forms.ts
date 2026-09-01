@@ -16,6 +16,7 @@ const numericFields = new Set([
   'age',
   'remainingAmount',
   'estimatedCost',
+  'assigneeId',
 ]);
 
 export function serializeFormData(

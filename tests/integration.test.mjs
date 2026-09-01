@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -709,6 +710,16 @@ void test(
 
     const forbiddenMutations = [
       { type: 'task-status', id: sharedTask.id, status: 'done' },
+      {
+        type: 'task-update',
+        id: sharedTask.id,
+        title: 'Bob cannot edit this task',
+        tag: 'Shared',
+        dueOn: '2030-01-11',
+        assigneeId: bobData.currentUser.id,
+        visibility: 'shared',
+      },
+      { type: 'task-remove', id: sharedTask.id },
       { type: 'recurring-payment-toggle', id: sharedPayment.id, active: false },
       { type: 'recurring-payment-pay', id: sharedPayment.id },
       { type: 'organiser-toggle', id: sharedItem.id, done: true },
@@ -723,9 +734,111 @@ void test(
     ];
     for (const mutation of forbiddenMutations) {
       const result = await action(bob.cookie, mutation);
-      assert.equal(result.response.status, 403, JSON.stringify(mutation));
+      assert.equal(
+        result.response.status,
+        403,
+        JSON.stringify({ mutation, body: result.body }),
+      );
       assert.equal(result.body.code, 'forbidden', JSON.stringify(mutation));
     }
+
+    const privateAssignment = await action(alice.cookie, {
+      type: 'task',
+      title: 'Invalid private assignment',
+      tag: 'Policy',
+      dueOn: '2030-02-01',
+      assigneeId: bobData.currentUser.id,
+      visibility: 'private',
+    });
+    assert.equal(privateAssignment.response.status, 400);
+    assert.equal(privateAssignment.body.code, 'validation_failed');
+
+    const assignedTaskResult = await action(alice.cookie, {
+      type: 'task',
+      title: 'Alice assigned task',
+      tag: 'Shared',
+      dueOn: '2030-02-02',
+      assigneeId: bobData.currentUser.id,
+      visibility: 'shared',
+    });
+    assert.equal(assignedTaskResult.response.status, 200);
+    const assignedTask = assignedTaskResult.body.data.tasks.find(
+      (task) => task.title === 'Alice assigned task',
+    );
+    assert.ok(assignedTask);
+    assert.equal(Number(assignedTask.assigneeId), bobData.currentUser.id);
+    assert.equal(Boolean(assignedTask.assignedToMe), false);
+
+    const assignedForBob = (await household(bob.cookie)).tasks.find(
+      (task) => task.id === assignedTask.id,
+    );
+    assert.ok(assignedForBob);
+    assert.equal(Boolean(assignedForBob.assignedToMe), true);
+    assert.equal(assignedForBob.assigneeName, 'Bob Test');
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'task-status',
+          id: assignedTask.id,
+          status: 'done',
+        })
+      ).response.status,
+      200,
+    );
+    for (const ownerOnlyMutation of [
+      {
+        type: 'task-update',
+        id: assignedTask.id,
+        title: 'Bob edited the task',
+        tag: 'Shared',
+        dueOn: '2030-02-02',
+        assigneeId: bobData.currentUser.id,
+        visibility: 'shared',
+      },
+      { type: 'task-remove', id: assignedTask.id },
+    ]) {
+      const result = await action(bob.cookie, ownerOnlyMutation);
+      assert.equal(result.response.status, 403);
+      assert.equal(result.body.code, 'forbidden');
+    }
+
+    const updatedTaskResult = await action(alice.cookie, {
+      type: 'task-update',
+      id: assignedTask.id,
+      title: 'Alice private follow-up',
+      tag: 'Private',
+      dueOn: '2030-02-03',
+      assigneeId: aliceData.currentUser.id,
+      visibility: 'private',
+    });
+    assert.equal(updatedTaskResult.response.status, 200);
+    const updatedTask = updatedTaskResult.body.data.tasks.find(
+      (task) => task.id === assignedTask.id,
+    );
+    assert.equal(updatedTask.title, 'Alice private follow-up');
+    assert.equal(updatedTask.status, 'done');
+    assert.equal(updatedTask.visibility, 'private');
+    assert.equal(
+      (await household(bob.cookie)).tasks.some(
+        (task) => task.id === assignedTask.id,
+      ),
+      false,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'task-remove',
+          id: assignedTask.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).tasks.some(
+        (task) => task.id === assignedTask.id,
+      ),
+      false,
+    );
 
     const unknownAction = await action(bob.cookie, {
       type: 'not-a-real-action',
@@ -896,6 +1009,64 @@ void test(
       ),
       true,
     );
+
+    await stopServer();
+    const d1Directory = join(
+      restoredState,
+      'v3',
+      'd1',
+      'miniflare-D1DatabaseObject',
+    );
+    const d1File = (await readdir(d1Directory)).find(
+      (file) => file.endsWith('.sqlite') && file !== 'metadata.sqlite',
+    );
+    assert.ok(d1File);
+    const legacyDatabase = new DatabaseSync(join(d1Directory, d1File));
+    const retainedTaskCount = legacyDatabase
+      .prepare('SELECT COUNT(*) AS count FROM tasks')
+      .get().count;
+    legacyDatabase.exec(`
+      ALTER TABLE household_settings DROP COLUMN registration_open;
+      ALTER TABLE household_settings DROP COLUMN invite_code_hash;
+      ALTER TABLE household_settings DROP COLUMN invite_expires_at;
+      ALTER TABLE users DROP COLUMN role;
+      DROP TABLE auth_rate_limits;
+      ALTER TABLE sessions DROP COLUMN user_agent;
+      ALTER TABLE users DROP COLUMN deleted_at;
+    `);
+    legacyDatabase.close();
+
+    await startServer(restoredState);
+    const repairedData = await household(restoredCookie);
+    assert.equal(
+      repairedData.tasks.some((task) => task.title === 'Alice private task'),
+      true,
+    );
+    await stopServer();
+    const repairedDatabase = new DatabaseSync(join(d1Directory, d1File), {
+      readOnly: true,
+    });
+    assert.equal(
+      repairedDatabase.prepare('SELECT COUNT(*) AS count FROM tasks').get()
+        .count,
+      retainedTaskCount,
+    );
+    assert.equal(
+      repairedDatabase
+        .prepare(
+          "SELECT COUNT(*) AS count FROM pragma_table_info('users') WHERE name IN ('role','deleted_at')",
+        )
+        .get().count,
+      2,
+    );
+    assert.equal(
+      repairedDatabase
+        .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
+        .get().count,
+      11,
+    );
+    repairedDatabase.close();
+    await startServer(restoredState);
 
     assert.equal(
       (

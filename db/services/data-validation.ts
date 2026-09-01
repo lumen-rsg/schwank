@@ -28,6 +28,19 @@ export const normalizeFoodName = (value: string) =>
   value.normalize('NFKC').trim().toLocaleLowerCase('en').replace(/\s+/g, ' ');
 export const cleanFoodUnit = (value: unknown) =>
   ['g', 'kg', 'ml', 'l', 'pcs'].includes(String(value)) ? String(value) : null;
+export const foodCategories = [
+  'pantry',
+  'fridge',
+  'freezer',
+  'produce',
+  'drinks',
+  'other',
+] as const;
+export type FoodCategory = (typeof foodCategories)[number];
+export const cleanFoodCategory = (value: unknown): FoodCategory =>
+  foodCategories.includes(value as FoodCategory)
+    ? (value as FoodCategory)
+    : 'other';
 export const cleanOptionalDate = (value: unknown) => {
   const date = cleanText(value, 10);
   if (!date) return null;

@@ -83,6 +83,7 @@ export function ConfirmAction({
   confirmLabel,
   cancelLabel,
   className,
+  disabled = false,
   children,
   onConfirm,
 }: {
@@ -92,6 +93,7 @@ export function ConfirmAction({
   confirmLabel: string;
   cancelLabel: string;
   className?: string;
+  disabled?: boolean;
   children: ReactNode;
   onConfirm: () => unknown;
 }) {
@@ -107,6 +109,7 @@ export function ConfirmAction({
         className={className}
         aria-label={label}
         aria-haspopup="dialog"
+        disabled={disabled}
         onClick={() => dialog.current?.showModal()}
       >
         {children}

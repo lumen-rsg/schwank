@@ -562,11 +562,21 @@ void test(
     assert.equal(
       (
         await action(bob.cookie, {
-          type: 'food-remove',
+          type: 'food-update',
           id: sharedFood.id,
+          name: 'Policy test rice corrected',
+          quantity: 3,
+          unit: 'kg',
+          category: 'pantry',
         })
       ).response.status,
       200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).foods.find(
+        (food) => food.id === sharedFood.id,
+      ).name,
+      'Policy test rice corrected',
     );
 
     assert.equal(
@@ -577,7 +587,9 @@ void test(
           course: 'breakfast',
           servings: 3,
           instructions: 'Synthetic integration recipe',
-          ingredients: [{ name: 'Oats', quantity: 300, unit: 'g' }],
+          ingredients: [
+            { name: 'Policy test rice corrected', quantity: 600, unit: 'g' },
+          ],
         })
       ).response.status,
       200,
@@ -589,13 +601,17 @@ void test(
     assert.equal(
       (
         await action(bob.cookie, {
-          type: 'meal-plan-save',
-          weekStart: today,
-          entries: [
+          type: 'recipe-update',
+          id: sharedRecipe.id,
+          name: 'Policy test rice bowl',
+          course: 'starter',
+          servings: 6,
+          instructions: 'Corrected synthetic integration recipe',
+          ingredients: [
             {
-              dayIndex: 0,
-              course: 'breakfast',
-              recipeId: sharedRecipe.id,
+              name: 'Policy test rice corrected',
+              quantity: 600,
+              unit: 'g',
             },
           ],
         })
@@ -603,10 +619,89 @@ void test(
       200,
     );
     assert.equal(
-      (await household(alice.cookie)).weeklyPlan.some(
-        (meal) => meal.recipeId === sharedRecipe.id,
+      (
+        await action(alice.cookie, {
+          type: 'recipe-cook',
+          id: sharedRecipe.id,
+          servings: 3,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      Number(
+        (await household(bob.cookie)).foods.find(
+          (food) => food.id === sharedFood.id,
+        ).quantity,
       ),
-      true,
+      2.7,
+    );
+    const insufficientCook = await action(bob.cookie, {
+      type: 'recipe-cook',
+      id: sharedRecipe.id,
+      servings: 100,
+    });
+    assert.equal(insufficientCook.response.status, 400);
+    assert.equal(insufficientCook.body.code, 'validation_failed');
+    assert.equal(
+      Number(
+        (await household(alice.cookie)).foods.find(
+          (food) => food.id === sharedFood.id,
+        ).quantity,
+      ),
+      2.7,
+    );
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'meal-plan-save',
+          weekStart: today,
+          entries: [
+            {
+              dayIndex: 0,
+              course: 'starter',
+              recipeId: sharedRecipe.id,
+              servings: 5,
+            },
+          ],
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).weeklyPlan.find(
+        (meal) => meal.recipeId === sharedRecipe.id,
+      ).servings,
+      5,
+    );
+    const duplicateMeal = await action(bob.cookie, {
+      type: 'meal-plan-save',
+      weekStart: today,
+      entries: [
+        {
+          dayIndex: 0,
+          course: 'starter',
+          recipeId: sharedRecipe.id,
+          servings: 3,
+        },
+        {
+          dayIndex: 0,
+          course: 'starter',
+          recipeId: sharedRecipe.id,
+          servings: 3,
+        },
+      ],
+    });
+    assert.equal(duplicateMeal.response.status, 400);
+    assert.equal(duplicateMeal.body.code, 'validation_failed');
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'food-remove',
+          id: sharedFood.id,
+        })
+      ).response.status,
+      200,
     );
     assert.equal(
       (

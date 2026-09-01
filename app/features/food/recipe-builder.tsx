@@ -1,26 +1,43 @@
 'use client';
 
 import { useState, type SubmitEvent } from 'react';
-import { ChefHat, Plus, Trash2 } from 'lucide-react';
+import { Check, ChefHat, Plus, X, Trash2 } from 'lucide-react';
 import { withFormSubmission } from '../../client/forms';
 import { Field } from '../../components/app-field';
-import type { FoodItem, FoodUnit, Post, RecipeCourse, T } from '../types';
-import { recipeCourseCopy } from './food-utils';
+import type {
+  FoodItem,
+  FoodUnit,
+  Post,
+  Recipe,
+  RecipeCourse,
+  T,
+} from '../types';
+import { recipeCourseCopy, recipeCourses } from './food-utils';
 
 export function RecipeBuilder({
   foods,
   course,
+  recipe,
+  onCancel,
+  onSaved,
   post,
   t,
 }: {
   foods: FoodItem[];
   course: RecipeCourse;
+  recipe?: Recipe;
+  onCancel?: () => void;
+  onSaved?: () => void;
   post: Post;
   t: T;
 }) {
-  const [ingredients, setIngredients] = useState([
-    { name: '', quantity: '', unit: 'g' as FoodUnit },
-  ]);
+  const [ingredients, setIngredients] = useState(
+    recipe?.ingredients.map((ingredient) => ({
+      name: ingredient.name,
+      quantity: String(ingredient.quantity),
+      unit: ingredient.unit,
+    })) ?? [{ name: '', quantity: '', unit: 'g' as FoodUnit }],
+  );
   function updateIngredient(
     index: number,
     key: 'name' | 'quantity' | 'unit',
@@ -36,8 +53,11 @@ export function RecipeBuilder({
     return withFormSubmission(event, async (form) => {
       const values = new FormData(form);
       const nameValue = values.get('name');
+      const courseValue = values.get('course');
       const instructionsValue = values.get('instructions');
       const name = typeof nameValue === 'string' ? nameValue : '';
+      const selectedCourse =
+        typeof courseValue === 'string' ? courseValue : course;
       const servings = Number(values.get('servings'));
       const instructions =
         typeof instructionsValue === 'string' ? instructionsValue : '';
@@ -47,16 +67,20 @@ export function RecipeBuilder({
         unit: item.unit,
       }));
       const saved = await post({
-        type: 'recipe-add',
+        type: recipe ? 'recipe-update' : 'recipe-add',
+        id: recipe?.id,
         name,
-        course,
+        course: selectedCourse,
         servings,
         instructions,
         ingredients: cleanIngredients,
       });
       if (saved) {
-        form.reset();
-        setIngredients([{ name: '', quantity: '', unit: 'g' }]);
+        if (recipe) onSaved?.();
+        else {
+          form.reset();
+          setIngredients([{ name: '', quantity: '', unit: 'g' }]);
+        }
       }
       return saved;
     });
@@ -65,7 +89,7 @@ export function RecipeBuilder({
     <article className="panel recipe-builder">
       <div className="panel-heading">
         <div>
-          <h2>{t('recipeBuilder')}</h2>
+          <h2>{recipe ? t('editRecipe') : t('recipeBuilder')}</h2>
           <span>{t('matchingHint')}</span>
         </div>
         <ChefHat size={20} />
@@ -79,18 +103,26 @@ export function RecipeBuilder({
       </datalist>
       <form onSubmit={save}>
         <div className="recipe-basics">
-          <Field name="name" label={t('recipeName')} />
+          <Field
+            name="name"
+            label={t('recipeName')}
+            defaultValue={recipe?.name}
+          />
           <label className="form-field">
             <span>{t('recipeCourse')}</span>
-            <select name="course" value={course} disabled>
-              <option value={course}>{t(recipeCourseCopy[course])}</option>
+            <select name="course" defaultValue={recipe?.course ?? course}>
+              {recipeCourses.map((option) => (
+                <option value={option} key={option}>
+                  {t(recipeCourseCopy[option])}
+                </option>
+              ))}
             </select>
           </label>
           <Field
             name="servings"
             label={t('servings')}
             type="number"
-            defaultValue="3"
+            defaultValue={String(recipe?.servings ?? 3)}
             min={1}
             max={100}
             step={1}
@@ -102,6 +134,7 @@ export function RecipeBuilder({
             name="instructions"
             placeholder={t('instructionsPlaceholder')}
             maxLength={5000}
+            defaultValue={recipe?.instructions}
           />
         </label>
         <div className="ingredient-heading">
@@ -178,10 +211,22 @@ export function RecipeBuilder({
             </div>
           ))}
         </div>
-        <button className="primary-button recipe-save">
-          <ChefHat size={16} />
-          {t('saveRecipe')}
-        </button>
+        <div className="recipe-save">
+          <button className="primary-button">
+            {recipe ? <Check size={16} /> : <ChefHat size={16} />}
+            {recipe ? t('saveChanges') : t('saveRecipe')}
+          </button>
+          {recipe && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onCancel}
+            >
+              <X size={15} />
+              {t('cancel')}
+            </button>
+          )}
+        </div>
       </form>
     </article>
   );

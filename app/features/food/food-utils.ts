@@ -9,22 +9,16 @@ import type {
   RecipeCourse,
   T,
 } from '../types';
+export {
+  foodUnitDimension,
+  foodUnitScale,
+  isLowFoodStock,
+} from '../../../lib/food-calculations';
+import {
+  foodUnitDimension,
+  foodUnitScale,
+} from '../../../lib/food-calculations';
 
-export const foodUnitDimension: Record<FoodUnit, 'mass' | 'volume' | 'count'> =
-  {
-    g: 'mass',
-    kg: 'mass',
-    ml: 'volume',
-    l: 'volume',
-    pcs: 'count',
-  };
-export const foodUnitScale: Record<FoodUnit, number> = {
-  g: 1,
-  kg: 1000,
-  ml: 1,
-  l: 1000,
-  pcs: 1,
-};
 export const recipeCourses: RecipeCourse[] = [
   'breakfast',
   'starter',

@@ -10,8 +10,12 @@ import {
   ListChecks,
   LoaderCircle,
   Lock,
+  RotateCcw,
+  Save,
   ShoppingBasket,
   Sparkles,
+  Trash2,
+  X,
 } from 'lucide-react';
 import type { ApiErrorPayload } from '@/lib/api-errors';
 import { apiErrorMessage } from '../../api-error-copy';
@@ -101,6 +105,13 @@ type ShoppingItem = {
   buy: number;
 };
 
+type MealDraft = {
+  dayIndex: number;
+  course: RecipeCourse;
+  recipeId: number;
+  servings: number;
+};
+
 function weeklyShoppingList(
   plan: WeeklyMeal[],
   recipes: Recipe[],
@@ -185,8 +196,34 @@ export function WeeklyMealPlanner({
   const aiOutputRef = useRef<HTMLPreElement>(null);
   const weekStart = localWeekStart();
   const plan = data.weeklyPlan.filter((meal) => meal.weekStart === weekStart);
+  const persistedMenu = plan.map(
+    ({ dayIndex, course, recipeId, servings }) => ({
+      dayIndex,
+      course,
+      recipeId,
+      servings,
+    }),
+  );
+  const [editedMenu, setEditedMenu] = useState<MealDraft[]>(() =>
+    plan.map(({ dayIndex, course, recipeId, servings }) => ({
+      dayIndex,
+      course,
+      recipeId,
+      servings,
+    })),
+  );
+  const [menuDirty, setMenuDirty] = useState(false);
+  const menuDraft = menuDirty ? editedMenu : persistedMenu;
   const recipeById = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
-  const shopping = weeklyShoppingList(plan, data.recipes, data.foods);
+  const shopping = weeklyShoppingList(
+    menuDraft.map((meal, index) => ({
+      ...meal,
+      id: -(index + 1),
+      weekStart,
+    })),
+    data.recipes,
+    data.foods,
+  );
   const missingCourses = recipeCourses.filter(
     (course) =>
       frequencies[course] > 0 &&
@@ -198,15 +235,33 @@ export function WeeklyMealPlanner({
     if (output) output.scrollTop = output.scrollHeight;
   }, [aiOutput]);
 
-  async function generateMenu() {
-    const entries = randomWeeklyMenu(data.recipes, frequencies);
-    await post({ type: 'meal-plan-save', weekStart, entries });
+  function generateMenu() {
+    setEditedMenu(
+      randomWeeklyMenu(data.recipes, frequencies).map((meal) => ({
+        ...meal,
+        servings: 3,
+      })),
+    );
+    setMenuDirty(true);
+  }
+
+  async function saveMenu() {
+    if (await post({ type: 'meal-plan-save', weekStart, entries: menuDraft }))
+      setMenuDirty(false);
+  }
+
+  function discardMenuDraft() {
+    setMenuDirty(false);
+  }
+
+  function updateMenuDraft(update: (current: MealDraft[]) => MealDraft[]) {
+    setEditedMenu(update(menuDraft));
+    setMenuDirty(true);
   }
 
   async function generateAiMenu() {
     setAiBusy(true);
     setAiError('');
-    setAiResult(null);
     const startedAt = Date.now();
     let transcript = `[00:00] ${t('aiOutputStarting')}\n`;
     let rawOutputStarted = false;
@@ -298,8 +353,58 @@ export function WeeklyMealPlanner({
         weekStart,
         proposal: aiResult.proposal,
       })
-    )
+    ) {
       setAiResult(null);
+      setMenuDirty(false);
+    }
+  }
+
+  function updateAiMeal(index: number, recipeKey: string) {
+    setAiResult((current) =>
+      current
+        ? {
+            ...current,
+            proposal: {
+              ...current.proposal,
+              schedule: current.proposal.schedule.map((meal, mealIndex) =>
+                mealIndex === index ? { ...meal, recipeKey } : meal,
+              ),
+            },
+          }
+        : current,
+    );
+  }
+
+  function removeAiMeal(index: number) {
+    setAiResult((current) =>
+      current
+        ? {
+            ...current,
+            proposal: {
+              ...current.proposal,
+              schedule: current.proposal.schedule.filter(
+                (_, mealIndex) => mealIndex !== index,
+              ),
+            },
+          }
+        : current,
+    );
+  }
+
+  function renameAiRecipe(key: string, name: string) {
+    setAiResult((current) =>
+      current
+        ? {
+            ...current,
+            proposal: {
+              ...current.proposal,
+              recipes: current.proposal.recipes.map((recipe) =>
+                recipe.key === key ? { ...recipe, name } : recipe,
+              ),
+            },
+          }
+        : current,
+    );
   }
 
   return (
@@ -479,19 +584,46 @@ export function WeeklyMealPlanner({
                 <h3>{t(day)}</h3>
                 <div>
                   {aiResult.proposal.schedule
-                    .filter((meal) => meal.dayIndex === dayIndex)
-                    .map((meal, index) => {
+                    .map((meal, mealIndex) => ({ meal, mealIndex }))
+                    .filter(({ meal }) => meal.dayIndex === dayIndex)
+                    .map(({ meal, mealIndex }) => {
                       const recipe = aiResult.proposal.recipes.find(
                         (item) => item.key === meal.recipeKey,
                       );
                       return recipe ? (
-                        <span
+                        <div
                           className={`planned-meal ${meal.course}`}
-                          key={`${meal.recipeKey}-${index}`}
+                          key={`${meal.recipeKey}-${mealIndex}`}
                         >
                           <small>{t(recipeCourseCopy[meal.course])}</small>
-                          <strong>{recipe.name}</strong>
-                        </span>
+                          <select
+                            aria-label={t('plannedRecipeFor', {
+                              day: t(day),
+                              course: t(recipeCourseCopy[meal.course]),
+                            })}
+                            value={meal.recipeKey}
+                            onChange={(event) =>
+                              updateAiMeal(mealIndex, event.target.value)
+                            }
+                          >
+                            {aiResult.proposal.recipes
+                              .filter((item) => item.course === meal.course)
+                              .map((item) => (
+                                <option value={item.key} key={item.key}>
+                                  {item.name}
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            type="button"
+                            aria-label={t('removePlannedMeal', {
+                              name: recipe.name,
+                            })}
+                            onClick={() => removeAiMeal(mealIndex)}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       ) : null;
                     })}
                 </div>
@@ -502,7 +634,16 @@ export function WeeklyMealPlanner({
             {aiResult.proposal.recipes.map((recipe) => (
               <section key={recipe.key}>
                 <div>
-                  <strong>{recipe.name}</strong>
+                  <label>
+                    <span className="sr-only">{t('recipeName')}</span>
+                    <input
+                      value={recipe.name}
+                      maxLength={100}
+                      onChange={(event) =>
+                        renameAiRecipe(recipe.key, event.target.value)
+                      }
+                    />
+                  </label>
                   <small>{recipe.description}</small>
                 </div>
                 <span>
@@ -514,13 +655,24 @@ export function WeeklyMealPlanner({
               </section>
             ))}
           </div>
-          <button
-            className="primary-button ai-apply"
-            onClick={() => void applyAiMenu()}
-          >
-            <Check size={16} />
-            {t('applyAiPlan')}
-          </button>
+          <div className="ai-draft-actions">
+            <button
+              className="primary-button ai-apply"
+              onClick={() => void applyAiMenu()}
+              disabled={!aiResult.proposal.schedule.length}
+            >
+              <Check size={16} />
+              {t('applyAiPlan')}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setAiResult(null)}
+            >
+              <X size={15} />
+              {t('discardDraft')}
+            </button>
+          </div>
         </article>
       )}
 
@@ -570,8 +722,12 @@ export function WeeklyMealPlanner({
           disabled={!data.recipes.length}
         >
           <Sparkles size={16} />
-          {plan.length ? t('regenerateWeek') : t('generateWeek')}
+          {menuDraft.length ? t('regenerateWeek') : t('generateWeek')}
         </button>
+        <p className="draft-safety-copy">
+          <Lock size={14} />
+          {t('draftSafetyCopy')}
+        </p>
       </article>
 
       <article className="panel week-panel">
@@ -582,25 +738,91 @@ export function WeeklyMealPlanner({
           </div>
           <CalendarDays size={20} />
         </div>
-        {plan.length ? (
-          <div className="week-grid">
+        {menuDraft.length ? (
+          <div className="week-grid editable-week-grid">
             {weekdayCopy.map((day, dayIndex) => {
-              const meals = plan.filter((meal) => meal.dayIndex === dayIndex);
+              const meals = menuDraft
+                .map((meal, mealIndex) => ({ meal, mealIndex }))
+                .filter(({ meal }) => meal.dayIndex === dayIndex);
               return (
                 <section key={day}>
                   <h3>{t(day)}</h3>
                   <div>
-                    {meals.map((meal) => {
+                    {meals.map(({ meal, mealIndex }) => {
                       const recipe = recipeById.get(meal.recipeId);
                       if (!recipe) return null;
                       return (
-                        <span
+                        <div
                           className={`planned-meal ${meal.course}`}
-                          key={meal.id}
+                          key={`${meal.dayIndex}-${meal.course}`}
                         >
                           <small>{t(recipeCourseCopy[meal.course])}</small>
-                          <strong>{recipe.name}</strong>
-                        </span>
+                          <select
+                            aria-label={t('plannedRecipeFor', {
+                              day: t(day),
+                              course: t(recipeCourseCopy[meal.course]),
+                            })}
+                            value={meal.recipeId}
+                            onChange={(event) => {
+                              const recipeId = Number(event.target.value);
+                              updateMenuDraft((current) =>
+                                current.map((entry, index) =>
+                                  index === mealIndex
+                                    ? { ...entry, recipeId }
+                                    : entry,
+                                ),
+                              );
+                            }}
+                          >
+                            {data.recipes
+                              .filter((item) => item.course === meal.course)
+                              .map((item) => (
+                                <option value={item.id} key={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                          </select>
+                          <label className="meal-servings">
+                            <span>{t('servings')}</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="100"
+                              value={meal.servings}
+                              onChange={(event) => {
+                                const servings = Math.max(
+                                  1,
+                                  Math.min(
+                                    100,
+                                    Number(event.target.value) || 1,
+                                  ),
+                                );
+                                updateMenuDraft((current) =>
+                                  current.map((entry, index) =>
+                                    index === mealIndex
+                                      ? { ...entry, servings }
+                                      : entry,
+                                  ),
+                                );
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            aria-label={t('removePlannedMeal', {
+                              name: recipe.name,
+                            })}
+                            onClick={() => {
+                              updateMenuDraft((current) =>
+                                current.filter(
+                                  (_, index) => index !== mealIndex,
+                                ),
+                              );
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -610,6 +832,27 @@ export function WeeklyMealPlanner({
           </div>
         ) : (
           <Empty>{t('noMenuYet')}</Empty>
+        )}
+        {menuDirty && (
+          <div className="menu-draft-actions">
+            <span>{t('unsavedMenuDraft')}</span>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => void saveMenu()}
+            >
+              <Save size={15} />
+              {t('saveWeeklyMenu')}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={discardMenuDraft}
+            >
+              <RotateCcw size={15} />
+              {t('discardChanges')}
+            </button>
+          </div>
         )}
       </article>
 

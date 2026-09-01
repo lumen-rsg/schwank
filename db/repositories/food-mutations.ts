@@ -1,6 +1,13 @@
 import { env } from 'cloudflare:workers';
 import {
+  planPantryDeduction,
+  type FoodUnit,
+  type PantryNeed,
+  type PantryStock,
+} from '@/lib/food-calculations';
+import {
   DataError,
+  cleanFoodCategory,
   cleanFoodUnit,
   cleanNumber,
   cleanOptionalDate,
@@ -13,38 +20,107 @@ import {
 export const foodActionTypes = new Set([
   'food-add',
   'food-adjust',
+  'food-update',
   'food-remove',
   'recipe-add',
+  'recipe-update',
+  'recipe-cook',
   'recipe-remove',
   'ai-plan-apply',
   'meal-plan-save',
 ]);
 
+function cleanFoodFields(body: DataAction) {
+  const name = cleanText(body.name, 80);
+  const quantity =
+    Math.round(cleanNumber(body.quantity, 1_000_000) * 100) / 100;
+  const unit = cleanFoodUnit(body.unit) as FoodUnit | null;
+  if (!name || quantity < 0 || !unit)
+    throw new DataError('Food name, quantity, and unit are required.');
+  return {
+    name,
+    normalizedName: normalizeFoodName(name),
+    quantity,
+    unit,
+    category: cleanFoodCategory(body.category),
+    expiresOn: cleanOptionalDate(body.expiresOn),
+  };
+}
+
+function cleanRecipeFields(body: DataAction) {
+  const name = cleanText(body.name, 100);
+  const course = cleanRecipeCourse(body.course);
+  const servings = Math.max(1, Math.round(cleanNumber(body.servings, 100)));
+  const instructions = cleanText(body.instructions, 5_000);
+  const rawIngredients = Array.isArray(body.ingredients)
+    ? body.ingredients
+    : [];
+  if (!name || !course || !rawIngredients.length || rawIngredients.length > 30)
+    throw new DataError(
+      'Recipe name, course, and 1–30 ingredients are required.',
+    );
+  const ingredients = rawIngredients.map((item) => {
+    const record =
+      item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+    const ingredientName = cleanText(record.name, 80);
+    const quantity =
+      Math.round(cleanNumber(record.quantity, 1_000_000) * 100) / 100;
+    const unit = cleanFoodUnit(record.unit) as FoodUnit | null;
+    if (!ingredientName || quantity <= 0 || !unit)
+      throw new DataError('Every ingredient needs a name, quantity, and unit.');
+    return {
+      name: ingredientName,
+      normalizedName: normalizeFoodName(ingredientName),
+      quantity,
+      unit,
+    };
+  });
+  return { name, course, servings, instructions, ingredients };
+}
+
 export async function writeFoodData(userId: number, body: DataAction) {
   const db = env.DB;
   if (body.type === 'food-add') {
-    const name = cleanText(body.name, 80);
-    const quantity =
-      Math.round(cleanNumber(body.quantity, 1_000_000) * 100) / 100;
-    const unit = cleanFoodUnit(body.unit);
-    const category = cleanText(body.category, 40, 'Other') || 'Other';
-    if (!name || quantity <= 0 || !unit)
+    const food = cleanFoodFields(body);
+    if (food.quantity <= 0)
       throw new DataError('Food name, quantity, and unit are required.');
     return db
       .prepare(
         'INSERT INTO food_items (name,normalized_name,quantity,unit,category,expires_on,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?)',
       )
       .bind(
-        name,
-        normalizeFoodName(name),
-        quantity,
-        unit,
-        category,
-        cleanOptionalDate(body.expiresOn),
+        food.name,
+        food.normalizedName,
+        food.quantity,
+        food.unit,
+        food.category,
+        food.expiresOn,
         userId,
         new Date().toISOString(),
       )
       .run();
+  }
+  if (body.type === 'food-update') {
+    const food = cleanFoodFields(body);
+    const result = await db
+      .prepare(
+        'UPDATE food_items SET name=?,normalized_name=?,quantity=?,unit=?,category=?,expires_on=?,updated_by=?,updated_at=? WHERE id=?',
+      )
+      .bind(
+        food.name,
+        food.normalizedName,
+        food.quantity,
+        food.unit,
+        food.category,
+        food.expiresOn,
+        userId,
+        new Date().toISOString(),
+        cleanNumber(body.id),
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('Food item was not found.', 404);
+    return result;
   }
   if (body.type === 'food-adjust') {
     const delta = Math.max(
@@ -72,58 +148,23 @@ export async function writeFoodData(userId: number, body: DataAction) {
     return result;
   }
   if (body.type === 'recipe-add') {
-    const name = cleanText(body.name, 100);
-    const course = cleanRecipeCourse(body.course);
-    const servings = Math.max(1, Math.round(cleanNumber(body.servings, 100)));
-    const instructions = cleanText(body.instructions, 5_000);
-    const rawIngredients = Array.isArray(body.ingredients)
-      ? body.ingredients
-      : [];
-    if (
-      !name ||
-      !course ||
-      !rawIngredients.length ||
-      rawIngredients.length > 30
-    )
-      throw new DataError(
-        'Recipe name, course, and 1–30 ingredients are required.',
-      );
-    const ingredients = rawIngredients.map((item) => {
-      const record =
-        item && typeof item === 'object'
-          ? (item as Record<string, unknown>)
-          : {};
-      const ingredientName = cleanText(record.name, 80);
-      const quantity =
-        Math.round(cleanNumber(record.quantity, 1_000_000) * 100) / 100;
-      const unit = cleanFoodUnit(record.unit);
-      if (!ingredientName || quantity <= 0 || !unit)
-        throw new DataError(
-          'Every ingredient needs a name, quantity, and unit.',
-        );
-      return {
-        name: ingredientName,
-        normalizedName: normalizeFoodName(ingredientName),
-        quantity,
-        unit,
-      };
-    });
+    const recipe = cleanRecipeFields(body);
     const result = await db
       .prepare(
         'INSERT INTO recipes (name,course,servings,instructions,created_by,created_at) VALUES (?,?,?,?,?,?)',
       )
       .bind(
-        name,
-        course,
-        servings,
-        instructions,
+        recipe.name,
+        recipe.course,
+        recipe.servings,
+        recipe.instructions,
         userId,
         new Date().toISOString(),
       )
       .run();
     const recipeId = Number(result.meta.last_row_id);
     await db.batch(
-      ingredients.map((item) =>
+      recipe.ingredients.map((item) =>
         db
           .prepare(
             'INSERT INTO recipe_ingredients (recipe_id,name,normalized_name,quantity,unit) VALUES (?,?,?,?,?)',
@@ -138,6 +179,101 @@ export async function writeFoodData(userId: number, body: DataAction) {
       ),
     );
     return result;
+  }
+  if (body.type === 'recipe-update') {
+    const recipeId = cleanNumber(body.id);
+    const existing = await db
+      .prepare('SELECT id,course FROM recipes WHERE id=?')
+      .bind(recipeId)
+      .first<{ id: number; course: string }>();
+    if (!existing) throw new DataError('Recipe was not found.', 404);
+    const recipe = cleanRecipeFields(body);
+    return db.batch([
+      ...(existing.course !== recipe.course
+        ? [
+            db
+              .prepare(
+                'DELETE FROM weekly_meal_plan AS target WHERE target.course=? AND target.recipe_id<>? AND EXISTS (SELECT 1 FROM weekly_meal_plan AS source WHERE source.recipe_id=? AND source.week_start=target.week_start AND source.day_index=target.day_index)',
+              )
+              .bind(recipe.course, recipeId, recipeId),
+            db
+              .prepare('UPDATE weekly_meal_plan SET course=? WHERE recipe_id=?')
+              .bind(recipe.course, recipeId),
+          ]
+        : []),
+      db
+        .prepare(
+          'UPDATE recipes SET name=?,course=?,servings=?,instructions=? WHERE id=?',
+        )
+        .bind(
+          recipe.name,
+          recipe.course,
+          recipe.servings,
+          recipe.instructions,
+          recipeId,
+        ),
+      db
+        .prepare('DELETE FROM recipe_ingredients WHERE recipe_id=?')
+        .bind(recipeId),
+      ...recipe.ingredients.map((item) =>
+        db
+          .prepare(
+            'INSERT INTO recipe_ingredients (recipe_id,name,normalized_name,quantity,unit) VALUES (?,?,?,?,?)',
+          )
+          .bind(
+            recipeId,
+            item.name,
+            item.normalizedName,
+            item.quantity,
+            item.unit,
+          ),
+      ),
+    ]);
+  }
+  if (body.type === 'recipe-cook') {
+    const recipeId = cleanNumber(body.id);
+    const targetServings = Math.max(
+      1,
+      Math.round(cleanNumber(body.servings, 100)),
+    );
+    const recipe = await db
+      .prepare('SELECT id,servings FROM recipes WHERE id=?')
+      .bind(recipeId)
+      .first<{ id: number; servings: number }>();
+    if (!recipe) throw new DataError('Recipe was not found.', 404);
+    const [ingredientRows, stockRows] = await Promise.all([
+      db
+        .prepare(
+          'SELECT name,normalized_name AS normalizedName,quantity,unit FROM recipe_ingredients WHERE recipe_id=? ORDER BY id',
+        )
+        .bind(recipeId)
+        .all<PantryNeed>(),
+      db
+        .prepare(
+          'SELECT id,normalized_name AS normalizedName,quantity,unit,expires_on AS expiresOn FROM food_items ORDER BY CASE WHEN expires_on IS NULL THEN 1 ELSE 0 END,expires_on,id',
+        )
+        .all<PantryStock>(),
+    ]);
+    const deduction = planPantryDeduction(
+      stockRows.results,
+      ingredientRows.results,
+      targetServings / Math.max(1, recipe.servings),
+      new Date().toISOString().slice(0, 10),
+    );
+    if (deduction.missing.length)
+      throw new DataError(
+        'There is not enough unexpired food to cook this recipe.',
+      );
+    const now = new Date().toISOString();
+    return db.batch(
+      deduction.deductions.map((item) =>
+        db
+          .prepare(
+            'UPDATE food_items SET quantity=MAX(0,quantity-?),updated_by=?,updated_at=? WHERE id=?',
+          )
+          .bind(item.amount, userId, now, item.id),
+      ),
+    );
   }
   if (body.type === 'ai-plan-apply') {
     const weekStart = cleanOptionalDate(body.weekStart);
@@ -316,6 +452,10 @@ export async function writeFoodData(userId: number, body: DataAction) {
       const recipeId = Math.round(cleanNumber(record.recipeId));
       const dayIndex = Number(record.dayIndex);
       const course = cleanRecipeCourse(record.course);
+      const servings = Math.max(
+        1,
+        Math.round(cleanNumber(record.servings || 3, 100)),
+      );
       if (
         !recipeId ||
         !Number.isInteger(dayIndex) ||
@@ -325,8 +465,13 @@ export async function writeFoodData(userId: number, body: DataAction) {
         recipeCourseById.get(recipeId) !== course
       )
         throw new DataError('Every planned meal must reference its recipe.');
-      return { recipeId, dayIndex, course };
+      return { recipeId, dayIndex, course, servings };
     });
+    if (
+      new Set(entries.map((entry) => `${entry.dayIndex}:${entry.course}`))
+        .size !== entries.length
+    )
+      throw new DataError('The weekly menu contains duplicate meals.');
     const now = new Date().toISOString();
     return db.batch([
       db
@@ -335,13 +480,14 @@ export async function writeFoodData(userId: number, body: DataAction) {
       ...entries.map((entry) =>
         db
           .prepare(
-            'INSERT INTO weekly_meal_plan (week_start,day_index,course,recipe_id,servings,created_by,created_at) VALUES (?,?,?,?,3,?,?)',
+            'INSERT INTO weekly_meal_plan (week_start,day_index,course,recipe_id,servings,created_by,created_at) VALUES (?,?,?,?,?,?,?)',
           )
           .bind(
             weekStart,
             entry.dayIndex,
             entry.course,
             entry.recipeId,
+            entry.servings,
             userId,
             now,
           ),

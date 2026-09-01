@@ -15,6 +15,7 @@ export async function readHouseholdData(user: AuthUser) {
     members,
     home,
     nutrition,
+    nutritionHistory,
     tasks,
     expenses,
     spendingBudgets,
@@ -55,6 +56,12 @@ export async function readHouseholdData(user: AuthUser) {
         "SELECT n.id,n.label,n.calories,n.protein,n.carbs,n.fat,n.eaten_on AS eatenOn,n.visibility,(n.user_id=?) AS owned,u.id AS userId,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM nutrition_entries n JOIN users u ON u.id=n.user_id WHERE n.eaten_on=? AND (n.user_id=? OR n.visibility='shared') ORDER BY n.id DESC",
       )
       .bind(user.id, today(), user.id)
+      .all(),
+    db
+      .prepare(
+        "SELECT n.id,n.label,n.calories,n.protein,n.carbs,n.fat,n.eaten_on AS eatenOn,n.visibility,1 AS owned,u.id AS userId,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM nutrition_entries n JOIN users u ON u.id=n.user_id WHERE n.user_id=? AND n.eaten_on>=date(?,'-89 days') ORDER BY n.eaten_on DESC,n.id DESC",
+      )
+      .bind(user.id, today())
       .all(),
     db
       .prepare(
@@ -179,6 +186,7 @@ export async function readHouseholdData(user: AuthUser) {
     members: members.results,
     home: home ?? { name: 'Our home', address: '', photo: null },
     nutrition: nutrition.results,
+    nutritionHistory: nutritionHistory.results,
     tasks: tasks.results,
     expenses: expenses.results,
     recurringPayments: recurringPayments.results,

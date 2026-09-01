@@ -12,35 +12,19 @@ import {
   Users,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
+import { dateKey } from '../../client/dates';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
   Avatar,
   Empty,
   PageTitle,
-  PrivacyBadge,
   PrivacySelect,
 } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import type { Data, Nutrition, Post, T } from '../types';
-
-export type NutritionTotals = {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-};
-export function sumNutrition(items: Nutrition[]): NutritionTotals {
-  return items.reduce(
-    (sum, item) => ({
-      calories: sum.calories + item.calories,
-      protein: sum.protein + item.protein,
-      carbs: sum.carbs + item.carbs,
-      fat: sum.fat + item.fat,
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
+import type { Data, Post, T } from '../types';
+import { sumNutrition, type NutritionTotals } from './nutrition-calculations';
+import { NutritionHistory } from './nutrition-history';
 export function Macro({
   name,
   value,
@@ -217,7 +201,7 @@ export function NutritionView({
                 />
                 <Field
                   name="calories"
-                  label={t('calories')}
+                  label={`${t('calories')} (kcal)`}
                   type="number"
                   min={0}
                   max={20_000}
@@ -247,7 +231,14 @@ export function NutritionView({
                   max={2_000}
                   step={1}
                 />
-                <PrivacySelect t={t} defaultValue="shared" />
+                <Field
+                  name="eatenOn"
+                  label={t('mealDate')}
+                  type="date"
+                  max={dateKey(new Date())}
+                  defaultValue={dateKey(new Date())}
+                />
+                <PrivacySelect t={t} defaultValue="private" />
                 <button className="primary-button">
                   <Plus size={16} />
                   {t('addMeal')}
@@ -255,12 +246,12 @@ export function NutritionView({
               </form>
             </article>
           </div>
-          <NutritionTable
-            items={data.nutrition.filter((item) => item.owned)}
-            title={t('todaysMeals')}
-            subtitle={t('yourLog')}
-            empty={t('noMeals')}
+          <NutritionHistory
+            items={data.nutritionHistory}
+            user={user}
+            post={post}
             t={t}
+            language={language}
           />
         </>
       ) : scope === 'calculator' ? (
@@ -324,47 +315,6 @@ function NutritionTotalsView({ totals, t }: { totals: NutritionTotals; t: T }) {
     </div>
   );
 }
-function NutritionTable({
-  items,
-  title,
-  subtitle,
-  empty,
-  t,
-}: {
-  items: Nutrition[];
-  title: string;
-  subtitle: string;
-  empty: string;
-  t: T;
-}) {
-  return (
-    <article className="panel table-panel">
-      <div className="panel-heading">
-        <div>
-          <h2>{title}</h2>
-          <span>{subtitle}</span>
-        </div>
-      </div>
-      <div className="data-table nutrition-table">
-        {items.length ? (
-          items.map((item) => (
-            <div key={item.id}>
-              <strong>{item.label}</strong>
-              <span>{item.calories} kcal</span>
-              <span>{item.protein}P</span>
-              <span>{item.carbs}C</span>
-              <span>{item.fat}F</span>
-              <PrivacyBadge visibility={item.visibility} t={t} />
-            </div>
-          ))
-        ) : (
-          <Empty>{empty}</Empty>
-        )}
-      </div>
-    </article>
-  );
-}
-
 type NutritionPlan = 'lose' | 'maintain' | 'gain';
 type DietPreference = 'omnivore' | 'vegetarian' | 'vegan';
 function foodGroups(
@@ -450,6 +400,20 @@ function NutritionCalculator({
       : plan === 'gain'
         ? t('gainWeight')
         : t('maintainWeight');
+  const activityLabel =
+    user.activity === 'low'
+      ? t('lowActive')
+      : user.activity === 'active'
+        ? t('activeLevel')
+        : user.activity === 'very'
+          ? t('veryActive')
+          : t('inactive');
+  const macroRatios =
+    plan === 'lose'
+      ? { protein: 25, fat: 30, carbs: 45 }
+      : plan === 'gain'
+        ? { protein: 20, fat: 25, carbs: 55 }
+        : { protein: 20, fat: 30, carbs: 50 };
   return (
     <div className="calculator-stack">
       <div className="calculator-grid">
@@ -578,6 +542,24 @@ function NutritionCalculator({
                   ? t('maintenanceEstimate')
                   : t('planAdjustment', { percent: 10 })}
               </p>
+              <div className="calculation-assumptions">
+                <strong>{t('calculationAssumptions')}</strong>
+                <span>
+                  {t('calculationInputs', {
+                    age: user.age ?? 0,
+                    height: user.heightCm ?? 0,
+                    weight: user.weightKg ?? 0,
+                    activity: activityLabel,
+                  })}
+                </span>
+                <span>
+                  {t('macroSplit', {
+                    protein: macroRatios.protein,
+                    carbs: macroRatios.carbs,
+                    fat: macroRatios.fat,
+                  })}
+                </span>
+              </div>
               <div className="plan-macros">
                 <span>
                   <i className="dot protein" />

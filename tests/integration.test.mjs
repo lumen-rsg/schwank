@@ -752,6 +752,12 @@ void test(
     const bobData = await household(bob.cookie);
     const bobSerialized = JSON.stringify(bobData);
 
+    assert.deepEqual(
+      aliceData.nutritionHistory.map((meal) => meal.label).sort(),
+      ['Alice private meal', 'Alice shared meal'],
+    );
+    assert.deepEqual(bobData.nutritionHistory, []);
+
     for (const privateLabel of [
       'Alice private meal',
       'Alice private task',
@@ -795,6 +801,9 @@ void test(
     const sharedTask = bobData.tasks.find(
       (task) => task.title === 'Alice shared task',
     );
+    const sharedMeal = bobData.nutrition.find(
+      (meal) => meal.label === 'Alice shared meal',
+    );
     const sharedExpense = bobData.expenses.find(
       (expense) => expense.label === 'Alice shared expense',
     );
@@ -814,7 +823,8 @@ void test(
       (idea) => idea.title === 'Alice public purchase idea',
     );
     assert.ok(
-      sharedTask &&
+      sharedMeal &&
+        sharedTask &&
         sharedExpense &&
         sharedPayment &&
         sharedItem &&
@@ -823,6 +833,18 @@ void test(
     assert.ok(sharedMedication && publicIdea);
 
     const forbiddenMutations = [
+      {
+        type: 'nutrition-update',
+        id: sharedMeal.id,
+        label: 'Bob cannot edit this meal',
+        calories: 700,
+        protein: 40,
+        carbs: 70,
+        fat: 25,
+        eatenOn: today,
+        visibility: 'shared',
+      },
+      { type: 'nutrition-remove', id: sharedMeal.id },
       { type: 'task-status', id: sharedTask.id, status: 'done' },
       {
         type: 'task-update',
@@ -876,6 +898,76 @@ void test(
       );
       assert.equal(result.body.code, 'forbidden', JSON.stringify(mutation));
     }
+
+    const yesterdayDate = new Date(`${today}T12:00:00Z`);
+    yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+    const yesterday = yesterdayDate.toISOString().slice(0, 10);
+    const historicalMealResult = await action(alice.cookie, {
+      type: 'nutrition',
+      label: 'Correctable historical meal',
+      calories: 410,
+      protein: 31,
+      carbs: 42,
+      fat: 14,
+      eatenOn: yesterday,
+      visibility: 'shared',
+    });
+    assert.equal(historicalMealResult.response.status, 200);
+    const historicalMeal = historicalMealResult.body.data.nutritionHistory.find(
+      (meal) => meal.label === 'Correctable historical meal',
+    );
+    assert.ok(historicalMeal);
+    assert.equal(
+      historicalMealResult.body.data.nutrition.some(
+        (meal) => meal.id === historicalMeal.id,
+      ),
+      false,
+    );
+    assert.equal(
+      (await household(bob.cookie)).nutritionHistory.some(
+        (meal) => meal.id === historicalMeal.id,
+      ),
+      false,
+    );
+    const correctedMealResult = await action(alice.cookie, {
+      type: 'nutrition-update',
+      id: historicalMeal.id,
+      label: 'Corrected private meal',
+      calories: 375,
+      protein: 29,
+      carbs: 38,
+      fat: 12,
+      eatenOn: today,
+      visibility: 'private',
+    });
+    assert.equal(correctedMealResult.response.status, 200);
+    const correctedMeal = correctedMealResult.body.data.nutritionHistory.find(
+      (meal) => meal.id === historicalMeal.id,
+    );
+    assert.equal(correctedMeal.label, 'Corrected private meal');
+    assert.equal(correctedMeal.calories, 375);
+    assert.equal(correctedMeal.eatenOn, today);
+    assert.equal(
+      (await household(bob.cookie)).nutrition.some(
+        (meal) => meal.id === historicalMeal.id,
+      ),
+      false,
+    );
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'nutrition-remove',
+          id: historicalMeal.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (await household(alice.cookie)).nutritionHistory.some(
+        (meal) => meal.id === historicalMeal.id,
+      ),
+      false,
+    );
 
     const historicalExpenseResult = await action(alice.cookie, {
       type: 'expense',

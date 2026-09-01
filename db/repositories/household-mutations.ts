@@ -67,6 +67,20 @@ function cleanExpenseFields(body: DataAction) {
   };
 }
 
+function cleanNutritionFields(body: DataAction) {
+  const label = cleanText(body.label, 80);
+  if (!label) throw new DataError('Meal name is required.');
+  return {
+    label,
+    calories: cleanNumber(body.calories, 20_000),
+    protein: cleanNumber(body.protein, 2_000),
+    carbs: cleanNumber(body.carbs, 2_000),
+    fat: cleanNumber(body.fat, 2_000),
+    eatenOn: cleanDate(body.eatenOn),
+    visibility: cleanVisibility(body.visibility),
+  };
+}
+
 function cleanRecurringPaymentFields(body: DataAction) {
   const kind = cleanPaymentKind(body.kind);
   const label = cleanText(body.label, 100);
@@ -97,8 +111,7 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
   const db = env.DB;
   const legacyId = String(userId);
   if (body.type === 'nutrition') {
-    const label = cleanText(body.label, 80);
-    if (!label) throw new DataError('Meal name is required.');
+    const meal = cleanNutritionFields(body);
     return db
       .prepare(
         'INSERT INTO nutrition_entries (user_id,member_id,visibility,label,calories,protein,carbs,fat,eaten_on) VALUES (?,?,?,?,?,?,?,?,?)',
@@ -106,15 +119,46 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
       .bind(
         userId,
         legacyId,
-        cleanVisibility(body.visibility),
-        label,
-        cleanNumber(body.calories, 20_000),
-        cleanNumber(body.protein, 2_000),
-        cleanNumber(body.carbs, 2_000),
-        cleanNumber(body.fat, 2_000),
-        today(),
+        meal.visibility,
+        meal.label,
+        meal.calories,
+        meal.protein,
+        meal.carbs,
+        meal.fat,
+        meal.eatenOn,
       )
       .run();
+  }
+  if (body.type === 'nutrition-update') {
+    const meal = cleanNutritionFields(body);
+    const result = await db
+      .prepare(
+        'UPDATE nutrition_entries SET visibility=?,label=?,calories=?,protein=?,carbs=?,fat=?,eaten_on=? WHERE id=? AND user_id=?',
+      )
+      .bind(
+        meal.visibility,
+        meal.label,
+        meal.calories,
+        meal.protein,
+        meal.carbs,
+        meal.fat,
+        meal.eatenOn,
+        cleanNumber(body.id),
+        userId,
+      )
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That meal cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'nutrition-remove') {
+    const result = await db
+      .prepare('DELETE FROM nutrition_entries WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That meal cannot be removed.', 403);
+    return result;
   }
   if (body.type === 'task') {
     const task = await cleanTaskFields(db, userId, body);

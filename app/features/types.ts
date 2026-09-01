@@ -264,6 +264,7 @@ export type Data = {
   members: Member[];
   home: HomeProfile;
   nutrition: Nutrition[];
+  nutritionHistory: Nutrition[];
   tasks: Task[];
   expenses: Expense[];
   recurringPayments: RecurringPayment[];

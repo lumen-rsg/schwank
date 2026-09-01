@@ -16,7 +16,8 @@ import {
   PrivacyBadge,
 } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import { Macro, type NutritionTotals } from '../nutrition/nutrition-view';
+import type { NutritionTotals } from '../nutrition/nutrition-calculations';
+import { Macro } from '../nutrition/nutrition-view';
 import type { Data, Post, T } from '../types';
 
 export function Overview({

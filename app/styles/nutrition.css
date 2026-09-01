@@ -3,6 +3,190 @@
   display: grid;
   gap: 16px;
 }
+.nutrition-history-panel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+.nutrition-range-tabs {
+  margin: 14px 0 0;
+  padding: 3px;
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  gap: 3px;
+  border: 1px solid #e4e0d7;
+  border-radius: 10px;
+  background: #f4f1ea;
+}
+.nutrition-range-tabs button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #7c8077;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nutrition-range-tabs button:hover,
+.nutrition-range-tabs button:focus-visible {
+  color: #454b42;
+  outline: 0;
+}
+.nutrition-range-tabs button:focus-visible {
+  box-shadow: 0 0 0 3px #e76b461f;
+}
+.nutrition-range-tabs button.selected {
+  background: #fffdf9;
+  color: #9e523c;
+  box-shadow: 0 2px 8px #36332b12;
+}
+.nutrition-history-summary {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.nutrition-history-summary > span {
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 3px 5px;
+  border-radius: 11px;
+  background: #f5f2eb;
+}
+.nutrition-history-summary small {
+  grid-column: 1/-1;
+  color: #858a81;
+  font-size: 8px;
+  font-weight: 650;
+}
+.nutrition-history-summary strong {
+  color: #3f463d;
+  font-size: 20px;
+  letter-spacing: -0.035em;
+}
+.nutrition-history-summary b {
+  color: #8d9189;
+  font-size: 8px;
+  font-weight: 600;
+}
+.nutrition-history-chart {
+  position: relative;
+  margin: 15px 0 2px;
+  padding: 12px 12px 8px;
+  border: 1px solid #ebe7de;
+  border-radius: 11px;
+  background: linear-gradient(to top, #f2eee6 1px, transparent 1px) 0 0 / 100%
+    25%;
+}
+.nutrition-history-chart > div {
+  height: 112px;
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  overflow: hidden;
+}
+.nutrition-history-chart > div > span {
+  min-width: 3px;
+  height: 100%;
+  flex: 1 1 5px;
+  display: flex;
+  align-items: end;
+}
+.nutrition-history-chart i {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 1px 1px;
+  background: linear-gradient(#ec805f, #db6343);
+}
+.nutrition-history-chart figcaption {
+  margin-top: 7px;
+  color: #8d9188;
+  font-size: 8px;
+}
+.nutrition-history-list {
+  margin-top: 16px;
+}
+.nutrition-history-list > div:not(.empty-state) {
+  grid-template-columns: minmax(120px, 1fr) repeat(4, auto) auto auto;
+}
+.nutrition-meal-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.nutrition-meal-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nutrition-meal-copy small {
+  color: #999b94;
+  font-size: 8px;
+}
+.nutrition-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.nutrition-row-actions > button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e5e1d8;
+  border-radius: 8px;
+  background: #fffdf9;
+  color: #7a7f76;
+  cursor: pointer;
+}
+.nutrition-row-actions > button:hover,
+.nutrition-row-actions > button:focus-visible {
+  border-color: #d9a896;
+  color: #b9583c;
+  outline: 0;
+}
+.nutrition-edit-form {
+  margin: 12px 0 2px;
+  padding: 13px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  border: 1px solid #e5dfd4;
+  border-radius: 11px;
+  background: #faf8f2;
+}
+.nutrition-edit-form .form-field:first-child {
+  grid-column: span 2;
+}
+.nutrition-edit-actions {
+  grid-column: 1/-1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.nutrition-edit-actions button {
+  min-height: 34px;
+}
+.calculation-assumptions {
+  margin: 0 0 18px;
+  padding: 11px 12px;
+  display: grid;
+  gap: 4px;
+  border-radius: 10px;
+  background: #e8efe5;
+  color: #737d6f;
+  font-size: 8px;
+  line-height: 1.5;
+}
+.calculation-assumptions strong {
+  color: #4b5947;
+  font-size: 9px;
+}
 .calculator-grid {
   display: grid;
   grid-template-columns: 1.08fr 0.92fr;
@@ -209,6 +393,12 @@
   .food-groups {
     grid-template-columns: 1fr 1fr;
   }
+  .nutrition-history-list > div:not(.empty-state) {
+    grid-template-columns: minmax(110px, 1fr) repeat(4, auto) auto;
+  }
+  .nutrition-history-list .privacy-badge {
+    display: none;
+  }
 }
 @media (max-width: 680px) {
   .calculator-form,
@@ -230,5 +420,36 @@
   }
   .member-tabs {
     margin-top: 0;
+  }
+  .nutrition-range-tabs {
+    width: 100%;
+  }
+  .nutrition-range-tabs button {
+    min-width: 0;
+    padding: 0 5px;
+    flex: 1;
+  }
+  .nutrition-history-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .nutrition-history-summary > span:last-child {
+    grid-column: 1/-1;
+  }
+  .nutrition-history-list > div:not(.empty-state) {
+    padding: 10px 0;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 5px 9px;
+  }
+  .nutrition-history-list > div > span:nth-of-type(n + 3) {
+    display: none;
+  }
+  .nutrition-row-actions {
+    grid-column: 2/-1;
+  }
+  .nutrition-edit-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .nutrition-edit-form .form-field:first-child {
+    grid-column: 1/-1;
   }
 }

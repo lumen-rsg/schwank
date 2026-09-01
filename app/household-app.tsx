@@ -36,10 +36,8 @@ import { HabitsView } from './features/habits/habits-view';
 import { HomeView } from './features/home/home-view';
 import { MedicationsView } from './features/medications/medications-view';
 import { OrganisersView } from './features/organisers/organisers-view';
-import {
-  NutritionView,
-  sumNutrition,
-} from './features/nutrition/nutrition-view';
+import { sumNutrition } from './features/nutrition/nutrition-calculations';
+import { NutritionView } from './features/nutrition/nutrition-view';
 import { SpendingView } from './features/spending/spending-view';
 import { TasksView } from './features/tasks/tasks-view';
 import { WaterView } from './features/water/water-view';

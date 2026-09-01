@@ -19,6 +19,7 @@ function emptyHousehold(user: AuthUser): Data {
     members: [user],
     home: { name: 'Our home', address: '', photo: null },
     nutrition: [],
+    nutritionHistory: [],
     tasks: [],
     expenses: [],
     recurringPayments: [],

@@ -76,6 +76,7 @@ export default function HouseholdApp({
   const notificationTrigger = useRef<HTMLButtonElement>(null);
   const {
     data,
+    connectionState,
     enableNotifications,
     loading,
     logout,
@@ -143,7 +144,7 @@ export default function HouseholdApp({
     ) : active === 'organisers' ? (
       <OrganisersView {...common} setActive={setActive} />
     ) : active === 'chat' ? (
-      <ChatView {...common} user={user} />
+      <ChatView {...common} user={user} connectionState={connectionState} />
     ) : (
       <HomeView {...common} user={user} />
     );
@@ -170,7 +171,7 @@ export default function HouseholdApp({
                       (notification) => notification.section === 'medications',
                     ).length
                   : item.id === 'chat'
-                    ? Math.min(data.messages.length, 9)
+                    ? Math.min(data.unreadMessages, 9)
                     : 0;
             return (
               <button

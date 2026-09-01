@@ -269,6 +269,14 @@ void test(
     );
     assert.equal(bob.response.status, 201);
     assert.ok(bob.cookie);
+    const charlie = await register(
+      'Charlie Test',
+      'charlie@example.test',
+      'charlie-password-123',
+      invite.body.inviteCode,
+    );
+    assert.equal(charlie.response.status, 201);
+    assert.ok(charlie.cookie);
 
     const memberSettings = await jsonRequest('/api/household/enrollment', {
       headers: { cookie: bob.cookie },
@@ -360,6 +368,77 @@ void test(
     assert.equal(stillLimitedLogin.response.status, 429);
     assert.equal(stillLimitedLogin.body.code, 'rate_limited');
 
+    const charlieId = (await household(charlie.cookie)).currentUser.id;
+    const memberCannotTransfer = await jsonRequest('/api/household/members', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bob.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        action: 'transfer',
+        memberId: charlieId,
+        currentPassword: 'bob-password-12345',
+      }),
+    });
+    assert.equal(memberCannotTransfer.response.status, 403);
+    assert.equal(memberCannotTransfer.body.code, 'owner_required');
+    const wrongTransferPassword = await jsonRequest('/api/household/members', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: alice.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        action: 'transfer',
+        memberId: charlieId,
+        currentPassword: 'wrong-password',
+      }),
+    });
+    assert.equal(wrongTransferPassword.response.status, 403);
+    assert.equal(wrongTransferPassword.body.code, 'invalid_current_password');
+    assert.equal(
+      (
+        await jsonRequest('/api/household/members', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: alice.cookie,
+            origin,
+          },
+          body: JSON.stringify({
+            action: 'transfer',
+            memberId: charlieId,
+            currentPassword: 'alice-password-123',
+          }),
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal((await household(alice.cookie)).currentUser.role, 'member');
+    assert.equal((await household(charlie.cookie)).currentUser.role, 'owner');
+    const aliceId = (await household(alice.cookie)).currentUser.id;
+    assert.equal(
+      (
+        await jsonRequest('/api/household/members', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: charlie.cookie,
+            origin,
+          },
+          body: JSON.stringify({
+            action: 'transfer',
+            memberId: aliceId,
+            currentPassword: 'charlie-password-123',
+          }),
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal((await household(alice.cookie)).currentUser.role, 'owner');
     const today = new Date().toISOString().slice(0, 10);
     const records = [
       {
@@ -525,15 +604,85 @@ void test(
       ).response.status,
       200,
     );
+    const firstChatMessage = await action(alice.cookie, {
+      type: 'message',
+      body: 'Alice household chat message',
+    });
+    assert.equal(firstChatMessage.response.status, 200);
+    const firstChatMessageId = firstChatMessage.body.data.messages.at(-1).id;
+    for (let index = 1; index <= 51; index += 1) {
+      const createdMessage = await action(alice.cookie, {
+        type: 'message',
+        body: `Pagination message ${String(index).padStart(2, '0')}`,
+      });
+      assert.equal(createdMessage.response.status, 200);
+    }
+    const bobUnreadChat = await household(bob.cookie);
+    assert.equal(bobUnreadChat.messageCount, 52);
+    assert.equal(bobUnreadChat.messages.length, 50);
+    assert.equal(bobUnreadChat.messagesHasMore, true);
+    assert.equal(bobUnreadChat.unreadMessages, 52);
+    const olderChat = await jsonRequest(
+      `/api/chat?before=${bobUnreadChat.messages[0].id}`,
+      { headers: { cookie: bob.cookie } },
+    );
+    assert.equal(olderChat.response.status, 200);
+    assert.equal(olderChat.body.hasMore, false);
+    assert.equal(olderChat.body.messages.length, 2);
+    assert.equal(
+      olderChat.body.messages[0].body,
+      'Alice household chat message',
+    );
+    for (const forbiddenChatMutation of [
+      {
+        type: 'message-update',
+        id: firstChatMessageId,
+        body: 'Bob cannot edit this message',
+      },
+      { type: 'message-remove', id: firstChatMessageId },
+    ]) {
+      const denied = await action(bob.cookie, forbiddenChatMutation);
+      assert.equal(denied.response.status, 403);
+      assert.equal(denied.body.code, 'forbidden');
+    }
     assert.equal(
       (
         await action(alice.cookie, {
-          type: 'message',
-          body: 'Alice household chat message',
+          type: 'message-update',
+          id: firstChatMessageId,
+          body: 'Alice household chat message corrected',
         })
       ).response.status,
       200,
     );
+    const correctedOlderChat = await jsonRequest(
+      `/api/chat?before=${bobUnreadChat.messages[0].id}`,
+      { headers: { cookie: bob.cookie } },
+    );
+    assert.equal(
+      correctedOlderChat.body.messages[0].body,
+      'Alice household chat message corrected',
+    );
+    assert.ok(correctedOlderChat.body.messages[0].editedAt);
+    const newestChatMessage = bobUnreadChat.messages.at(-1);
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'message-remove',
+          id: newestChatMessage.id,
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'message-read',
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal((await household(bob.cookie)).unreadMessages, 0);
 
     assert.equal(
       (
@@ -714,9 +863,16 @@ void test(
       ).response.status,
       200,
     );
+    const memberHomeChange = await action(bob.cookie, {
+      type: 'home',
+      name: 'Bob cannot rename the home',
+      address: 'Synthetic address',
+    });
+    assert.equal(memberHomeChange.response.status, 403);
+    assert.equal(memberHomeChange.body.code, 'owner_required');
     assert.equal(
       (
-        await action(bob.cookie, {
+        await action(alice.cookie, {
           type: 'home',
           name: 'Policy test home',
           address: 'Synthetic address',
@@ -793,11 +949,13 @@ void test(
       bobData.habits.some((entry) => entry.name === 'Alice Test'),
       true,
     );
+    assert.equal(bobData.messageCount, 51);
+    assert.equal(bobData.messages.length, 50);
+    assert.equal(bobData.messagesHasMore, true);
+    assert.equal(bobData.unreadMessages, 0);
     assert.equal(
-      bobData.messages.some(
-        (message) => message.body === 'Alice household chat message',
-      ),
-      true,
+      bobData.members.find((member) => member.name === 'Alice Test').role,
+      'owner',
     );
 
     const sharedTask = bobData.tasks.find(
@@ -1862,10 +2020,73 @@ void test(
       repairedDatabase
         .prepare('SELECT COUNT(*) AS count FROM __schwank_migrations')
         .get().count,
-      15,
+      16,
     );
     repairedDatabase.close();
     await startServer(restoredState);
+
+    assert.equal(
+      (
+        await action(charlie.cookie, {
+          type: 'message',
+          body: 'Charlie contribution removed with membership',
+        })
+      ).response.status,
+      200,
+    );
+
+    const wrongRemovalConfirmation = await jsonRequest(
+      '/api/household/members',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: restoredCookie,
+          origin,
+        },
+        body: JSON.stringify({
+          action: 'remove',
+          memberId: charlieId,
+          currentPassword: 'alice-new-password-456',
+          confirmation: 'Charlie',
+        }),
+      },
+    );
+    assert.equal(wrongRemovalConfirmation.response.status, 400);
+    assert.equal(wrongRemovalConfirmation.body.code, 'validation_failed');
+    assert.equal(
+      (
+        await jsonRequest('/api/household/members', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: restoredCookie,
+            origin,
+          },
+          body: JSON.stringify({
+            action: 'remove',
+            memberId: charlieId,
+            currentPassword: 'alice-new-password-456',
+            confirmation: 'Charlie Test',
+          }),
+        })
+      ).response.status,
+      200,
+    );
+    assert.equal(
+      (
+        await jsonRequest('/api/schwank', {
+          headers: { cookie: charlie.cookie },
+        })
+      ).response.status,
+      401,
+    );
+    assert.equal(
+      JSON.stringify(await household(bob.cookie)).includes(
+        'Charlie contribution removed with membership',
+      ),
+      false,
+    );
 
     assert.equal(
       (

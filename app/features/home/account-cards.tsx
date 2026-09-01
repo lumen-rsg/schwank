@@ -1,13 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react';
-import { Download, KeyRound, Monitor, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  Crown,
+  Download,
+  KeyRound,
+  Monitor,
+  ShieldCheck,
+  Trash2,
+  UserMinus,
+} from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
 import { requestApiJson, requestApiResponse } from '../../client/api';
 import { formatLongDateTime } from '../../client/format';
 import { Field } from '../../components/app-field';
+import { Avatar } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import type { T } from '../types';
+import type { Member, T } from '../types';
 type AccountSession = {
   id: number;
   userAgent: string;
@@ -422,6 +431,162 @@ export function EnrollmentCard({ t, language }: { t: T; language: Language }) {
           </button>
         )}
       </div>
+    </article>
+  );
+}
+
+export function MembersCard({
+  user,
+  members,
+  t,
+}: {
+  user: AuthUser;
+  members: Member[];
+  t: T;
+}) {
+  const [selection, setSelection] = useState<{
+    member: Member;
+    action: 'transfer' | 'remove';
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selection) return;
+    if (
+      selection.action === 'transfer' &&
+      !window.confirm(
+        t('transferOwnershipWarning', { name: selection.member.name }),
+      )
+    )
+      return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    setBusy(true);
+    setError('');
+    try {
+      await requestApiJson(
+        '/api/household/members',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            action: selection.action,
+            memberId: selection.member.id,
+            currentPassword: values.get('currentPassword'),
+            confirmation: values.get('confirmation'),
+          }),
+        },
+        t,
+        'saveFailed',
+      );
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('saveFailed'));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="panel members-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>{t('housemates')}</h2>
+          <span>{t('membersCount', { count: members.length })}</span>
+        </div>
+        <Crown size={18} />
+      </div>
+      <div className="member-list">
+        {members.map((member) => (
+          <div key={member.id}>
+            <span className="member-identity">
+              <Avatar person={member} />
+              <span>
+                <strong>{member.name}</strong>
+                <small>
+                  {member.role === 'owner'
+                    ? t('householdOwner')
+                    : t('householdMember')}
+                  {member.id === user.id ? ` · ${t('you')}` : ''}
+                </small>
+              </span>
+            </span>
+            {user.role === 'owner' && member.id !== user.id && (
+              <span className="member-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setSelection({ member, action: 'transfer' })}
+                >
+                  <Crown size={14} />
+                  {t('transferOwnership')}
+                </button>
+                <button
+                  type="button"
+                  className="danger-text-button"
+                  onClick={() => setSelection({ member, action: 'remove' })}
+                >
+                  <UserMinus size={14} />
+                  {t('removeMember')}
+                </button>
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {selection && (
+        <form className="member-management-form" onSubmit={submit}>
+          <strong>
+            {selection.action === 'transfer'
+              ? t('transferOwnershipTo', { name: selection.member.name })
+              : t('removeMemberNamed', { name: selection.member.name })}
+          </strong>
+          <p>
+            {selection.action === 'transfer'
+              ? t('transferOwnershipCopy')
+              : t('removeMemberCopy')}
+          </p>
+          <Field
+            name="currentPassword"
+            label={t('currentPassword')}
+            type="password"
+            maxLength={128}
+            autoComplete="current-password"
+          />
+          {selection.action === 'remove' && (
+            <Field
+              name="confirmation"
+              label={t('confirmMemberName', { name: selection.member.name })}
+              maxLength={40}
+              autoComplete="off"
+            />
+          )}
+          <div>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy}
+              onClick={() => setSelection(null)}
+            >
+              {t('cancel')}
+            </button>
+            <button
+              className={
+                selection.action === 'remove'
+                  ? 'danger-button'
+                  : 'primary-button'
+              }
+              disabled={busy}
+            >
+              {selection.action === 'transfer'
+                ? t('transferOwnership')
+                : t('removeMember')}
+            </button>
+          </div>
+        </form>
+      )}
+      {error && <div className="auth-error">{error}</div>}
     </article>
   );
 }

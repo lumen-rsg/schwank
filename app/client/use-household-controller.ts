@@ -31,6 +31,9 @@ function emptyHousehold(user: AuthUser): Data {
     purchaseIdeas: [],
     purchaseVotes: [],
     messages: [],
+    messageCount: 0,
+    messagesHasMore: false,
+    unreadMessages: 0,
     habits: [],
     water: [],
     foods: [],
@@ -53,6 +56,9 @@ export function useHouseholdController({
   const [data, setData] = useState<Data>(() => emptyHousehold(initialUser));
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<AppNotice | null>(null);
+  const [connectionState, setConnectionState] = useState<
+    'connected' | 'reconnecting'
+  >('connected');
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'desktop' | 'in-app'
   >('in-app');
@@ -95,8 +101,10 @@ export function useHouseholdController({
         if (generation === dataGeneration.current) {
           lastMessageId.current = newestMessageId;
           setData(nextData);
+          setConnectionState('connected');
         }
       } catch (cause) {
+        setConnectionState('reconnecting');
         if (!silent)
           setNotice({
             kind: 'error',
@@ -130,10 +138,13 @@ export function useHouseholdController({
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') void load(true);
     };
+    const refreshOnline = () => void load(true);
     document.addEventListener('visibilitychange', refreshVisible);
+    window.addEventListener('online', refreshOnline);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refreshVisible);
+      window.removeEventListener('online', refreshOnline);
     };
   }, [initialUser.id, load]);
 
@@ -191,13 +202,13 @@ export function useHouseholdController({
     setNotificationPermission(await Notification.requestPermission());
   }
 
-  const post: Post = async (payload) => {
+  const post: Post = async (payload, options) => {
     const key = mutationKey(payload);
     if (pendingMutations.current.has(key)) return false;
     pendingMutations.current.add(key);
     dataGeneration.current += 1;
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
-    setNotice({ kind: 'progress', message: t('saving') });
+    if (!options?.quiet) setNotice({ kind: 'progress', message: t('saving') });
     try {
       const response = await requestApiJson<{ ok: true; data: Data }>(
         '/api/schwank',
@@ -210,18 +221,22 @@ export function useHouseholdController({
         'saveFailed',
       );
       setData(response.data);
-      setNotice({
-        kind: 'success',
-        message:
-          payload.visibility === 'private' ? t('savedPrivately') : t('saved'),
-      });
-      noticeTimer.current = window.setTimeout(() => setNotice(null), 2200);
+      setConnectionState('connected');
+      if (!options?.quiet) {
+        setNotice({
+          kind: 'success',
+          message:
+            payload.visibility === 'private' ? t('savedPrivately') : t('saved'),
+        });
+        noticeTimer.current = window.setTimeout(() => setNotice(null), 2200);
+      }
       return true;
     } catch (cause) {
-      setNotice({
-        kind: 'error',
-        message: cause instanceof Error ? cause.message : t('saveFailed'),
-      });
+      if (!options?.quiet)
+        setNotice({
+          kind: 'error',
+          message: cause instanceof Error ? cause.message : t('saveFailed'),
+        });
       return false;
     } finally {
       pendingMutations.current.delete(key);
@@ -235,6 +250,7 @@ export function useHouseholdController({
 
   return {
     data,
+    connectionState,
     enableNotifications,
     loading,
     logout,

@@ -829,14 +829,67 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
   if (body.type === 'message') {
     const message = cleanText(body.body, 2_000);
     if (!message) throw new DataError('Message cannot be empty.');
-    return db
+    const createdAt = new Date().toISOString();
+    const result = await db
       .prepare(
         'INSERT INTO messages (user_id,member_id,body,created_at) VALUES (?,?,?,?)',
       )
-      .bind(userId, legacyId, message, new Date().toISOString())
+      .bind(userId, legacyId, message, createdAt)
+      .run();
+    await db
+      .prepare(
+        'INSERT INTO chat_read_state (user_id,last_read_message_id,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_read_message_id=MAX(last_read_message_id,excluded.last_read_message_id),updated_at=excluded.updated_at',
+      )
+      .bind(userId, Number(result.meta.last_row_id), createdAt)
+      .run();
+    return result;
+  }
+  if (body.type === 'message-read') {
+    const latest = await db
+      .prepare('SELECT COALESCE(MAX(id),0) AS id FROM messages')
+      .first<{ id: number }>();
+    return db
+      .prepare(
+        'INSERT INTO chat_read_state (user_id,last_read_message_id,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_read_message_id=MAX(last_read_message_id,excluded.last_read_message_id),updated_at=excluded.updated_at',
+      )
+      .bind(userId, Number(latest?.id ?? 0), new Date().toISOString())
       .run();
   }
+  if (body.type === 'message-update') {
+    const message = cleanText(body.body, 2_000);
+    if (!message) throw new DataError('Message cannot be empty.');
+    const result = await db
+      .prepare(
+        'UPDATE messages SET body=?,edited_at=? WHERE id=? AND user_id=?',
+      )
+      .bind(message, new Date().toISOString(), cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That message cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'message-remove') {
+    const result = await db
+      .prepare('DELETE FROM messages WHERE id=? AND user_id=?')
+      .bind(cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That message cannot be removed.', 403);
+    return result;
+  }
   if (body.type === 'home') {
+    const owner = await db
+      .prepare(
+        "SELECT id FROM users WHERE id=? AND role='owner' AND deleted_at IS NULL",
+      )
+      .bind(userId)
+      .first();
+    if (!owner)
+      throw new DataError(
+        'Only the household owner can change the home profile.',
+        403,
+        'owner_required',
+      );
     const name = cleanText(body.name, 60);
     const address = cleanText(body.address, 180);
     if (!name) throw new DataError('Home name is required.');

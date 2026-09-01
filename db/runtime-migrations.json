@@ -167,5 +167,13 @@
       "ALTER TABLE `tasks` ADD `source_reminder_id` integer;",
       "CREATE UNIQUE INDEX `idx_tasks_source_reminder` ON `tasks` (`source_reminder_id`);"
     ]
+  },
+  {
+    "id": "0015_luxuriant_killraven",
+    "hash": "fed4605ba2423b67fda100437353ba75432d055caef8b97b3a5eeaad70708f02",
+    "statements": [
+      "CREATE TABLE `chat_read_state` (\n\t`user_id` integer PRIMARY KEY NOT NULL,\n\t`last_read_message_id` integer DEFAULT 0 NOT NULL,\n\t`updated_at` text NOT NULL\n);",
+      "ALTER TABLE `messages` ADD `edited_at` text;"
+    ]
   }
 ]

@@ -192,6 +192,7 @@ export async function deleteAccount(user: AuthUser, input: unknown) {
       'water_entries',
       'habit_entries',
       'messages',
+      'chat_read_state',
       'purchase_ideas',
     ].map((table) =>
       env.DB.prepare(`DELETE FROM ${table} WHERE user_id=?`).bind(user.id),

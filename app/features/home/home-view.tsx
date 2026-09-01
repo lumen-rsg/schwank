@@ -8,7 +8,6 @@ import {
   LoaderCircle,
   Lock,
   Sparkles,
-  Users,
 } from 'lucide-react';
 import type { AuthUser } from '@/db/auth';
 import { withFormSubmission } from '../../client/forms';
@@ -21,6 +20,7 @@ import {
   AccountDataCard,
   AccountSecurityCard,
   EnrollmentCard,
+  MembersCard,
 } from './account-cards';
 export function HomeView({
   data,
@@ -87,20 +87,22 @@ export function HomeView({
             }
           >
             {!homePhoto && <ImageIcon size={30} />}
-            <label className="photo-button">
-              <Camera size={15} />
-              {homePhoto ? t('replacePhoto') : t('choosePhoto')}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                disabled={preparing}
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  event.currentTarget.value = '';
-                  void pickHome(file);
-                }}
-              />
-            </label>
+            {user.role === 'owner' && (
+              <label className="photo-button">
+                <Camera size={15} />
+                {homePhoto ? t('replacePhoto') : t('choosePhoto')}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  disabled={preparing}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    void pickHome(file);
+                  }}
+                />
+              </label>
+            )}
           </div>
           <form
             className="settings-form"
@@ -126,14 +128,16 @@ export function HomeView({
               label={t('homeName')}
               placeholder={t('homeNamePlaceholder')}
               defaultValue={data.home.name}
+              disabled={user.role !== 'owner'}
             />
             <Field
               name="address"
               label={t('address')}
               placeholder={t('addressPlaceholder')}
               defaultValue={data.home.address}
+              disabled={user.role !== 'owner'}
             />
-            {homePhoto && (
+            {homePhoto && user.role === 'owner' && (
               <button
                 type="button"
                 className="danger-text-button"
@@ -145,10 +149,17 @@ export function HomeView({
                 {t('removePhoto')}
               </button>
             )}
-            <button className="primary-button">
-              <Home size={16} />
-              {t('saveHome')}
-            </button>
+            {user.role === 'owner' ? (
+              <button className="primary-button">
+                <Home size={16} />
+                {t('saveHome')}
+              </button>
+            ) : (
+              <p className="owner-settings-note">
+                <Lock size={14} />
+                {t('homeSettingsOwnerCopy')}
+              </p>
+            )}
           </form>
         </article>
         <div className="settings-stack">
@@ -219,23 +230,7 @@ export function HomeView({
           {user.role === 'owner' && (
             <EnrollmentCard t={t} language={language} />
           )}
-          <article className="panel members-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>{t('housemates')}</h2>
-                <span>{t('membersCount', { count: data.members.length })}</span>
-              </div>
-              <Users size={18} />
-            </div>
-            <div className="member-list">
-              {data.members.map((member) => (
-                <div key={member.id}>
-                  <Avatar person={member} />
-                  <strong>{member.name}</strong>
-                </div>
-              ))}
-            </div>
-          </article>
+          <MembersCard user={user} members={data.members} t={t} />
           <p className="image-hint">
             {preparing ? (
               <>

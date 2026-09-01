@@ -154,6 +154,9 @@ export async function ensureDatabase() {
         'DELETE FROM auth_rate_limits WHERE COALESCE(blocked_until,window_started_at) < ?',
       )
       .bind(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+    db
+      .prepare('DELETE FROM messages WHERE created_at < ?')
+      .bind(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()),
   ]);
   await db.prepare('PRAGMA optimize').run();
 }

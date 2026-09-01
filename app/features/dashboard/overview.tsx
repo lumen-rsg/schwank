@@ -249,9 +249,7 @@ export function Overview({
             <div className="panel-heading">
               <div>
                 <h2>{t('houseChat')}</h2>
-                <span>
-                  {t('messagesCount', { count: data.messages.length })}
-                </span>
+                <span>{t('messagesCount', { count: data.messageCount })}</span>
               </div>
               <button onClick={() => setActive('chat')} className="link-button">
                 {t('openChat')}

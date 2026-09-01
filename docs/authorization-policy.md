@@ -30,15 +30,16 @@ No application data is available to anonymous requests. The public enrollment-st
 | Medications and dose history            | Private/shareable                 | Shared medication details, supply state, and recorded dose history         | Any member for themselves            | Medication creator only, including dose undo and deletion            |
 | Water log and goal                      | Personal-only                     | None                                                                       | Account user                         | Account user, including correction and deletion                      |
 | Habit events and cost                   | Household-public                  | All events and spending are intentionally public                           | Any member for themselves            | Entry creator only                                                   |
-| Chat                                    | Household-public                  | All messages                                                               | Any member for themselves            | Append-only in the current product                                   |
+| Chat                                    | Household-public                  | All retained messages                                                      | Any member for themselves            | Message author only, including correction and deletion               |
 | Wishlist ideas                          | Household-public                  | All open, bought, and archived ideas                                       | Any member                           | Idea creator controls content and status                             |
 | Wishlist votes                          | Household-public                  | Every member’s vote and identity                                           | Any member for their own vote        | Voter controls only their vote                                       |
-| Home name, address, and photo           | Household-global                  | All fields                                                                 | Any member                           | Any member                                                           |
+| Home name, address, and photo           | Household-global                  | All fields                                                                 | Owner                                | Owner                                                                |
 | Food inventory                          | Household-global                  | All stock and updater identity                                             | Any member                           | Any member                                                           |
 | Recipes                                 | Household-global                  | All recipes and creator identity                                           | Any member                           | Any member                                                           |
 | Weekly meal plan                        | Household-global                  | Entire plan                                                                | Any member                           | Any member                                                           |
 | AI nutrition input                      | Consent-gated household aggregate | No individual profile or consumption history is returned to another member | Each user controls their own consent | Meal-plan requester may use only consenting aggregate inputs         |
 | Enrollment settings and invite rotation | Owner-only                        | Public endpoint exposes open/closed only                                   | Owner                                | Owner                                                                |
+| Household membership and ownership      | Owner-only                        | Public directory exposes name, avatar, and role; never email               | Enrollment creates members           | Owner, with current-password confirmation                            |
 
 ## Images
 
@@ -62,6 +63,8 @@ No application data is available to anonymous requests. The public enrollment-st
 - The first account on a fresh installation becomes the household owner.
 - Established households are closed to registration unless the owner creates a time-limited invite.
 - Invite codes are stored only as hashes and are invalidated when registration closes.
+- Chat read markers are private per-account state. Messages are loaded in bounded pages and retained for 365 days on the household server.
+- Ownership transfer and member removal require the current owner's password and invalidate outstanding invitations. Removal also requires the target's display name, revokes their sessions, erases their personal and household-public records, and anonymizes retained household-global authorship.
 - Login and registration failures are persistently rate-limited using hashed request buckets.
 - Password changes require the current password, rotate the current session token, and revoke every other session.
 - Same-origin validation is required for every state-changing route.

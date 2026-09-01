@@ -1065,6 +1065,16 @@ input[type='submit']:disabled {
   color: #898b84;
   font-size: 8px;
 }
+.chat-room > header .chat-connection {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5f7f57;
+}
+.chat-room > header .chat-connection.reconnecting {
+  color: #a2573e;
+}
 .messages {
   height: clamp(340px, 55vh, 590px);
   overflow: auto;
@@ -1095,6 +1105,8 @@ input[type='submit']:disabled {
   color: #454842;
   font-size: 10px;
   line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .message.mine {
   align-self: flex-end;
@@ -1107,6 +1119,67 @@ input[type='submit']:disabled {
   border-radius: 13px 4px 13px 13px;
   background: #e46a45;
   color: #fff;
+}
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.message-actions button,
+.load-chat-history,
+.message-edit-form > span button {
+  border: 0;
+  background: transparent;
+  color: #777a73;
+  font: inherit;
+  cursor: pointer;
+}
+.message-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.load-chat-history {
+  align-self: center;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.message-edit-form {
+  width: min(440px, 58vw);
+  display: grid;
+  gap: 8px;
+}
+.message-edit-form textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dedad1;
+  border-radius: 10px;
+  background: #fffdf9;
+  padding: 9px 10px;
+  color: #454842;
+  font: inherit;
+}
+.message-edit-form > span {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.message-edit-form > span .primary-button {
+  min-height: 32px;
+  padding: 0 12px;
+  background: #e46a45;
+  color: #fff;
+}
+.chat-retention {
+  margin: 0;
+  padding: 7px 16px;
+  border-top: 1px solid #eeeae2;
+  background: #faf8f3;
+  color: #898b84;
+  font-size: 8px;
+  text-align: center;
 }
 .chat-compose {
   display: grid;
@@ -1135,6 +1208,17 @@ input[type='submit']:disabled {
   border-radius: 10px;
   background: #e76a44;
   color: #fff;
+}
+@media (max-width: 520px) {
+  .message {
+    max-width: 88%;
+  }
+  .message-edit-form {
+    width: 68vw;
+  }
+  .chat-room > header .chat-connection {
+    font-size: 0;
+  }
 }
 @media (max-width: 900px) {
   .feature-grid {

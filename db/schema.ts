@@ -314,9 +314,16 @@ export const messages = sqliteTable(
     memberId: text('member_id').notNull(),
     body: text('body').notNull(),
     createdAt: text('created_at').notNull(),
+    editedAt: text('edited_at'),
   },
   (table) => [index('idx_messages_created').on(table.createdAt)],
 );
+
+export const chatReadState = sqliteTable('chat_read_state', {
+  userId: integer('user_id').primaryKey(),
+  lastReadMessageId: integer('last_read_message_id').notNull().default(0),
+  updatedAt: text('updated_at').notNull(),
+});
 
 export const habitEntries = sqliteTable(
   'habit_entries',

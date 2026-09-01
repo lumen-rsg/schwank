@@ -10,6 +10,7 @@ export type Member = {
   initials: string;
   color: string;
   avatar: string | null;
+  role: 'owner' | 'member';
 };
 export type HomeProfile = {
   name: string;
@@ -146,6 +147,7 @@ export type Message = {
   id: number;
   body: string;
   createdAt: string;
+  editedAt: string | null;
   name: string;
   initials: string;
   color: string;
@@ -283,6 +285,9 @@ export type Data = {
   purchaseIdeas: PurchaseIdea[];
   purchaseVotes: PurchaseVote[];
   messages: Message[];
+  messageCount: number;
+  messagesHasMore: boolean;
+  unreadMessages: number;
   habits: HabitEntry[];
   water: WaterEntry[];
   foods: FoodItem[];
@@ -291,7 +296,10 @@ export type Data = {
   aiConfigured: boolean;
   aiConsentingMembers: number;
 };
-export type Post = (payload: Record<string, unknown>) => Promise<boolean>;
+export type Post = (
+  payload: Record<string, unknown>,
+  options?: { quiet?: boolean },
+) => Promise<boolean>;
 export type T = (
   key: CopyKey,
   variables?: Record<string, string | number>,

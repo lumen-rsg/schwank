@@ -416,6 +416,11 @@ export async function registerUser(input: unknown, request?: Request) {
       )
       .run();
     const userId = Number(result.meta.last_row_id);
+    await env.DB.prepare(
+      'INSERT INTO chat_read_state (user_id,last_read_message_id,updated_at) SELECT ?,COALESCE(MAX(id),0),? FROM messages',
+    )
+      .bind(userId, new Date().toISOString())
+      .run();
     return { token: await createSession(userId, request), userId };
   } catch {
     throw new AuthError(

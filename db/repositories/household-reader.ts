@@ -27,6 +27,7 @@ export async function readHouseholdData(user: AuthUser) {
     purchaseIdeas,
     purchaseVotes,
     messages,
+    messageStats,
     habits,
     water,
     foods,
@@ -43,7 +44,7 @@ export async function readHouseholdData(user: AuthUser) {
       .first<AuthUser>(),
     db
       .prepare(
-        'SELECT id,display_name AS name,initials,color,avatar_data AS avatar FROM users WHERE deleted_at IS NULL ORDER BY display_name',
+        'SELECT id,display_name AS name,initials,color,avatar_data AS avatar,role FROM users WHERE deleted_at IS NULL ORDER BY display_name',
       )
       .all(),
     db
@@ -125,10 +126,16 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        'SELECT m.id,m.body,m.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(m.user_id=?) AS mine FROM messages m JOIN users u ON u.id=m.user_id ORDER BY m.created_at',
+        'SELECT * FROM (SELECT m.id,m.body,m.created_at AS createdAt,m.edited_at AS editedAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(m.user_id=?) AS mine FROM messages m JOIN users u ON u.id=m.user_id ORDER BY m.id DESC LIMIT 50) ORDER BY id',
       )
       .bind(user.id)
       .all(),
+    db
+      .prepare(
+        'SELECT COUNT(*) AS messageCount,SUM(CASE WHEN id>COALESCE((SELECT last_read_message_id FROM chat_read_state WHERE user_id=?),0) THEN 1 ELSE 0 END) AS unreadMessages FROM messages',
+      )
+      .bind(user.id)
+      .first<{ messageCount: number; unreadMessages: number | null }>(),
     db
       .prepare(
         'SELECT h.id,h.user_id AS userId,h.habit,h.occurrences,h.cost,h.occurred_on AS occurredOn,h.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(h.user_id=?) AS mine FROM habit_entries h JOIN users u ON u.id=h.user_id WHERE h.occurred_on>=? ORDER BY h.occurred_on DESC,h.id DESC',
@@ -198,6 +205,9 @@ export async function readHouseholdData(user: AuthUser) {
     purchaseIdeas: purchaseIdeas.results,
     purchaseVotes: purchaseVotes.results,
     messages: messages.results,
+    messageCount: Number(messageStats?.messageCount ?? 0),
+    messagesHasMore: Number(messageStats?.messageCount ?? 0) > 50,
+    unreadMessages: Number(messageStats?.unreadMessages ?? 0),
     habits: habits.results,
     water: water.results,
     foods: foods.results,

@@ -13,6 +13,7 @@ export function Field({
   max,
   step,
   required = true,
+  disabled = false,
 }: {
   name: string;
   label: string;
@@ -26,6 +27,7 @@ export function Field({
   max?: number | string;
   step?: number | string;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className="form-field">
@@ -42,6 +44,7 @@ export function Field({
         max={max}
         step={step ?? (type === 'number' ? 'any' : undefined)}
         required={required}
+        disabled={disabled}
       />
     </label>
   );

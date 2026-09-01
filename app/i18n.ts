@@ -19,6 +19,7 @@ const copy = {
     chat: 'Chat',
     homeSettings: 'Home',
     sharedSpace: 'Our shared space',
+    mainNavigation: 'Main navigation',
     privateDefault: 'Private by default',
     signOut: 'Sign out',
     privacyNote: 'Your items are private unless you share them',
@@ -198,6 +199,10 @@ const copy = {
     leisure: 'Leisure',
     other: 'Other',
     spendingByCategory: 'Spending by category',
+    spendingBreakdown: 'Spending breakdown by category',
+    percentOfSpending: '{percent} of visible spending',
+    addFirstExpense: 'Add the first expense',
+    clearFilters: 'Clear filters',
     entries: 'entries',
     scheduledPayments: 'Scheduled payments',
     scheduledPaymentsCopy:
@@ -451,6 +456,12 @@ const copy = {
     noExpiry: 'No expiry date',
     updatedBy: 'Updated by {name}',
     remove: 'Remove',
+    removeFoodTitle: 'Remove this food?',
+    removeFoodWarning:
+      'Remove {name} from the shared household inventory? This cannot be undone.',
+    removeRecipeTitle: 'Remove this recipe?',
+    removeRecipeWarning:
+      'Remove {name} from the shared household recipes? This cannot be undone.',
     recipeBuilder: 'Add a recipe',
     recipeName: 'Recipe name',
     servings: 'Servings',
@@ -575,6 +586,7 @@ const copy = {
     chat: 'Чат',
     homeSettings: 'Дом',
     sharedSpace: 'Наше общее пространство',
+    mainNavigation: 'Основная навигация',
     privateDefault: 'По умолчанию приватно',
     signOut: 'Выйти',
     privacyNote: 'Ваши записи приватны, пока вы ими не поделитесь',
@@ -752,6 +764,10 @@ const copy = {
     leisure: 'Досуг',
     other: 'Другое',
     spendingByCategory: 'Расходы по категориям',
+    spendingBreakdown: 'Распределение расходов по категориям',
+    percentOfSpending: '{percent} видимых расходов',
+    addFirstExpense: 'Добавить первый расход',
+    clearFilters: 'Сбросить фильтры',
     entries: 'записей',
     scheduledPayments: 'Регулярные платежи',
     scheduledPaymentsCopy:
@@ -1006,6 +1022,12 @@ const copy = {
     noExpiry: 'Без срока годности',
     updatedBy: 'Обновил(-а) {name}',
     remove: 'Удалить',
+    removeFoodTitle: 'Удалить этот продукт?',
+    removeFoodWarning:
+      'Удалить «{name}» из общих запасов дома? Это действие нельзя отменить.',
+    removeRecipeTitle: 'Удалить этот рецепт?',
+    removeRecipeWarning:
+      'Удалить «{name}» из общих рецептов дома? Это действие нельзя отменить.',
     recipeBuilder: 'Добавить рецепт',
     recipeName: 'Название рецепта',
     servings: 'Порции',

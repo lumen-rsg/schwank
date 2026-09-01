@@ -116,29 +116,36 @@ export function NutritionView({
         title={t('nutrition')}
         copy={t('nutritionCopy')}
       />
-      <div className="member-tabs">
+      <fieldset className="member-tabs">
+        <legend className="sr-only">{t('nutrition')}</legend>
         <button
+          type="button"
           className={scope === 'mine' ? 'selected' : ''}
+          aria-pressed={scope === 'mine'}
           onClick={() => setScope('mine')}
         >
           <Avatar person={user} small />
           {t('yourNutrition')}
         </button>
         <button
+          type="button"
           className={scope === 'calculator' ? 'selected' : ''}
+          aria-pressed={scope === 'calculator'}
           onClick={() => setScope('calculator')}
         >
           <Calculator size={16} />
           {t('nutritionCalculator')}
         </button>
         <button
+          type="button"
           className={scope === 'shared' ? 'selected' : ''}
+          aria-pressed={scope === 'shared'}
           onClick={() => setScope('shared')}
         >
           <Users size={16} />
           {t('sharedNutrition')}
         </button>
-      </div>
+      </fieldset>
       {scope === 'mine' ? (
         <>
           <div className="feature-grid">

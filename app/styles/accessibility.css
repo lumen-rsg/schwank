@@ -1,0 +1,110 @@
+/* Keyboard, assistive-technology, and touch refinements. Imported last so
+   feature-level outline resets cannot hide the shared focus treatment. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(214, 91, 56, 0.48);
+  outline-offset: 3px;
+}
+
+.welcome h1:focus-visible {
+  border-radius: 5px;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 11px;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+.confirm-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 24px 80px rgba(35, 31, 25, 0.28);
+}
+
+.confirm-dialog::backdrop {
+  background: rgba(31, 30, 26, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.confirm-dialog p {
+  margin: 10px 0 22px;
+  color: #73766f;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.confirm-dialog form {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.danger-button {
+  min-height: 39px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #b84735;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 680px) {
+  .sidebar .side-nav .nav-item {
+    display: grid;
+    flex: 0 0 44px;
+    width: 44px;
+  }
+
+  .icon-button,
+  .person-picker,
+  .language-switch,
+  .member-tabs button,
+  .course-tabs button,
+  .quantity-control button,
+  .row-remove {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .confirm-dialog form {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-dialog form button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+}

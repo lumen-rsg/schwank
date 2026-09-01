@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   BookOpen,
   CalendarDays,
@@ -18,7 +18,7 @@ import {
 import { dateKey } from '../../client/dates';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
-import { Empty, PageTitle } from '../../components/app-ui';
+import { ConfirmAction, Empty, PageTitle } from '../../components/app-ui';
 import type { Language } from '../../i18n';
 import type { Data, FoodUnit, Post, RecipeCourse, T } from '../types';
 import {
@@ -48,6 +48,7 @@ export function FoodStorageView({
   );
   const [recipeCourse, setRecipeCourse] = useState<RecipeCourse>('breakfast');
   const [search, setSearch] = useState('');
+  const foodForm = useRef<HTMLFormElement>(null);
   const todayKey = dateKey(new Date());
   const soon = new Date();
   soon.setDate(soon.getDate() + 3);
@@ -92,29 +93,36 @@ export function FoodStorageView({
           {t('expiringSoon', { count: expiring })}
         </span>
       </div>
-      <div className="member-tabs storage-tabs">
+      <fieldset className="member-tabs storage-tabs">
+        <legend className="sr-only">{t('foodStorage')}</legend>
         <button
+          type="button"
           className={scope === 'inventory' ? 'selected' : ''}
+          aria-pressed={scope === 'inventory'}
           onClick={() => setScope('inventory')}
         >
           <PackageOpen size={16} />
           {t('inventory')}
         </button>
         <button
+          type="button"
           className={scope === 'recipes' ? 'selected' : ''}
+          aria-pressed={scope === 'recipes'}
           onClick={() => setScope('recipes')}
         >
           <BookOpen size={16} />
           {t('recipes')}
         </button>
         <button
+          type="button"
           className={scope === 'mealPlan' ? 'selected' : ''}
+          aria-pressed={scope === 'mealPlan'}
           onClick={() => setScope('mealPlan')}
         >
           <CalendarDays size={16} />
           {t('mealPlan')}
         </button>
-      </div>
+      </fieldset>
       {scope === 'inventory' ? (
         <>
           <article className="panel food-add-card">
@@ -126,6 +134,7 @@ export function FoodStorageView({
               <PackageOpen size={19} />
             </div>
             <form
+              ref={foodForm}
               className="food-add-form"
               onSubmit={(event) => submitForm(event, post, 'food-add')}
             >
@@ -243,35 +252,60 @@ export function FoodStorageView({
                           <Plus size={14} />
                         </button>
                       </div>
-                      <button
+                      <ConfirmAction
                         className="row-remove"
-                        onClick={() => {
-                          if (window.confirm(`${t('remove')}?`))
-                            void post({ type: 'food-remove', id: food.id });
-                        }}
-                        aria-label={t('remove')}
+                        label={t('remove')}
+                        title={t('removeFoodTitle')}
+                        description={t('removeFoodWarning', {
+                          name: food.name,
+                        })}
+                        confirmLabel={t('remove')}
+                        cancelLabel={t('cancel')}
+                        onConfirm={() =>
+                          post({ type: 'food-remove', id: food.id })
+                        }
                       >
                         <Trash2 size={15} />
-                      </button>
+                      </ConfirmAction>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <Empty>{t('emptyStorage')}</Empty>
+              <Empty
+                action={
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      foodForm.current
+                        ?.querySelector<HTMLInputElement>('[name="name"]')
+                        ?.focus()
+                    }
+                  >
+                    <Plus size={15} />
+                    {t('addFood')}
+                  </button>
+                }
+              >
+                {t('emptyStorage')}
+              </Empty>
             )}
           </article>
         </>
       ) : scope === 'recipes' ? (
         <>
-          <div className="course-tabs" aria-label={t('recipeSections')}>
+          <fieldset className="course-tabs">
+            <legend className="sr-only">{t('recipeSections')}</legend>
             {recipeCourses.map((course) => {
               const count = data.recipes.filter(
                 (recipe) => recipe.course === course,
               ).length;
               return (
                 <button
+                  type="button"
                   className={recipeCourse === course ? 'selected' : ''}
+                  aria-pressed={recipeCourse === course}
                   onClick={() => setRecipeCourse(course)}
                   key={course}
                 >
@@ -280,7 +314,7 @@ export function FoodStorageView({
                 </button>
               );
             })}
-          </div>
+          </fieldset>
           <RecipeBuilder
             foods={data.foods}
             course={recipeCourse}
@@ -310,18 +344,23 @@ export function FoodStorageView({
                             {t('recipeBy', { name: recipe.createdByName })}
                           </span>
                         </div>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`${t('remove')}?`))
-                              void post({
-                                type: 'recipe-remove',
-                                id: recipe.id,
-                              });
-                          }}
-                          aria-label={t('remove')}
+                        <ConfirmAction
+                          label={t('remove')}
+                          title={t('removeRecipeTitle')}
+                          description={t('removeRecipeWarning', {
+                            name: recipe.name,
+                          })}
+                          confirmLabel={t('remove')}
+                          cancelLabel={t('cancel')}
+                          onConfirm={() =>
+                            post({
+                              type: 'recipe-remove',
+                              id: recipe.id,
+                            })
+                          }
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </ConfirmAction>
                       </header>
                       <div
                         className={`recipe-status ${ready ? 'ready' : 'missing'}`}

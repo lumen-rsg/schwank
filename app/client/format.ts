@@ -8,6 +8,13 @@ export function money(value: number, language: Language) {
   }).format(value);
 }
 
+export function percentage(value: number, language: Language) {
+  return new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US', {
+    style: 'percent',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 export function formatMoneyDate(value: string, language: Language) {
   const date = new Date(`${value}T00:00:00Z`);
   return new Intl.DateTimeFormat(language === 'ru' ? 'ru-RU' : 'en-US', {

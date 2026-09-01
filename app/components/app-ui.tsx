@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { Languages, Lock, Users } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import type { Language } from '../i18n';
 import type { T, Visibility } from '../features/types';
 export function Avatar({
@@ -62,8 +62,77 @@ export function PrivacyBadge({
     </span>
   );
 }
-export function Empty({ children }: { children: string }) {
-  return <div className="empty-state">{children}</div>;
+export function Empty({
+  children,
+  action,
+}: {
+  children: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <p>{children}</p>
+      {action}
+    </div>
+  );
+}
+export function ConfirmAction({
+  label,
+  title,
+  description,
+  confirmLabel,
+  cancelLabel,
+  className,
+  children,
+  onConfirm,
+}: {
+  label: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  className?: string;
+  children: ReactNode;
+  onConfirm: () => unknown;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className={className}
+        aria-label={label}
+        aria-haspopup="dialog"
+        onClick={() => dialog.current?.showModal()}
+      >
+        {children}
+      </button>
+      <dialog
+        ref={dialog}
+        className="confirm-dialog"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        onClose={() => trigger.current?.focus()}
+      >
+        <h2 id={titleId}>{title}</h2>
+        <p id={descriptionId}>{description}</p>
+        <form method="dialog">
+          <button className="secondary-button">{cancelLabel}</button>
+          <button
+            className="danger-button"
+            value="confirm"
+            onClick={() => void onConfirm()}
+          >
+            {confirmLabel}
+          </button>
+        </form>
+      </dialog>
+    </>
+  );
 }
 export function PageTitle({
   eyebrow,
@@ -80,7 +149,7 @@ export function PageTitle({
     <div className="welcome">
       <div>
         <span className="eyebrow">{eyebrow}</span>
-        <h1>
+        <h1 tabIndex={-1}>
           {title} <span>✦</span>
         </h1>
         <p>{copy}</p>

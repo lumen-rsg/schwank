@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   CalendarClock,
   Check,
@@ -12,7 +12,7 @@ import {
   Plus,
   WalletCards,
 } from 'lucide-react';
-import { formatMoneyDate, money } from '../../client/format';
+import { formatMoneyDate, money, percentage } from '../../client/format';
 import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import {
@@ -90,6 +90,7 @@ export function SpendingView({
 }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [expenseSort, setExpenseSort] = useState('newest');
+  const expenseForm = useRef<HTMLFormElement>(null);
   const categories = useMemo(() => {
     const totals = data.expenses.reduce<Record<string, number>>((all, item) => {
       const category = normalizedExpenseCategory(item.category);
@@ -164,15 +165,31 @@ export function SpendingView({
           <div className="spending-wheel-layout">
             {categories.length ? (
               <>
-                <div
+                <figure
                   className="spending-wheel"
                   style={{ background: wheelBackground }}
                 >
-                  <span>
+                  <span aria-hidden="true">
                     <b>{data.expenses.length}</b>
                     {t('entries')}
                   </span>
-                </div>
+                  <figcaption className="sr-only">
+                    {t('spendingBreakdown')}
+                    <ul>
+                      {categories.map((category) => (
+                        <li key={category.category}>
+                          {category.label}: {money(category.value, language)},{' '}
+                          {t('percentOfSpending', {
+                            percent: percentage(
+                              category.value / total,
+                              language,
+                            ),
+                          })}
+                        </li>
+                      ))}
+                    </ul>
+                  </figcaption>
+                </figure>
                 <div className="spending-wheel-legend">
                   {categories.map((category) => (
                     <button
@@ -180,6 +197,7 @@ export function SpendingView({
                       className={
                         categoryFilter === category.category ? 'active' : ''
                       }
+                      aria-pressed={categoryFilter === category.category}
                       onClick={() =>
                         setCategoryFilter((current) =>
                           current === category.category
@@ -191,13 +209,35 @@ export function SpendingView({
                     >
                       <i style={{ backgroundColor: category.color }} />
                       <span>{category.label}</span>
-                      <b>{money(category.value, language)}</b>
+                      <span className="spending-wheel-value">
+                        <b>{money(category.value, language)}</b>
+                        <small>
+                          {percentage(category.value / total, language)}
+                        </small>
+                      </span>
                     </button>
                   ))}
                 </div>
               </>
             ) : (
-              <Empty>{t('noExpenses')}</Empty>
+              <Empty
+                action={
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      expenseForm.current
+                        ?.querySelector<HTMLInputElement>('[name="label"]')
+                        ?.focus()
+                    }
+                  >
+                    <Plus size={15} />
+                    {t('addFirstExpense')}
+                  </button>
+                }
+              >
+                {t('noExpenses')}
+              </Empty>
             )}
           </div>
         </article>
@@ -205,6 +245,7 @@ export function SpendingView({
           <h2>{t('addExpense')}</h2>
           <p>{t('expenseHint')}</p>
           <form
+            ref={expenseForm}
             className="form-grid"
             onSubmit={(event) => submitForm(event, post, 'expense')}
           >
@@ -462,7 +503,34 @@ export function SpendingView({
               </div>
             ))
           ) : (
-            <Empty>{t('noExpenses')}</Empty>
+            <Empty
+              action={
+                categoryFilter !== 'all' ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setCategoryFilter('all')}
+                  >
+                    {t('clearFilters')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      expenseForm.current
+                        ?.querySelector<HTMLInputElement>('[name="label"]')
+                        ?.focus()
+                    }
+                  >
+                    <Plus size={15} />
+                    {t('addFirstExpense')}
+                  </button>
+                )
+              }
+            >
+              {t('noExpenses')}
+            </Empty>
           )}
         </div>
       </article>

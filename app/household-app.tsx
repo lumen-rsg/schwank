@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Bell,
@@ -73,6 +73,9 @@ export default function HouseholdApp({
     'overview',
   );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previousSection = useRef(active);
+  const notificationTrigger = useRef<HTMLButtonElement>(null);
   const {
     data,
     enableNotifications,
@@ -95,6 +98,24 @@ export default function HouseholdApp({
     ? Math.round((completed / data.tasks.length) * 100)
     : 0;
   const common = { data, t, language, post };
+  useEffect(() => {
+    if (previousSection.current === active) return;
+    previousSection.current = active;
+    const frame = requestAnimationFrame(() =>
+      contentRef.current?.querySelector<HTMLElement>('h1')?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setNotificationsOpen(false);
+      notificationTrigger.current?.focus();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [notificationsOpen]);
   const view =
     active === 'overview' ? (
       <Overview
@@ -140,7 +161,7 @@ export default function HouseholdApp({
             <span>{t('sharedSpace')}</span>
           </div>
         </div>
-        <nav className="side-nav" aria-label="Main navigation">
+        <nav className="side-nav" aria-label={t('mainNavigation')}>
           {navigation.map((item) => {
             const Icon = item.icon;
             const count =
@@ -158,6 +179,8 @@ export default function HouseholdApp({
                 type="button"
                 onClick={() => setActive(item.id)}
                 className={active === item.id ? 'nav-item active' : 'nav-item'}
+                aria-label={t(item.key)}
+                aria-current={active === item.id ? 'page' : undefined}
                 key={item.id}
               >
                 <Icon size={18} />
@@ -225,9 +248,11 @@ export default function HouseholdApp({
             <LanguageSwitch language={language} setLanguage={setLanguage} />
             <div className="notification-menu">
               <button
+                ref={notificationTrigger}
                 className="icon-button notification-button"
                 aria-label={t('notifications')}
                 aria-expanded={notificationsOpen}
+                aria-controls="notification-panel"
                 onClick={() => setNotificationsOpen((open) => !open)}
               >
                 {notifications.length ? (
@@ -240,7 +265,11 @@ export default function HouseholdApp({
                 )}
               </button>
               {notificationsOpen && (
-                <section className="notification-popover">
+                <section
+                  id="notification-panel"
+                  className="notification-popover"
+                  aria-label={t('notifications')}
+                >
                   <header>
                     <div>
                       <strong>{t('notifications')}</strong>
@@ -291,7 +320,11 @@ export default function HouseholdApp({
             >
               <Plus size={19} />
             </button>
-            <button className="person-picker" onClick={() => setActive('home')}>
+            <button
+              className="person-picker"
+              aria-label={t('homeSettings')}
+              onClick={() => setActive('home')}
+            >
               <Avatar person={user} small />
               <span>{user.name}</span>
             </button>
@@ -307,7 +340,7 @@ export default function HouseholdApp({
             {notice.message}
           </output>
         )}
-        <div className="content">
+        <div className="content" ref={contentRef}>
           {loading ? (
             <div className="loading-state">
               <LoaderCircle className="spin" />

@@ -66,7 +66,10 @@ export function Overview({
               <Flame size={19} />
             </span>
             <span>{t('todayNutrition')}</span>
-            <button onClick={() => setActive('nutrition')}>
+            <button
+              aria-label={t('nutrition')}
+              onClick={() => setActive('nutrition')}
+            >
               <ArrowRight size={17} />
             </button>
           </div>
@@ -116,7 +119,10 @@ export function Overview({
               <CircleDollarSign size={19} />
             </span>
             <span>{t('visibleSpending')}</span>
-            <button onClick={() => setActive('spending')}>
+            <button
+              aria-label={t('spending')}
+              onClick={() => setActive('spending')}
+            >
               <ArrowRight size={17} />
             </button>
           </div>
@@ -137,7 +143,7 @@ export function Overview({
               <CheckCircle2 size={19} />
             </span>
             <span>{t('taskProgress')}</span>
-            <button onClick={() => setActive('tasks')}>
+            <button aria-label={t('tasks')} onClick={() => setActive('tasks')}>
               <ArrowRight size={17} />
             </button>
           </div>

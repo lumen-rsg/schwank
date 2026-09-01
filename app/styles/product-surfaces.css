@@ -61,6 +61,9 @@ input[type='submit']:disabled {
   display: flex;
   gap: 8px;
   margin: -10px 0 18px;
+  min-inline-size: 0;
+  padding-inline: 0;
+  border: 0;
   overflow: auto;
   padding-bottom: 2px;
 }
@@ -374,6 +377,7 @@ input[type='submit']:disabled {
 }
 .spending-wheel {
   position: relative;
+  margin: 0;
   width: 178px;
   aspect-ratio: 1;
   display: grid;
@@ -436,9 +440,18 @@ input[type='submit']:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.spending-wheel-value {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+}
 .spending-wheel-legend b {
   color: #4c4f48;
   font-size: 9px;
+}
+.spending-wheel-legend small {
+  color: #8b8d85;
+  font-size: 8px;
 }
 .recurring-panel {
   margin-top: 18px;

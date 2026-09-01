@@ -29,6 +29,11 @@
 .storage-tabs {
   margin-top: 0;
 }
+.course-tabs {
+  min-inline-size: 0;
+  padding-inline: 0;
+  border: 0;
+}
 .storage-tabs button {
   padding-left: 11px;
 }

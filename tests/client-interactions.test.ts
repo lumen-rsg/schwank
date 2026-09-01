@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { serializeFormData } from '../app/client/forms';
+import { percentage } from '../app/client/format';
 import { mutationKey } from '../app/client/mutations';
 import { resolvePersistedSection } from '../app/client/use-persisted-section';
 
@@ -34,4 +35,9 @@ void test('restores a valid section and falls back from stale navigation state',
     resolvePersistedSection(sections, '', 'removed-feature', 'overview'),
     'overview',
   );
+});
+
+void test('formats chart percentages in the active language', () => {
+  assert.equal(percentage(0.125, 'en'), '12.5%');
+  assert.match(percentage(0.125, 'ru'), /^12,5\s?%$/);
 });

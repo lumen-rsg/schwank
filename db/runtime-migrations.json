@@ -1,0 +1,140 @@
+[
+  {
+    "id": "0000_magenta_rachel_grey",
+    "hash": "35091ee6187f0a83484bc04a5a8a27fe25f37324ad24223360a41e8e64ac6af3",
+    "statements": [
+      "CREATE TABLE `expenses` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`label` text NOT NULL,\n\t`amount` real NOT NULL,\n\t`category` text NOT NULL,\n\t`paid_by` text NOT NULL,\n\t`spent_on` text NOT NULL\n);",
+      "CREATE TABLE `members` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`initials` text NOT NULL,\n\t`color` text NOT NULL,\n\t`calorie_goal` integer DEFAULT 2200 NOT NULL,\n\t`protein_goal` integer DEFAULT 140 NOT NULL,\n\t`carb_goal` integer DEFAULT 250 NOT NULL,\n\t`fat_goal` integer DEFAULT 70 NOT NULL\n);",
+      "CREATE TABLE `messages` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`member_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE TABLE `nutrition_entries` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`member_id` text NOT NULL,\n\t`label` text NOT NULL,\n\t`calories` integer NOT NULL,\n\t`protein` integer NOT NULL,\n\t`carbs` integer NOT NULL,\n\t`fat` integer NOT NULL,\n\t`eaten_on` text NOT NULL\n);",
+      "CREATE TABLE `organiser_items` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`list` text NOT NULL,\n\t`label` text NOT NULL,\n\t`done` integer DEFAULT false NOT NULL\n);",
+      "CREATE TABLE `tasks` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`title` text NOT NULL,\n\t`status` text DEFAULT 'todo' NOT NULL,\n\t`assignee_id` text NOT NULL,\n\t`tag` text DEFAULT 'Home' NOT NULL,\n\t`due` text DEFAULT 'This week' NOT NULL\n);"
+    ]
+  },
+  {
+    "id": "0001_short_rocket_racer",
+    "hash": "b2e56298089dff515451c81ad48ac7cc929b3f7e9cd4afc0b32270c8435a8999",
+    "statements": [
+      "CREATE INDEX `idx_expenses_date` ON `expenses` (`spent_on`);",
+      "CREATE INDEX `idx_messages_created` ON `messages` (`created_at`);",
+      "CREATE INDEX `idx_nutrition_member_date` ON `nutrition_entries` (`member_id`,`eaten_on`);",
+      "CREATE INDEX `idx_tasks_status` ON `tasks` (`status`);"
+    ]
+  },
+  {
+    "id": "0002_lazy_blur",
+    "hash": "2fd2ba57d0c9c53604a110fa7d42c63e12ce65144b1c81d75f7aae35ea7ff298",
+    "statements": [
+      "CREATE TABLE `food_items` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`name` text NOT NULL,\n\t`normalized_name` text NOT NULL,\n\t`quantity` real DEFAULT 0 NOT NULL,\n\t`unit` text NOT NULL,\n\t`category` text DEFAULT 'Other' NOT NULL,\n\t`expires_on` text,\n\t`updated_by` integer NOT NULL,\n\t`updated_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_food_normalized_name` ON `food_items` (`normalized_name`);",
+      "CREATE INDEX `idx_food_expiry` ON `food_items` (`expires_on`);",
+      "CREATE TABLE `habit_entries` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`habit` text NOT NULL,\n\t`occurrences` integer DEFAULT 1 NOT NULL,\n\t`cost` real DEFAULT 0 NOT NULL,\n\t`occurred_on` text NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_habits_date` ON `habit_entries` (`occurred_on`);",
+      "CREATE INDEX `idx_habits_user_date` ON `habit_entries` (`user_id`,`occurred_on`);",
+      "CREATE TABLE `household_settings` (\n\t`id` integer PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`address` text DEFAULT '' NOT NULL,\n\t`photo_data` text,\n\t`updated_at` text NOT NULL,\n\t`updated_by` integer\n);",
+      "CREATE TABLE `recipe_ingredients` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`recipe_id` integer NOT NULL,\n\t`name` text NOT NULL,\n\t`normalized_name` text NOT NULL,\n\t`quantity` real NOT NULL,\n\t`unit` text NOT NULL\n);",
+      "CREATE INDEX `idx_recipe_ingredients_recipe` ON `recipe_ingredients` (`recipe_id`);",
+      "CREATE INDEX `idx_recipe_ingredients_name` ON `recipe_ingredients` (`normalized_name`);",
+      "CREATE TABLE `recipes` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`name` text NOT NULL,\n\t`servings` integer DEFAULT 1 NOT NULL,\n\t`instructions` text DEFAULT '' NOT NULL,\n\t`created_by` integer NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_recipes_created` ON `recipes` (`created_at`);",
+      "CREATE TABLE `sessions` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`expires_at` text NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idx_sessions_token` ON `sessions` (`token_hash`);",
+      "CREATE INDEX `idx_sessions_user` ON `sessions` (`user_id`);",
+      "CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`email` text NOT NULL,\n\t`display_name` text NOT NULL,\n\t`initials` text NOT NULL,\n\t`color` text NOT NULL,\n\t`avatar_data` text,\n\t`password_hash` text NOT NULL,\n\t`password_salt` text NOT NULL,\n\t`calorie_goal` integer DEFAULT 2200 NOT NULL,\n\t`protein_goal` integer DEFAULT 140 NOT NULL,\n\t`carb_goal` integer DEFAULT 250 NOT NULL,\n\t`fat_goal` integer DEFAULT 70 NOT NULL,\n\t`water_goal` integer DEFAULT 2000 NOT NULL,\n\t`maintenance_calories` integer,\n\t`height_cm` real,\n\t`weight_kg` real,\n\t`age` integer,\n\t`sex` text,\n\t`activity` text,\n\t`nutrition_plan` text,\n\t`diet` text,\n\t`created_at` text NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idx_users_email` ON `users` (`email`);",
+      "CREATE TABLE `water_entries` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`amount_ml` integer NOT NULL,\n\t`drunk_on` text NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_water_user_date` ON `water_entries` (`user_id`,`drunk_on`);",
+      "DROP TABLE `members`;",
+      "DROP INDEX `idx_expenses_date`;",
+      "ALTER TABLE `expenses` ADD `user_id` integer;",
+      "ALTER TABLE `expenses` ADD `visibility` text DEFAULT 'private' NOT NULL;",
+      "CREATE INDEX `idx_expenses_user_visibility_date` ON `expenses` (`user_id`,`visibility`,`spent_on`);",
+      "DROP INDEX `idx_nutrition_member_date`;",
+      "ALTER TABLE `nutrition_entries` ADD `user_id` integer;",
+      "ALTER TABLE `nutrition_entries` ADD `visibility` text DEFAULT 'private' NOT NULL;",
+      "CREATE INDEX `idx_nutrition_user_date` ON `nutrition_entries` (`user_id`,`eaten_on`);",
+      "CREATE INDEX `idx_nutrition_visibility_date` ON `nutrition_entries` (`visibility`,`eaten_on`);",
+      "DROP INDEX `idx_tasks_status`;",
+      "ALTER TABLE `tasks` ADD `user_id` integer;",
+      "ALTER TABLE `tasks` ADD `visibility` text DEFAULT 'private' NOT NULL;",
+      "CREATE INDEX `idx_tasks_user_visibility_status` ON `tasks` (`user_id`,`visibility`,`status`);",
+      "ALTER TABLE `messages` ADD `user_id` integer;",
+      "ALTER TABLE `organiser_items` ADD `user_id` integer;",
+      "ALTER TABLE `organiser_items` ADD `visibility` text DEFAULT 'private' NOT NULL;",
+      "CREATE INDEX `idx_organisers_user_visibility` ON `organiser_items` (`user_id`,`visibility`);"
+    ]
+  },
+  {
+    "id": "0003_luxuriant_blink",
+    "hash": "acb6523f47ebed7c057cd1a2eb43c178cba781e0944e64f88fc99b4ce3bdc965",
+    "statements": [
+      "CREATE TABLE `weekly_meal_plan` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`week_start` text NOT NULL,\n\t`day_index` integer NOT NULL,\n\t`course` text NOT NULL,\n\t`recipe_id` integer NOT NULL,\n\t`servings` integer DEFAULT 3 NOT NULL,\n\t`created_by` integer NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_weekly_meal_plan_week` ON `weekly_meal_plan` (`week_start`,`day_index`);",
+      "CREATE INDEX `idx_weekly_meal_plan_recipe` ON `weekly_meal_plan` (`recipe_id`);",
+      "ALTER TABLE `recipes` ADD `course` text DEFAULT 'main' NOT NULL;"
+    ]
+  },
+  {
+    "id": "0004_grey_franklin_storm",
+    "hash": "ae7290692f05625cb5596836a048722a5661b408605762261a16581b666329c8",
+    "statements": [
+      "ALTER TABLE `users` ADD `ai_consent` integer DEFAULT false NOT NULL;"
+    ]
+  },
+  {
+    "id": "0005_quick_mad_thinker",
+    "hash": "f8a8ed2585e422ad4088edf78424a80026bc765fa46855b770f567fc79ad906c",
+    "statements": [
+      "CREATE TABLE `recurring_payments` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`visibility` text DEFAULT 'private' NOT NULL,\n\t`kind` text NOT NULL,\n\t`label` text NOT NULL,\n\t`amount` real NOT NULL,\n\t`billing_cycle` text DEFAULT 'monthly' NOT NULL,\n\t`next_due_on` text NOT NULL,\n\t`remaining_amount` real,\n\t`active` integer DEFAULT true NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_recurring_payments_user_visibility_due` ON `recurring_payments` (`user_id`,`visibility`,`next_due_on`);"
+    ]
+  },
+  {
+    "id": "0006_long_network",
+    "hash": "eb8996a47ab69400d16f28e2b5e1ffeff8ac123e8b2368d8aee8d96a5198a5c5",
+    "statements": [
+      "CREATE TABLE `medication_doses` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`medication_id` integer NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`scheduled_for` text NOT NULL,\n\t`taken_at` text NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idx_medication_doses_unique` ON `medication_doses` (`medication_id`,`user_id`,`scheduled_for`);",
+      "CREATE INDEX `idx_medication_doses_user_date` ON `medication_doses` (`user_id`,`scheduled_for`);",
+      "CREATE TABLE `medications` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`visibility` text DEFAULT 'private' NOT NULL,\n\t`name` text NOT NULL,\n\t`dosage` text NOT NULL,\n\t`instructions` text DEFAULT '' NOT NULL,\n\t`schedule_times` text NOT NULL,\n\t`start_on` text NOT NULL,\n\t`end_on` text,\n\t`active` integer DEFAULT true NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_medications_user_visibility_active` ON `medications` (`user_id`,`visibility`,`active`);",
+      "CREATE TABLE `reminders` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`visibility` text DEFAULT 'private' NOT NULL,\n\t`label` text NOT NULL,\n\t`remind_at` text NOT NULL,\n\t`done` integer DEFAULT false NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_reminders_user_visibility_due` ON `reminders` (`user_id`,`visibility`,`remind_at`);",
+      "ALTER TABLE `tasks` ADD `due_on` text;"
+    ]
+  },
+  {
+    "id": "0007_dapper_slyde",
+    "hash": "051bad79a8bf103c3a3b0a3416b577854ee443db33661626210974695b979aa3",
+    "statements": [
+      "CREATE TABLE `purchase_ideas` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`title` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`estimated_cost` real,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`created_at` text NOT NULL\n);",
+      "CREATE INDEX `idx_purchase_ideas_status_created` ON `purchase_ideas` (`status`,`created_at`);",
+      "CREATE TABLE `purchase_votes` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`idea_id` integer NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`vote` integer NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idx_purchase_votes_idea_user` ON `purchase_votes` (`idea_id`,`user_id`);",
+      "CREATE INDEX `idx_purchase_votes_idea` ON `purchase_votes` (`idea_id`);"
+    ]
+  },
+  {
+    "id": "0008_complete_zeigeist",
+    "hash": "af56b3604977c53f1065ef37ba633dd8cf2467fdaf973b967215ee2b126feebd",
+    "statements": [
+      "ALTER TABLE `household_settings` ADD `registration_open` integer DEFAULT false NOT NULL;",
+      "ALTER TABLE `household_settings` ADD `invite_code_hash` text;",
+      "ALTER TABLE `household_settings` ADD `invite_expires_at` text;",
+      "ALTER TABLE `users` ADD `role` text DEFAULT 'member' NOT NULL;"
+    ]
+  },
+  {
+    "id": "0009_curly_hellcat",
+    "hash": "4c3b89cb9e37d76ef6a033b8680baf853686efe9d4ff43356d620a57021c6a1f",
+    "statements": [
+      "CREATE TABLE `auth_rate_limits` (\n\t`bucket_hash` text PRIMARY KEY NOT NULL,\n\t`scope` text NOT NULL,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`window_started_at` text NOT NULL,\n\t`blocked_until` text\n);",
+      "ALTER TABLE `sessions` ADD `user_agent` text DEFAULT '' NOT NULL;"
+    ]
+  },
+  {
+    "id": "0010_narrow_nico_minoru",
+    "hash": "e7585a3f5204efcad464cd17209de2faa6e328046e546909c4f38e81e0abc598",
+    "statements": ["ALTER TABLE `users` ADD `deleted_at` text;"]
+  }
+]

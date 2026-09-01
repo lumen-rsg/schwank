@@ -1,0 +1,360 @@
+/* Medication tracking, reminders, and unified notifications */
+.notification-menu {
+  position: relative;
+}
+.notification-button {
+  position: relative;
+}
+.notification-button > em {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fbfaf6;
+  border-radius: 99px;
+  background: var(--orange);
+  color: white;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 750;
+}
+.notification-popover {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(520px, calc(100vh - 92px));
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fffdf9;
+  box-shadow: 0 18px 50px #302a2030;
+  z-index: 20;
+}
+.notification-popover > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 10px;
+}
+.notification-popover > header div {
+  display: grid;
+  gap: 2px;
+}
+.notification-popover > header strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+.notification-popover > header span,
+.notification-popover > p {
+  color: #85877f;
+  font-size: 8px;
+}
+.notification-popover > header button {
+  border: 0;
+  border-radius: 8px;
+  background: #f4e9e2;
+  color: #bd5b3c;
+  padding: 7px 9px;
+  font-size: 8px;
+  font-weight: 700;
+}
+.notification-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 4px;
+  border: 0;
+  border-top: 1px solid #ece8df;
+  background: transparent;
+  text-align: left;
+  color: #777b73;
+}
+.notification-item > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #f7e9e1;
+  color: #d2603d;
+}
+.notification-item > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.notification-item strong,
+.notification-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notification-item strong {
+  color: #41443e;
+  font-size: 9px;
+}
+.notification-item small {
+  color: #82857e;
+  font-size: 8px;
+}
+.notification-popover > p {
+  margin: 8px 2px 0;
+  line-height: 1.45;
+}
+.violet {
+  background: #eee8f5;
+  color: #7c65a0;
+}
+.medication-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.medication-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+}
+.medication-summary > div {
+  display: grid;
+  gap: 2px;
+}
+.medication-summary strong {
+  color: #3e423c;
+  font-size: 20px;
+}
+.medication-summary div span {
+  color: #858880;
+  font-size: 9px;
+}
+.medication-entry-panel {
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.medication-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  margin-top: 14px;
+}
+.medication-form .form-field:first-child {
+  grid-column: auto;
+}
+.medication-instructions {
+  grid-column: 1 / -2;
+}
+.form-field textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  border: 1px solid #ddd9d0;
+  border-radius: 9px;
+  outline: 0;
+  background: #fbfaf6;
+  color: #393b37;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 10px;
+}
+.form-field textarea:focus {
+  border-color: #e66c48;
+  box-shadow: 0 0 0 3px #eb6a4312;
+}
+.medication-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.medication-card {
+  padding: 17px;
+}
+.medication-card.paused {
+  opacity: 0.62;
+}
+.medication-card > header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.medication-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #eee8f5;
+  color: #7b63a1;
+}
+.medication-card header > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.medication-card header strong {
+  color: #3f423c;
+  font-size: 12px;
+}
+.medication-card header span,
+.medication-card > small,
+.medication-dates {
+  color: #858880;
+  font-size: 8px;
+}
+.medication-card > p {
+  margin: 14px 0 10px;
+  color: #666b63;
+  font-size: 9px;
+  line-height: 1.55;
+}
+.medication-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0;
+}
+.dose-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.dose-list > div {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #f4f1eb;
+}
+.dose-list > div.taken {
+  background: #eaf1e7;
+}
+.dose-list span,
+.dose-list b,
+.dose-list button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8px;
+}
+.dose-list b {
+  color: #70856b;
+}
+.dose-list button {
+  border: 0;
+  border-radius: 7px;
+  background: #fffdf9;
+  color: #c1593a;
+  padding: 6px 8px;
+  font-weight: 700;
+}
+.medication-card > footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.medical-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 3px 0;
+  color: #898b84;
+  font-size: 8px;
+}
+.reminder-panel {
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.reminder-panel .quick-form {
+  grid-template-columns: 2fr 1.4fr 1fr auto;
+  margin: 14px 0;
+}
+.reminder-list {
+  display: grid;
+  gap: 6px;
+}
+.reminder-list > div {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border-top: 1px solid #eeeae2;
+}
+.reminder-list > div.complete {
+  opacity: 0.55;
+}
+.reminder-list > div > button,
+.reminder-list .readonly-item {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: transparent;
+  color: #4a4e47;
+  text-align: left;
+}
+.reminder-list i {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d8d4cb;
+  border-radius: 6px;
+}
+.reminder-list button > span,
+.reminder-list .readonly-item > span {
+  display: grid;
+  gap: 2px;
+}
+.reminder-list strong {
+  font-size: 9px;
+}
+.reminder-list small {
+  color: #868981;
+  font-size: 8px;
+}
+@media (max-width: 900px) {
+  .medication-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .medication-instructions {
+    grid-column: 1 / -1;
+  }
+  .reminder-panel .quick-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 680px) {
+  .medication-summary-grid,
+  .medication-card-grid,
+  .medication-form,
+  .reminder-panel .quick-form {
+    grid-template-columns: 1fr;
+  }
+  .medication-instructions {
+    grid-column: auto;
+  }
+  .notification-popover {
+    position: fixed;
+    top: 62px;
+    right: 14px;
+  }
+}

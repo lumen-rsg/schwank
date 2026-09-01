@@ -10,9 +10,9 @@ Electron does not run on iOS or Android. A future mobile client can reuse the sa
 
 ## Data layer
 
-All household records are stored in a durable local D1/SQLite database through `db/data.ts`. The browser only keeps temporary interface state; accounts, sessions, food batches, recipes, meals, water, habit activity, tasks, expenses, recurring payments, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
+All household records are stored in a durable local D1/SQLite database behind the stable `db/data.ts` facade. Reads, household mutations, food-planning mutations, and input validation live in separate repository/service modules. The browser only keeps temporary interface state; accounts, sessions, food batches, recipes, meals, water, habit activity, tasks, expenses, recurring payments, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
 
-The schema lives in `db/schema.ts`, generated migrations live in `drizzle/`, and the API is exposed at `/api/schwank`.
+The schema lives in `db/schema.ts` and the checked-in SQL history in `drizzle/` is the single migration source of truth. `npm run db:generate` refreshes both that history and the Worker-compatible `db/runtime-migrations.json` bundle. Builds reject stale bundles. Fresh databases replay the versioned SQL; databases from before the runner are baselined once without replaying destructive historical statements. The API is exposed at `/api/schwank`.
 
 ## Accounts and privacy
 

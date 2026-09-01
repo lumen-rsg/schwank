@@ -1,0 +1,46 @@
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --background: #f7f5f0;
+  --foreground: #282a26;
+  --card: #fffdf9;
+  --card-foreground: #282a26;
+  --primary: #e8653f;
+  --primary-foreground: #fffaf5;
+  --muted: #eeece5;
+  --muted-foreground: #797b73;
+  --border: #e5e1d8;
+  --radius: 1rem;
+  --sidebar: #232822;
+  --sage: #71806b;
+  --orange: #eb6a43;
+  --ink: #282a26;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}

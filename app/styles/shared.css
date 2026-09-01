@@ -1,0 +1,483 @@
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1.12fr 0.95fr 0.95fr;
+  gap: 16px;
+}
+.stat-card,
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 8px 30px #453c2f0a;
+}
+.stat-card {
+  min-height: 220px;
+  padding: 18px;
+}
+.stat-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  font-weight: 650;
+}
+.stat-heading button {
+  border: 0;
+  background: transparent;
+  color: #999b95;
+  padding: 4px;
+}
+.tinted-icon {
+  width: 31px;
+  height: 31px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+}
+.orange {
+  background: #fceedf;
+  color: #df6640;
+}
+.green {
+  background: #e9efe6;
+  color: #667c61;
+}
+.blue {
+  background: #e8eff3;
+  color: #567994;
+}
+.peach {
+  background: #fae9df;
+  color: #df6b45;
+}
+.nutrition-body {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  align-items: center;
+  gap: 16px;
+  margin-top: 17px;
+}
+.calorie-ring {
+  width: 106px;
+  height: 106px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--orange) 0 64%, #eeeae2 64%);
+  position: relative;
+}
+.calorie-ring:before {
+  content: '';
+  width: 79px;
+  height: 79px;
+  border-radius: 50%;
+  position: absolute;
+  background: var(--card);
+}
+.calorie-ring span {
+  z-index: 1;
+  text-align: center;
+  display: grid;
+}
+.calorie-ring strong {
+  font-size: 19px;
+  letter-spacing: -0.04em;
+}
+.calorie-ring small {
+  font-size: 8px;
+  color: #8c8c84;
+  margin-top: 2px;
+}
+.macro-list {
+  display: grid;
+  gap: 10px;
+}
+.macro-list div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  font-size: 8px;
+  color: #777a73;
+}
+.macro-list b {
+  color: #585b55;
+  font-weight: 650;
+}
+.macro-list progress {
+  grid-column: 1/-1;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: 99px;
+  overflow: hidden;
+  accent-color: var(--orange);
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.protein {
+  background: #e56d46;
+}
+.carbs {
+  background: #6e997f;
+}
+.fats {
+  background: #d3a74e;
+}
+.text-button,
+.link-button {
+  border: 0;
+  background: transparent;
+  color: #db623d;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 650;
+  font-size: 10px;
+  padding: 0;
+}
+.text-button {
+  margin-top: 13px;
+}
+.spend-total {
+  display: grid;
+  gap: 3px;
+  margin-top: 23px;
+}
+.spend-total strong {
+  font-size: 27px;
+  letter-spacing: -0.04em;
+}
+.spend-total span {
+  font-size: 9px;
+  color: #8d8f88;
+}
+.spend-total b {
+  color: #638064;
+}
+.mini-chart {
+  height: 63px;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  margin: 12px 0 10px;
+  border-bottom: 1px solid #ebe8e0;
+}
+.mini-chart i {
+  flex: 1;
+  background: #b9c7b5;
+  border-radius: 3px 3px 0 0;
+}
+.mini-chart i:nth-child(6),
+.mini-chart i:nth-child(8) {
+  background: #667c61;
+}
+.spend-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: #8c8e87;
+}
+.spend-footer b {
+  color: #545750;
+}
+.progress-number {
+  display: grid;
+  margin-top: 25px;
+}
+.progress-number strong {
+  font-size: 34px;
+  letter-spacing: -0.05em;
+}
+.progress-number span {
+  color: #898b84;
+  font-size: 9px;
+  margin-top: 2px;
+}
+.big-progress {
+  height: 7px;
+  border-radius: 9px;
+  background: #e8e7e0;
+  margin: 19px 0 15px;
+  overflow: hidden;
+}
+.big-progress i {
+  display: block;
+  width: 68%;
+  height: 100%;
+  background: #627d93;
+  border-radius: inherit;
+}
+.milestones {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #93958f;
+  font-size: 8px;
+}
+.milestones .done {
+  color: #607a64;
+}
+.lower-grid {
+  display: grid;
+  grid-template-columns: 1.55fr 0.85fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.panel {
+  padding: 19px;
+}
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.panel-heading h2 {
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  margin: 0 0 3px;
+}
+.panel-heading div > span {
+  display: block;
+  color: #90928a;
+  font-size: 8px;
+}
+.task-list {
+  margin-top: 14px;
+}
+.task-row {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid #eeeae2;
+}
+.check {
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid #c7c5bd;
+  border-radius: 50%;
+  background: transparent;
+}
+.task-copy {
+  display: grid;
+  gap: 3px;
+}
+.task-copy strong {
+  font-size: 10px;
+}
+.task-copy span {
+  font-size: 8px;
+  color: #92948d;
+}
+.task-tag {
+  border-radius: 99px;
+  padding: 4px 8px;
+  background: #f0eee8;
+  color: #73766f;
+  font-size: 8px;
+}
+.add-row {
+  width: 100%;
+  border: 1px dashed #d7d3ca;
+  border-radius: 9px;
+  background: transparent;
+  color: #797c74;
+  height: 35px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+}
+.add-row:hover {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.add-row.compact {
+  margin-top: 14px;
+}
+.right-stack {
+  display: grid;
+  gap: 16px;
+}
+.grocery-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 16px;
+}
+.grocery-list span {
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: #f1efe9;
+  color: #666961;
+  font-size: 9px;
+}
+.grocery-list .more-pill {
+  background: #fbe9df;
+  color: #d6613d;
+}
+.message-preview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  margin-top: 15px;
+}
+.message-preview strong {
+  font-size: 9px;
+}
+.message-preview time {
+  color: #999b94;
+  font-size: 7px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+.message-preview p {
+  margin: 3px 0 0;
+  color: #686b64;
+  line-height: 1.35;
+  font-size: 9px;
+}
+@media (max-width: 970px) {
+  .app-shell {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+  .sidebar {
+    padding: 23px 12px;
+  }
+  .brand {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .brand div,
+  .nav-item span,
+  .nav-item em,
+  .house-card,
+  .profile-row > span,
+  .profile-row > svg {
+    display: none;
+  }
+  .side-nav {
+    justify-items: center;
+  }
+  .nav-item {
+    width: 44px;
+    grid-template-columns: 1fr;
+    place-items: center;
+    padding: 0;
+  }
+  .profile-row {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .nutrition-card {
+    grid-column: 1/-1;
+  }
+  .lower-grid {
+    grid-template-columns: 1fr;
+  }
+  .right-stack {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 680px) {
+  .app-shell {
+    display: block;
+    padding-bottom: 68px;
+  }
+  .sidebar {
+    position: fixed;
+    inset: auto 0 0;
+    height: 64px;
+    width: 100%;
+    z-index: 20;
+    padding: 8px 10px;
+  }
+  .brand,
+  .house-card,
+  .profile-row {
+    display: none;
+  }
+  .side-nav {
+    height: 100%;
+    display: flex;
+    justify-content: space-around;
+    gap: 2px;
+  }
+  .nav-item {
+    width: 46px;
+    height: 46px;
+  }
+  .nav-item:nth-child(5) {
+    display: none;
+  }
+  .topbar {
+    height: 59px;
+    padding: 0 16px;
+  }
+  .mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    background: transparent;
+    font-weight: 750;
+    color: var(--ink);
+  }
+  .mobile-brand .brand-mark {
+    width: 29px;
+    height: 29px;
+  }
+  .search {
+    display: none;
+  }
+  .topbar-actions {
+    margin-left: auto;
+  }
+  .person-picker span,
+  .person-picker > svg {
+    display: none;
+  }
+  .content {
+    padding: 24px 16px 40px;
+  }
+  .welcome {
+    align-items: center;
+  }
+  .welcome p {
+    max-width: 250px;
+  }
+  .primary-button {
+    width: 39px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+  .stats-grid,
+  .lower-grid,
+  .right-stack {
+    grid-template-columns: 1fr;
+  }
+  .nutrition-card {
+    grid-column: auto;
+  }
+  .stat-card {
+    min-height: auto;
+  }
+  .task-tag {
+    display: none;
+  }
+}

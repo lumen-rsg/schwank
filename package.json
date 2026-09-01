@@ -11,7 +11,7 @@
     "start": "npm run server:start",
     "start:lan": "npm run server:start:lan",
     "server:dev": "vinext dev",
-    "server:build": "vinext build",
+    "server:build": "npm run db:bundle:check && vinext build",
     "server:start": "wrangler dev --config dist/server/wrangler.json --assets dist/client --persist-to .wrangler/state",
     "server:start:lan": "wrangler dev --config dist/server/wrangler.json --assets dist/client --ip 0.0.0.0 --port 3000 --persist-to .wrangler/state",
     "desktop:dev": "electron desktop/main.mjs",
@@ -30,7 +30,9 @@
     "lint": "oxlint --deny-warnings",
     "format": "oxfmt",
     "format:check": "oxfmt --check .",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate && npm run db:bundle",
+    "db:bundle": "node scripts/bundle-migrations.mjs",
+    "db:bundle:check": "node scripts/bundle-migrations.mjs --check"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

@@ -30,6 +30,7 @@ import {
   ClipboardCheck,
   Clock3,
   Droplets,
+  Download,
   Flame,
   Gift,
   Home,
@@ -4632,12 +4633,16 @@ function HomeView({
   const [homePhoto, setHomePhoto] = useState<string | null>(data.home.photo);
   const [photoChanged, setPhotoChanged] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  const [imageError, setImageError] = useState('');
   async function pickHome(file?: File) {
     if (!file) return;
     setPreparing(true);
+    setImageError('');
     try {
       setHomePhoto(await resizeImage(file, 1400, 900, 0.8));
       setPhotoChanged(true);
+    } catch (cause) {
+      setImageError(imagePreparationMessage(cause, t));
     } finally {
       setPreparing(false);
     }
@@ -4645,11 +4650,14 @@ function HomeView({
   async function pickAvatar(file?: File) {
     if (!file) return;
     setPreparing(true);
+    setImageError('');
     try {
       await post({
         type: 'avatar',
         avatar: await resizeImage(file, 512, 512, 0.84),
       });
+    } catch (cause) {
+      setImageError(imagePreparationMessage(cause, t));
     } finally {
       setPreparing(false);
     }
@@ -4680,7 +4688,12 @@ function HomeView({
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => void pickHome(event.target.files?.[0])}
+                disabled={preparing}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  void pickHome(file);
+                }}
               />
             </label>
           </div>
@@ -4743,7 +4756,12 @@ function HomeView({
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  onChange={(event) => void pickAvatar(event.target.files?.[0])}
+                  disabled={preparing}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    void pickAvatar(file);
+                  }}
                 />
               </label>
             </div>
@@ -4786,6 +4804,11 @@ function HomeView({
             </button>
           </article>
           <AccountSecurityCard t={t} language={language} />
+          <AccountDataCard
+            user={user}
+            memberCount={data.members.length}
+            t={t}
+          />
           {user.role === 'owner' && (
             <EnrollmentCard t={t} language={language} />
           )}
@@ -4819,6 +4842,7 @@ function HomeView({
               </>
             )}
           </p>
+          {imageError && <div className="auth-error">{imageError}</div>}
         </div>
       </div>
     </>
@@ -5005,6 +5029,151 @@ function AccountSecurityCard({ t, language }: { t: T; language: Language }) {
   );
 }
 
+function AccountDataCard({
+  user,
+  memberCount,
+  t,
+}: {
+  user: AuthUser;
+  memberCount: number;
+  t: T;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  async function downloadExport() {
+    setBusy(true);
+    setMessage('');
+    setError('');
+    try {
+      const response = await fetch('/api/account/export', { method: 'POST' });
+      if (!response.ok) {
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as Partial<ApiErrorPayload>;
+        throw new Error(apiErrorMessage(payload, t, 'storageFailed'));
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `schwank-account-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setMessage(t('dataExported'));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('storageFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeAccount(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!window.confirm(t('deleteAccountWarning'))) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    setBusy(true);
+    setMessage('');
+    setError('');
+    try {
+      const response = await fetch('/api/account', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: values.get('currentPassword'),
+          confirmation: values.get('confirmation'),
+        }),
+      });
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<ApiErrorPayload>;
+      if (!response.ok)
+        throw new Error(apiErrorMessage(payload, t, 'saveFailed'));
+      window.location.assign('/register');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('saveFailed'));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="panel account-data-card">
+      <div className="account-data-heading">
+        <span>
+          <Download size={18} />
+        </span>
+        <div>
+          <h2>{t('accountData')}</h2>
+          <p>{t('accountDataCopy')}</p>
+        </div>
+      </div>
+      <button
+        className="secondary-button"
+        type="button"
+        disabled={busy}
+        onClick={() => void downloadExport()}
+      >
+        <Download size={15} />
+        {t('downloadExport')}
+      </button>
+      <div className="danger-zone">
+        <div>
+          <strong>{t('deleteAccount')}</strong>
+          <p>{t('deleteAccountCopy')}</p>
+          {user.role === 'owner' && memberCount > 1 && (
+            <small>{t('ownerDeletionCopy')}</small>
+          )}
+          {memberCount === 1 && <small>{t('lastAccountDeletionCopy')}</small>}
+        </div>
+        {!showDelete ? (
+          <button
+            className="danger-text-button"
+            type="button"
+            onClick={() => setShowDelete(true)}
+          >
+            {t('deleteAccount')}
+          </button>
+        ) : (
+          <form className="delete-account-form" onSubmit={removeAccount}>
+            <Field
+              name="currentPassword"
+              label={t('currentPassword')}
+              type="password"
+              maxLength={128}
+              autoComplete="current-password"
+            />
+            <Field
+              name="confirmation"
+              label={t('confirmEmail', { email: user.email })}
+              type="email"
+              maxLength={254}
+              autoComplete="off"
+            />
+            <div>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => setShowDelete(false)}
+              >
+                {t('cancel')}
+              </button>
+              <button className="danger-button" disabled={busy}>
+                <Trash2 size={15} />
+                {t('permanentlyDelete')}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+      {message && <output className="security-success">{message}</output>}
+      {error && <div className="auth-error">{error}</div>}
+    </article>
+  );
+}
+
 function EnrollmentCard({ t, language }: { t: T; language: Language }) {
   const [settings, setSettings] = useState<{
     registrationOpen: boolean;
@@ -5181,13 +5350,27 @@ function resizeImage(
   quality: number,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (file.size > 12 * 1024 * 1024) {
+      reject(new Error('imageSourceTooLarge'));
+      return;
+    }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      reject(new Error('Unsupported image'));
+      reject(new Error('errorImageInvalidType'));
       return;
     }
     const url = URL.createObjectURL(file);
     const image = new window.Image();
     image.onload = () => {
+      if (
+        image.width < 1 ||
+        image.height < 1 ||
+        image.width > 12_000 ||
+        image.height > 12_000
+      ) {
+        URL.revokeObjectURL(url);
+        reject(new Error('imageDimensionsTooLarge'));
+        return;
+      }
       const scale = Math.min(
         1,
         maxWidth / image.width,
@@ -5199,7 +5382,7 @@ function resizeImage(
       const context = canvas.getContext('2d');
       if (!context) {
         URL.revokeObjectURL(url);
-        reject(new Error('Canvas unavailable'));
+        reject(new Error('imagePreparationFailed'));
         return;
       }
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -5208,8 +5391,22 @@ function resizeImage(
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Image could not be read'));
+      reject(new Error('imagePreparationFailed'));
     };
     image.src = url;
   });
+}
+
+function imagePreparationMessage(cause: unknown, t: T) {
+  const key = cause instanceof Error ? cause.message : 'imagePreparationFailed';
+  return t(
+    [
+      'imageSourceTooLarge',
+      'imageDimensionsTooLarge',
+      'errorImageInvalidType',
+      'imagePreparationFailed',
+    ].includes(key)
+      ? (key as CopyKey)
+      : 'imagePreparationFailed',
+  );
 }

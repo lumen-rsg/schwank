@@ -615,6 +615,30 @@ void test(
     );
     assert.equal((await household(alice.cookie)).home.name, 'Policy test home');
 
+    const onePixelPng =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    assert.equal(
+      (
+        await action(alice.cookie, {
+          type: 'avatar',
+          avatar: onePixelPng,
+        })
+      ).response.status,
+      200,
+    );
+    const spoofedImage = await action(alice.cookie, {
+      type: 'avatar',
+      avatar: onePixelPng.replace('image/png', 'image/jpeg'),
+    });
+    assert.equal(spoofedImage.response.status, 400);
+    assert.equal(spoofedImage.body.code, 'image_invalid');
+    const oversizedImage = await action(alice.cookie, {
+      type: 'avatar',
+      avatar: `data:image/png;base64,${'A'.repeat(430_000)}`,
+    });
+    assert.equal(oversizedImage.response.status, 413);
+    assert.equal(oversizedImage.body.code, 'image_too_large');
+
     const aliceData = await household(alice.cookie);
     const bobData = await household(bob.cookie);
     const bobSerialized = JSON.stringify(bobData);
@@ -869,5 +893,178 @@ void test(
       ),
       true,
     );
+
+    assert.equal(
+      (
+        await action(bob.cookie, {
+          type: 'task',
+          title: 'Bob export secret',
+          tag: 'Private',
+          dueOn: '2030-02-01',
+          visibility: 'private',
+        })
+      ).response.status,
+      200,
+    );
+    const exportResult = await jsonRequest('/api/account/export', {
+      method: 'POST',
+      headers: { cookie: restoredCookie, origin },
+    });
+    assert.equal(exportResult.response.status, 200);
+    assert.match(
+      exportResult.response.headers.get('content-disposition') ?? '',
+      /^attachment; filename="schwank-account-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    assert.equal(exportResult.body.account.email, 'alice@example.test');
+    assert.equal(
+      exportResult.body.records.tasks.some(
+        (task) => task.title === 'Alice private task',
+      ),
+      true,
+    );
+    assert.equal(
+      JSON.stringify(exportResult.body).includes('Bob export secret'),
+      false,
+    );
+    assert.equal(
+      JSON.stringify(exportResult.body).includes('bob@example.test'),
+      false,
+    );
+
+    assert.equal(
+      (
+        await action(restoredCookie, {
+          type: 'recipe-add',
+          name: 'Recipe retained after departure',
+          course: 'main',
+          servings: 3,
+          instructions: 'Synthetic global record',
+          ingredients: [{ name: 'Beans', quantity: 300, unit: 'g' }],
+        })
+      ).response.status,
+      200,
+    );
+    const wrongDeletionPassword = await jsonRequest('/api/account', {
+      method: 'DELETE',
+      headers: {
+        'content-type': 'application/json',
+        cookie: restoredCookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'wrong-password',
+        confirmation: 'alice@example.test',
+      }),
+    });
+    assert.equal(wrongDeletionPassword.response.status, 403);
+    assert.equal(wrongDeletionPassword.body.code, 'invalid_current_password');
+    const wrongDeletionConfirmation = await jsonRequest('/api/account', {
+      method: 'DELETE',
+      headers: {
+        'content-type': 'application/json',
+        cookie: restoredCookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'alice-new-password-456',
+        confirmation: 'bob@example.test',
+      }),
+    });
+    assert.equal(wrongDeletionConfirmation.response.status, 400);
+    assert.equal(wrongDeletionConfirmation.body.code, 'validation_failed');
+
+    const deletedOwner = await jsonRequest('/api/account', {
+      method: 'DELETE',
+      headers: {
+        'content-type': 'application/json',
+        cookie: restoredCookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'alice-new-password-456',
+        confirmation: 'alice@example.test',
+      }),
+    });
+    assert.equal(deletedOwner.response.status, 200);
+    assert.equal(deletedOwner.body.finalAccount, false);
+    assert.match(
+      deletedOwner.response.headers.get('set-cookie') ?? '',
+      /Max-Age=0/,
+    );
+    assert.equal(
+      (
+        await jsonRequest('/api/schwank', {
+          headers: { cookie: restoredCookie },
+        })
+      ).response.status,
+      401,
+    );
+    const afterOwnerDeletion = await household(bob.cookie);
+    assert.equal(afterOwnerDeletion.currentUser.role, 'owner');
+    assert.deepEqual(
+      afterOwnerDeletion.members.map((member) => member.name),
+      ['Bob Test'],
+    );
+    const afterOwnerDeletionSerialized = JSON.stringify(afterOwnerDeletion);
+    assert.equal(
+      afterOwnerDeletionSerialized.includes('alice@example.test'),
+      false,
+    );
+    assert.equal(
+      afterOwnerDeletionSerialized.includes('Alice private task'),
+      false,
+    );
+    assert.equal(
+      afterOwnerDeletionSerialized.includes('Alice household chat message'),
+      false,
+    );
+    const retainedRecipe = afterOwnerDeletion.recipes.find(
+      (recipe) => recipe.name === 'Recipe retained after departure',
+    );
+    assert.ok(retainedRecipe);
+    assert.equal(retainedRecipe.createdByName, 'Former member');
+    const enrollmentAfterTransfer = await jsonRequest('/api/auth/enrollment');
+    assert.deepEqual(enrollmentAfterTransfer.body, {
+      firstUser: false,
+      registrationOpen: false,
+    });
+    assert.equal(
+      (
+        await jsonRequest('/api/household/enrollment', {
+          headers: { cookie: bob.cookie },
+        })
+      ).response.status,
+      200,
+    );
+
+    const deletedFinalAccount = await jsonRequest('/api/account', {
+      method: 'DELETE',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bob.cookie,
+        origin,
+      },
+      body: JSON.stringify({
+        currentPassword: 'bob-password-12345',
+        confirmation: 'bob@example.test',
+      }),
+    });
+    assert.equal(deletedFinalAccount.response.status, 200);
+    assert.equal(deletedFinalAccount.body.finalAccount, true);
+    assert.deepEqual((await jsonRequest('/api/auth/enrollment')).body, {
+      firstUser: true,
+      registrationOpen: true,
+    });
+    const freshAccount = await register(
+      'Fresh Owner',
+      'alice@example.test',
+      'fresh-owner-password-123',
+    );
+    assert.equal(freshAccount.response.status, 201);
+    const freshData = await household(freshAccount.cookie);
+    assert.equal(freshData.currentUser.role, 'owner');
+    assert.equal(freshData.home.name, 'Our home');
+    assert.equal(freshData.recipes.length, 0);
+    assert.equal(freshData.foods.length, 0);
   },
 );

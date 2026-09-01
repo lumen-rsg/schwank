@@ -89,6 +89,7 @@ export async function ensureDatabase() {
   await ensureColumn('users', 'diet', 'TEXT');
   await ensureColumn('users', 'ai_consent', 'INTEGER NOT NULL DEFAULT 0');
   await ensureColumn('users', 'role', "TEXT NOT NULL DEFAULT 'member'");
+  await ensureColumn('users', 'deleted_at', 'TEXT');
   await ensureColumn('sessions', 'user_agent', "TEXT NOT NULL DEFAULT ''");
   await ensureColumn(
     'household_settings',
@@ -122,7 +123,7 @@ export async function ensureDatabase() {
   await ensureColumn('recipes', 'course', "TEXT NOT NULL DEFAULT 'main'");
   await db.batch([
     db.prepare(
-      "UPDATE users SET role='owner' WHERE id=(SELECT id FROM users ORDER BY created_at,id LIMIT 1) AND NOT EXISTS (SELECT 1 FROM users WHERE role='owner')",
+      "UPDATE users SET role='owner' WHERE id=(SELECT id FROM users WHERE deleted_at IS NULL ORDER BY created_at,id LIMIT 1) AND NOT EXISTS (SELECT 1 FROM users WHERE role='owner' AND deleted_at IS NULL)",
     ),
     db.prepare(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)',

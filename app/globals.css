@@ -4091,6 +4091,86 @@ select {
   color: #577052;
   font-size: 9px;
 }
+.account-data-card {
+  display: grid;
+  gap: 14px;
+  border-color: #e4d9d4;
+  background: linear-gradient(145deg, #fffdf9, #fcf7f4);
+}
+.account-data-heading {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.account-data-heading > span {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #f0e7e0;
+  color: #876e5f;
+}
+.account-data-card h2 {
+  margin: 2px 0 5px;
+  font-size: 13px;
+}
+.account-data-card p {
+  margin: 0;
+  color: #7d7f78;
+  font-size: 8px;
+  line-height: 1.5;
+}
+.account-data-card > .secondary-button {
+  width: max-content;
+}
+.danger-zone {
+  padding-top: 13px;
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #eaded8;
+}
+.danger-zone > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+.danger-zone strong {
+  color: #8f4637;
+  font-size: 10px;
+}
+.danger-zone small {
+  color: #9a7168;
+  font-size: 8px;
+  line-height: 1.45;
+}
+.delete-account-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.delete-account-form > div:last-child {
+  grid-column: 1/-1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.danger-button {
+  height: 39px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 10px;
+  background: #a84634;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.danger-button:disabled {
+  opacity: 0.5;
+}
 @media (max-width: 680px) {
   .password-form {
     grid-template-columns: 1fr;
@@ -4100,6 +4180,9 @@ select {
     width: auto;
     padding: 0 15px;
     font-size: 10px;
+  }
+  .delete-account-form {
+    grid-template-columns: 1fr;
   }
 }
 .enrollment-icon {

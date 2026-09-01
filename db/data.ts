@@ -3,6 +3,7 @@ import { isAiConfigured } from './ai-config';
 import type { AuthUser } from './auth';
 import { ensureDatabase } from './setup';
 import { ApiError } from '@/lib/api-errors';
+import { validateDataImage } from '@/lib/image-data';
 import {
   advancePaymentDate,
   calculateNutrition,
@@ -132,15 +133,6 @@ const cleanRecipeCourse = (value: unknown): RecipeCourse | null =>
 
 export class DataError extends ApiError {}
 
-function cleanImage(value: unknown, maximum: number) {
-  const image = typeof value === 'string' ? value : '';
-  if (!image) return null;
-  if (image.length > maximum) throw new DataError('The image is too large.');
-  if (!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image))
-    throw new DataError('Use a JPEG, PNG, or WebP image.');
-  return image;
-}
-
 export async function readHouseholdData(user: AuthUser) {
   await ensureDatabase();
   const db = env.DB;
@@ -171,13 +163,13 @@ export async function readHouseholdData(user: AuthUser) {
   ] = await Promise.all([
     db
       .prepare(
-        'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,role,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE id=?',
+        'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,role,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE id=? AND deleted_at IS NULL',
       )
       .bind(user.id)
       .first<AuthUser>(),
     db
       .prepare(
-        'SELECT id,display_name AS name,initials,color,avatar_data AS avatar FROM users ORDER BY display_name',
+        'SELECT id,display_name AS name,initials,color,avatar_data AS avatar FROM users WHERE deleted_at IS NULL ORDER BY display_name',
       )
       .all(),
     db
@@ -283,9 +275,13 @@ export async function readHouseholdData(user: AuthUser) {
         "SELECT id,week_start AS weekStart,day_index AS dayIndex,course,recipe_id AS recipeId,servings FROM weekly_meal_plan WHERE week_start>=date('now','-14 days') AND week_start<=date('now','+14 days') ORDER BY week_start,day_index,id",
       )
       .all(),
-    db.prepare('SELECT COUNT(*) AS count FROM users WHERE ai_consent=1').first<{
-      count: number;
-    }>(),
+    db
+      .prepare(
+        'SELECT COUNT(*) AS count FROM users WHERE ai_consent=1 AND deleted_at IS NULL',
+      )
+      .first<{
+        count: number;
+      }>(),
   ]);
   const recipes = recipeRows.results.map((recipe) => ({
     ...recipe,
@@ -682,7 +678,12 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
         .bind(
           name,
           address,
-          cleanImage(body.photo, 1_200_000),
+          validateDataImage(body.photo, {
+            maximumBytes: 900_000,
+            maximumWidth: 2400,
+            maximumHeight: 1600,
+            maximumPixels: 3_840_000,
+          }),
           new Date().toISOString(),
           userId,
         )
@@ -697,7 +698,15 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
   if (body.type === 'avatar')
     return db
       .prepare('UPDATE users SET avatar_data=? WHERE id=?')
-      .bind(cleanImage(body.avatar, 450_000), userId)
+      .bind(
+        validateDataImage(body.avatar, {
+          maximumBytes: 320_000,
+          maximumWidth: 1024,
+          maximumHeight: 1024,
+          maximumPixels: 1_048_576,
+        }),
+        userId,
+      )
       .run();
   if (body.type === 'ai-consent')
     return db

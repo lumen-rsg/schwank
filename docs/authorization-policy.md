@@ -40,6 +40,23 @@ No application data is available to anonymous requests. The public enrollment-st
 | AI nutrition input                      | Consent-gated household aggregate | No individual profile or consumption history is returned to another member | Each user controls their own consent | Meal-plan requester may use only consenting aggregate inputs |
 | Enrollment settings and invite rotation | Owner-only                        | Public endpoint exposes open/closed only                                   | Owner                                | Owner                                                        |
 
+## Images
+
+- Avatar and home-photo payloads accept only JPEG, PNG, or WebP data URLs.
+- The server verifies decoded byte limits, file signatures, container endings, and pixel dimensions; the declared MIME type is never trusted by itself.
+- The client resizes through a canvas before upload, which removes embedded metadata, and applies an independent source-file and dimension limit.
+- Avatars are personal profile fields. Home photos are household-global data.
+
+## Export and account deletion
+
+- Account export is a same-origin authenticated POST and returns only the requester’s profile, records, contributions, and household-global records they last authored or updated. It never includes another member’s email, profile, or private records.
+- Account deletion requires both the current password and the account email as explicit confirmation.
+- Personal and private/shareable records owned by the departing member are erased, including shared copies.
+- Their household-public contributions—chat messages, habit entries, wishlist ideas, and votes—are erased. Votes on an erased idea are erased with it.
+- Household-global pantry items, recipes, and meal plans remain while another active member exists. The retained audit identity is anonymized to `Former member`; the deleted account cannot authenticate and is excluded from the member directory and AI aggregates.
+- When the household owner leaves, ownership passes to the oldest remaining active member and outstanding registration invitations are invalidated.
+- Deleting the final active account erases all household-global data, resets the household profile, and returns enrollment to first-user bootstrap state.
+
 ## Authentication and enrollment
 
 - The first account on a fresh installation becomes the household owner.

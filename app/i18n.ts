@@ -53,6 +53,9 @@ const copy = {
     errorOriginRejected: 'This request was rejected for security reasons.',
     errorInvalidCurrentPassword: 'Your current password is incorrect.',
     errorPasswordReuse: 'Choose a password you have not just been using.',
+    errorImageInvalidType: 'Choose a JPEG, PNG, or WebP image.',
+    errorImageTooLarge: 'That image is too large. Choose a smaller one.',
+    errorImageInvalid: 'That image could not be verified.',
     errorUnknownAction: 'This action is not supported.',
     errorAiUnavailable: 'The AI planner is not configured or is unavailable.',
     errorAiFailed: 'The AI planner could not complete this request.',
@@ -295,7 +298,29 @@ const copy = {
     signedInAt: 'Signed in {date}',
     revokeSession: 'Sign out',
     sessionRevoked: 'The selected session was signed out.',
-    imageHint: 'Images are resized before being saved locally.',
+    accountData: 'Your account data',
+    accountDataCopy:
+      'Download a private JSON copy of your profile and everything you created.',
+    downloadExport: 'Download data export',
+    dataExported: 'Your private export was downloaded.',
+    deleteAccount: 'Delete account',
+    deleteAccountCopy:
+      'Your private records and public contributions will be erased. Shared pantry, recipes, and menus stay, with your identity replaced by “Former member”.',
+    ownerDeletionCopy:
+      'Household ownership will pass to the oldest remaining member and open invitations will close.',
+    lastAccountDeletionCopy:
+      'Because this is the final account, all shared household data will also be erased.',
+    confirmEmail: 'Type {email} to confirm',
+    permanentlyDelete: 'Permanently delete',
+    cancel: 'Cancel',
+    deleteAccountWarning:
+      'This cannot be undone. Permanently delete your account?',
+    imageHint:
+      'JPEG, PNG, and WebP images are resized, stripped of metadata, and verified before local storage.',
+    imageSourceTooLarge: 'Choose an image smaller than 12 MB.',
+    imageDimensionsTooLarge:
+      'Choose an image no larger than 12,000 pixels per side.',
+    imagePreparationFailed: 'That image could not be prepared.',
     housemates: 'Housemates',
     membersCount: '{count} members',
     noAddress: 'No address set',
@@ -586,6 +611,9 @@ const copy = {
     errorInvalidCurrentPassword: 'Текущий пароль указан неверно.',
     errorPasswordReuse:
       'Выберите пароль, который вы только что не использовали.',
+    errorImageInvalidType: 'Выберите изображение JPEG, PNG или WebP.',
+    errorImageTooLarge: 'Изображение слишком большое. Выберите файл поменьше.',
+    errorImageInvalid: 'Не удалось проверить изображение.',
     errorUnknownAction: 'Это действие не поддерживается.',
     errorAiUnavailable: 'ИИ-планировщик не настроен или недоступен.',
     errorAiFailed: 'ИИ-планировщик не смог выполнить запрос.',
@@ -824,7 +852,29 @@ const copy = {
     signedInAt: 'Вход: {date}',
     revokeSession: 'Завершить',
     sessionRevoked: 'Выбранный сеанс завершён.',
-    imageHint: 'Изображения уменьшаются перед сохранением на устройстве.',
+    accountData: 'Данные аккаунта',
+    accountDataCopy:
+      'Скачайте личную копию профиля и созданных вами записей в формате JSON.',
+    downloadExport: 'Скачать данные',
+    dataExported: 'Личная копия данных скачана.',
+    deleteAccount: 'Удалить аккаунт',
+    deleteAccountCopy:
+      'Личные записи и общие публикации будут удалены. Общая кладовая, рецепты и меню сохранятся, а ваше имя заменится на «Бывший участник».',
+    ownerDeletionCopy:
+      'Владельцем станет самый давний из оставшихся участников, а открытые приглашения будут закрыты.',
+    lastAccountDeletionCopy:
+      'Это последний аккаунт, поэтому все общие данные дома тоже будут удалены.',
+    confirmEmail: 'Введите {email} для подтверждения',
+    permanentlyDelete: 'Удалить навсегда',
+    cancel: 'Отмена',
+    deleteAccountWarning:
+      'Это действие нельзя отменить. Удалить аккаунт навсегда?',
+    imageHint:
+      'JPEG, PNG и WebP уменьшаются, очищаются от метаданных и проверяются перед сохранением.',
+    imageSourceTooLarge: 'Выберите изображение размером менее 12 МБ.',
+    imageDimensionsTooLarge:
+      'Сторона изображения не должна превышать 12 000 пикселей.',
+    imagePreparationFailed: 'Не удалось подготовить изображение.',
     housemates: 'Соседи',
     membersCount: 'Участников: {count}',
     noAddress: 'Адрес не указан',

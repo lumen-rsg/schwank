@@ -75,7 +75,7 @@ export async function generateAiMealPlan(
       .all(),
     db
       .prepare(
-        'SELECT id,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,nutrition_plan AS nutritionPlan,diet FROM users WHERE (ai_consent=1 AND id<>?) OR (id=? AND ?=1) ORDER BY id',
+        'SELECT id,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,nutrition_plan AS nutritionPlan,diet FROM users WHERE deleted_at IS NULL AND ((ai_consent=1 AND id<>?) OR (id=? AND ?=1)) ORDER BY id',
       )
       .bind(userId, userId, preferences.includeNutrition ? 1 : 0)
       .all<{

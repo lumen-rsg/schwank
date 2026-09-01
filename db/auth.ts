@@ -255,7 +255,7 @@ function createInviteCode() {
 export async function readPublicEnrollmentStatus() {
   await ensureDatabase();
   const users = await env.DB.prepare(
-    'SELECT COUNT(*) AS count FROM users',
+    'SELECT COUNT(*) AS count FROM users WHERE deleted_at IS NULL',
   ).first<{ count: number }>();
   const firstUser = Number(users?.count ?? 0) === 0;
   if (firstUser) return { firstUser: true, registrationOpen: true };
@@ -356,7 +356,7 @@ export async function registerUser(input: unknown, request?: Request) {
   await ensureDatabase();
   const { email, name, password, inviteCode } = normalizeRegistration(input);
   const userCount = await env.DB.prepare(
-    'SELECT COUNT(*) AS count FROM users',
+    'SELECT COUNT(*) AS count FROM users WHERE deleted_at IS NULL',
   ).first<{ count: number }>();
   const firstUser = Number(userCount?.count ?? 0) === 0;
   if (!firstUser) {
@@ -435,7 +435,7 @@ export async function loginUser(input: unknown, request?: Request) {
   const email = stringField(record, 'email').trim().toLowerCase();
   const password = stringField(record, 'password');
   const user = await env.DB.prepare(
-    'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,role,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE email=?',
+    'SELECT id,email,display_name AS name,initials,color,avatar_data AS avatar,role,password_hash AS passwordHash,password_salt AS passwordSalt,calorie_goal AS calorieGoal,protein_goal AS proteinGoal,carb_goal AS carbGoal,fat_goal AS fatGoal,water_goal AS waterGoal,maintenance_calories AS maintenanceCalories,height_cm AS heightCm,weight_kg AS weightKg,age,sex,activity,nutrition_plan AS nutritionPlan,diet,ai_consent AS aiConsent FROM users WHERE email=? AND deleted_at IS NULL',
   )
     .bind(email)
     .first<StoredUser>();
@@ -479,6 +479,35 @@ export type SessionSummary = {
   expiresAt: string;
   current: boolean | number;
 };
+
+export async function assertCurrentUserPassword(
+  user: AuthUser,
+  currentPassword: unknown,
+) {
+  await ensureDatabase();
+  const stored = await env.DB.prepare(
+    'SELECT password_hash AS passwordHash,password_salt AS passwordSalt FROM users WHERE id=? AND deleted_at IS NULL',
+  )
+    .bind(user.id)
+    .first<{ passwordHash: string; passwordSalt: string }>();
+  const password = typeof currentPassword === 'string' ? currentPassword : '';
+  if (!stored || !password)
+    throw new AuthError(
+      'Your current password is incorrect.',
+      403,
+      'invalid_current_password',
+    );
+  const candidateHash = await hashPassword(
+    password,
+    base64ToBytes(stored.passwordSalt),
+  );
+  if (!constantTimeEqual(candidateHash, stored.passwordHash))
+    throw new AuthError(
+      'Your current password is incorrect.',
+      403,
+      'invalid_current_password',
+    );
+}
 
 export async function listUserSessions(user: AuthUser, request: Request) {
   await ensureDatabase();
@@ -601,7 +630,7 @@ export async function getUserFromCookie(
   if (!token) return null;
   const tokenHash = await sha256(token);
   return env.DB.prepare(
-    `SELECT u.id,u.email,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,u.role,u.calorie_goal AS calorieGoal,u.protein_goal AS proteinGoal,u.carb_goal AS carbGoal,u.fat_goal AS fatGoal,u.water_goal AS waterGoal,u.maintenance_calories AS maintenanceCalories,u.height_cm AS heightCm,u.weight_kg AS weightKg,u.age,u.sex,u.activity,u.nutrition_plan AS nutritionPlan,u.diet,u.ai_consent AS aiConsent FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`,
+    `SELECT u.id,u.email,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,u.role,u.calorie_goal AS calorieGoal,u.protein_goal AS proteinGoal,u.carb_goal AS carbGoal,u.fat_goal AS fatGoal,u.water_goal AS waterGoal,u.maintenance_calories AS maintenanceCalories,u.height_cm AS heightCm,u.weight_kg AS weightKg,u.age,u.sex,u.activity,u.nutrition_plan AS nutritionPlan,u.diet,u.ai_consent AS aiConsent FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.deleted_at IS NULL`,
   )
     .bind(tokenHash, new Date().toISOString())
     .first<AuthUser>();

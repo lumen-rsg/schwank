@@ -19,6 +19,7 @@ export const users = sqliteTable(
     passwordHash: text('password_hash').notNull(),
     passwordSalt: text('password_salt').notNull(),
     role: text('role').notNull().default('member'),
+    deletedAt: text('deleted_at'),
     calorieGoal: integer('calorie_goal').notNull().default(2200),
     proteinGoal: integer('protein_goal').notNull().default(140),
     carbGoal: integer('carb_goal').notNull().default(250),

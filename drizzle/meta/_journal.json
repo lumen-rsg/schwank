@@ -43,6 +43,13 @@
       "when": 1788213179042,
       "tag": "0005_quick_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788251136171,
+      "tag": "0006_long_network",
+      "breakpoints": true
     }
   ]
 }

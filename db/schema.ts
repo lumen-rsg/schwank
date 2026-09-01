@@ -94,6 +94,7 @@ export const tasks = sqliteTable(
     assigneeId: text('assignee_id').notNull(),
     tag: text('tag').notNull().default('Home'),
     due: text('due').notNull().default('This week'),
+    dueOn: text('due_on'),
   },
   (table) => [
     index('idx_tasks_user_visibility_status').on(
@@ -161,6 +162,72 @@ export const organiserItems = sqliteTable(
   },
   (table) => [
     index('idx_organisers_user_visibility').on(table.userId, table.visibility),
+  ],
+);
+
+export const reminders = sqliteTable(
+  'reminders',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    visibility: text('visibility').notNull().default('private'),
+    label: text('label').notNull(),
+    remindAt: text('remind_at').notNull(),
+    done: integer('done', { mode: 'boolean' }).notNull().default(false),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_reminders_user_visibility_due').on(
+      table.userId,
+      table.visibility,
+      table.remindAt,
+    ),
+  ],
+);
+
+export const medications = sqliteTable(
+  'medications',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    visibility: text('visibility').notNull().default('private'),
+    name: text('name').notNull(),
+    dosage: text('dosage').notNull(),
+    instructions: text('instructions').notNull().default(''),
+    scheduleTimes: text('schedule_times').notNull(),
+    startOn: text('start_on').notNull(),
+    endOn: text('end_on'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_medications_user_visibility_active').on(
+      table.userId,
+      table.visibility,
+      table.active,
+    ),
+  ],
+);
+
+export const medicationDoses = sqliteTable(
+  'medication_doses',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    medicationId: integer('medication_id').notNull(),
+    userId: integer('user_id').notNull(),
+    scheduledFor: text('scheduled_for').notNull(),
+    takenAt: text('taken_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_medication_doses_unique').on(
+      table.medicationId,
+      table.userId,
+      table.scheduledFor,
+    ),
+    index('idx_medication_doses_user_date').on(
+      table.userId,
+      table.scheduledFor,
+    ),
   ],
 );
 

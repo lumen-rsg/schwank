@@ -141,11 +141,18 @@ function installIpcHandlers() {
       .trim()
       .slice(0, 240);
     if (!safeBody) return false;
-    new Notification({
+    const notification = new Notification({
       title: safeTitle,
       body: safeBody,
       icon: iconPath,
-    }).show();
+    });
+    notification.on('click', () => {
+      if (!mainWindow) return;
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    });
+    notification.show();
     return true;
   });
 

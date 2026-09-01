@@ -54,6 +54,38 @@ const cleanPaymentDate = (value: unknown) => {
     throw new DataError('Enter a valid payment date.');
   return date;
 };
+const cleanDateTime = (value: unknown) => {
+  const dateTime = cleanText(value, 16);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateTime))
+    throw new DataError('Enter a valid reminder date and time.');
+  const [date, time] = dateTime.split('T');
+  const [hours, minutes] = time.split(':').map(Number);
+  cleanPaymentDate(date);
+  if (hours > 23 || minutes > 59)
+    throw new DataError('Enter a valid reminder date and time.');
+  return dateTime;
+};
+const cleanMedicationTimes = (value: unknown) => {
+  const times = Array.from(
+    new Set(
+      cleanText(value, 80)
+        .split(',')
+        .map((time) => time.trim())
+        .filter(Boolean),
+    ),
+  );
+  if (
+    !times.length ||
+    times.length > 8 ||
+    times.some((time) => {
+      if (!/^\d{2}:\d{2}$/.test(time)) return true;
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours > 23 || minutes > 59;
+    })
+  )
+    throw new DataError('Add 1–8 medication times in HH:MM format.');
+  return times.sort();
+};
 const expenseCategories = [
   'groceries',
   'housing',
@@ -75,9 +107,7 @@ const cleanExpenseCategory = (value: unknown): ExpenseCategory =>
 const paymentKinds = ['subscription', 'loan', 'rent'] as const;
 type PaymentKind = (typeof paymentKinds)[number];
 const cleanPaymentKind = (value: unknown): PaymentKind | null =>
-  paymentKinds.includes(value as PaymentKind)
-    ? (value as PaymentKind)
-    : null;
+  paymentKinds.includes(value as PaymentKind) ? (value as PaymentKind) : null;
 function advancePaymentDate(date: string, cycle: string) {
   const [year, month, day] = date.split('-').map(Number);
   const monthOffset = cycle === 'yearly' ? 12 : 1;
@@ -87,9 +117,7 @@ function advancePaymentDate(date: string, cycle: string) {
   const lastDay = new Date(
     Date.UTC(targetYear, normalizedMonth + 1, 0),
   ).getUTCDate();
-  return new Date(
-    Date.UTC(targetYear, normalizedMonth, Math.min(day, lastDay)),
-  )
+  return new Date(Date.UTC(targetYear, normalizedMonth, Math.min(day, lastDay)))
     .toISOString()
     .slice(0, 10);
 }
@@ -191,6 +219,9 @@ export async function readHouseholdData(user: AuthUser) {
     expenses,
     recurringPayments,
     organisers,
+    reminders,
+    medicationRows,
+    medicationDoses,
     messages,
     habits,
     water,
@@ -224,7 +255,7 @@ export async function readHouseholdData(user: AuthUser) {
       .all(),
     db
       .prepare(
-        "SELECT id,title,status,tag,due,visibility,(user_id=?) AS owned FROM tasks WHERE user_id=? OR visibility='shared' ORDER BY id DESC",
+        "SELECT id,title,status,tag,due,due_on AS dueOn,visibility,(user_id=?) AS owned FROM tasks WHERE user_id=? OR visibility='shared' ORDER BY id DESC",
       )
       .bind(user.id, user.id)
       .all(),
@@ -245,6 +276,24 @@ export async function readHouseholdData(user: AuthUser) {
         "SELECT id,list,label,done,visibility,(user_id=?) AS owned FROM organiser_items WHERE user_id=? OR visibility='shared' ORDER BY id DESC",
       )
       .bind(user.id, user.id)
+      .all(),
+    db
+      .prepare(
+        "SELECT id,label,remind_at AS remindAt,done,visibility,(user_id=?) AS owned FROM reminders WHERE user_id=? OR visibility='shared' ORDER BY done,remind_at,id DESC",
+      )
+      .bind(user.id, user.id)
+      .all(),
+    db
+      .prepare(
+        "SELECT m.id,m.name,m.dosage,m.instructions,m.schedule_times AS scheduleTimes,m.start_on AS startOn,m.end_on AS endOn,m.active,m.visibility,(m.user_id=?) AS owned,u.display_name AS ownerName FROM medications m JOIN users u ON u.id=m.user_id WHERE m.user_id=? OR m.visibility='shared' ORDER BY m.active DESC,m.name,m.id DESC",
+      )
+      .bind(user.id, user.id)
+      .all(),
+    db
+      .prepare(
+        "SELECT d.id,d.medication_id AS medicationId,d.scheduled_for AS scheduledFor,d.taken_at AS takenAt,u.display_name AS takenByName FROM medication_doses d JOIN medications m ON m.id=d.medication_id JOIN users u ON u.id=d.user_id WHERE (m.user_id=? OR m.visibility='shared') AND d.scheduled_for>=date('now','-14 days') ORDER BY d.scheduled_for DESC",
+      )
+      .bind(user.id)
       .all(),
     db
       .prepare(
@@ -296,6 +345,10 @@ export async function readHouseholdData(user: AuthUser) {
         (recipe as { id: number }).id,
     ),
   }));
+  const medications = medicationRows.results.map((medication) => ({
+    ...medication,
+    scheduleTimes: JSON.parse(String(medication.scheduleTimes)) as string[],
+  }));
   return {
     currentUser: currentUser ?? user,
     members: members.results,
@@ -305,6 +358,9 @@ export async function readHouseholdData(user: AuthUser) {
     expenses: expenses.results,
     recurringPayments: recurringPayments.results,
     organisers: organisers.results,
+    reminders: reminders.results,
+    medications,
+    medicationDoses: medicationDoses.results,
     messages: messages.results,
     habits: habits.results,
     water: water.results,
@@ -343,9 +399,10 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
   if (body.type === 'task') {
     const title = cleanText(body.title, 120);
     if (!title) throw new DataError('Task title is required.');
+    const dueOn = cleanPaymentDate(body.dueOn);
     return db
       .prepare(
-        'INSERT INTO tasks (user_id,visibility,title,status,assignee_id,tag,due) VALUES (?,?,?,?,?,?,?)',
+        'INSERT INTO tasks (user_id,visibility,title,status,assignee_id,tag,due,due_on) VALUES (?,?,?,?,?,?,?,?)',
       )
       .bind(
         userId,
@@ -354,7 +411,8 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
         'todo',
         legacyId,
         cleanText(body.tag, 30, 'Home') || 'Home',
-        cleanText(body.due, 40, 'This week') || 'This week',
+        dueOn,
+        dueOn,
       )
       .run();
   }
@@ -401,7 +459,9 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
         ? cleanNumber(body.remainingAmount)
         : null;
     if (!kind || !label || amount <= 0)
-      throw new DataError('Payment name, type, amount, and due date are required.');
+      throw new DataError(
+        'Payment name, type, amount, and due date are required.',
+      );
     return db
       .prepare(
         'INSERT INTO recurring_payments (user_id,visibility,kind,label,amount,billing_cycle,next_due_on,remaining_amount,active,created_at) VALUES (?,?,?,?,?,?,?,?,1,?)',
@@ -512,6 +572,87 @@ export async function writeHouseholdData(userId: number, body: DataAction) {
     if (!result.meta.changes)
       throw new DataError('That item cannot be changed.', 403);
     return result;
+  }
+  if (body.type === 'reminder') {
+    const label = cleanText(body.label, 120);
+    const remindAt = cleanDateTime(body.remindAt);
+    if (!label) throw new DataError('Reminder name is required.');
+    return db
+      .prepare(
+        'INSERT INTO reminders (user_id,visibility,label,remind_at,done,created_at) VALUES (?,?,?,?,0,?)',
+      )
+      .bind(
+        userId,
+        cleanVisibility(body.visibility),
+        label,
+        remindAt,
+        new Date().toISOString(),
+      )
+      .run();
+  }
+  if (body.type === 'reminder-toggle') {
+    const result = await db
+      .prepare('UPDATE reminders SET done=? WHERE id=? AND user_id=?')
+      .bind(body.done ? 1 : 0, cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That reminder cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'medication') {
+    const name = cleanText(body.name, 100);
+    const dosage = cleanText(body.dosage, 80);
+    const instructions = cleanText(body.instructions, 500);
+    const scheduleTimes = cleanMedicationTimes(body.scheduleTimes);
+    const startOn = cleanPaymentDate(body.startOn);
+    const endOn = cleanOptionalDate(body.endOn);
+    if (!name || !dosage)
+      throw new DataError('Medication name and dosage are required.');
+    if (endOn && endOn < startOn)
+      throw new DataError('Medication end date cannot be before its start.');
+    return db
+      .prepare(
+        'INSERT INTO medications (user_id,visibility,name,dosage,instructions,schedule_times,start_on,end_on,active,created_at) VALUES (?,?,?,?,?,?,?,?,1,?)',
+      )
+      .bind(
+        userId,
+        cleanVisibility(body.visibility),
+        name,
+        dosage,
+        instructions,
+        JSON.stringify(scheduleTimes),
+        startOn,
+        endOn,
+        new Date().toISOString(),
+      )
+      .run();
+  }
+  if (body.type === 'medication-toggle') {
+    const result = await db
+      .prepare('UPDATE medications SET active=? WHERE id=? AND user_id=?')
+      .bind(body.active ? 1 : 0, cleanNumber(body.id), userId)
+      .run();
+    if (!result.meta.changes)
+      throw new DataError('That medication cannot be changed.', 403);
+    return result;
+  }
+  if (body.type === 'medication-dose') {
+    const medicationId = cleanNumber(body.id);
+    const scheduledFor = cleanDateTime(body.scheduledFor);
+    const medication = await db
+      .prepare(
+        'SELECT id FROM medications WHERE id=? AND user_id=? AND active=1',
+      )
+      .bind(medicationId, userId)
+      .first();
+    if (!medication)
+      throw new DataError('That medication cannot be changed.', 403);
+    return db
+      .prepare(
+        'INSERT OR IGNORE INTO medication_doses (medication_id,user_id,scheduled_for,taken_at) VALUES (?,?,?,?)',
+      )
+      .bind(medicationId, userId, scheduledFor, new Date().toISOString())
+      .run();
   }
   if (body.type === 'message') {
     const message = cleanText(body.body, 2_000);

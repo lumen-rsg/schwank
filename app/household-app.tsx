@@ -12,6 +12,8 @@ import {
 import {
   Activity,
   ArrowRight,
+  Bell,
+  BellRing,
   BookOpen,
   Calculator,
   CalendarClock,
@@ -24,6 +26,7 @@ import {
   CircleDollarSign,
   CreditCard,
   ClipboardCheck,
+  Clock3,
   Droplets,
   Flame,
   Home,
@@ -39,6 +42,7 @@ import {
   Minus,
   PackageOpen,
   Pause,
+  Pill,
   Play,
   Plus,
   Salad,
@@ -88,6 +92,7 @@ type Task = {
   status: string;
   tag: string;
   due: string;
+  dueOn: string | null;
   visibility: Visibility;
   owned: boolean | number;
 };
@@ -119,6 +124,42 @@ type Organiser = {
   done: boolean | number;
   visibility: Visibility;
   owned: boolean | number;
+};
+type Reminder = {
+  id: number;
+  label: string;
+  remindAt: string;
+  done: boolean | number;
+  visibility: Visibility;
+  owned: boolean | number;
+};
+type Medication = {
+  id: number;
+  name: string;
+  dosage: string;
+  instructions: string;
+  scheduleTimes: string[];
+  startOn: string;
+  endOn: string | null;
+  active: boolean | number;
+  visibility: Visibility;
+  owned: boolean | number;
+  ownerName: string;
+};
+type MedicationDose = {
+  id: number;
+  medicationId: number;
+  scheduledFor: string;
+  takenAt: string;
+  takenByName: string;
+};
+type DueNotification = {
+  key: string;
+  title: string;
+  body: string;
+  section: string;
+  dueAt: string;
+  visibility: Visibility;
 };
 type Message = {
   id: number;
@@ -253,6 +294,9 @@ type Data = {
   expenses: Expense[];
   recurringPayments: RecurringPayment[];
   organisers: Organiser[];
+  reminders: Reminder[];
+  medications: Medication[];
+  medicationDoses: MedicationDose[];
   messages: Message[];
   habits: HabitEntry[];
   water: WaterEntry[];
@@ -269,6 +313,7 @@ const navigation = [
   { id: 'overview', key: 'overview', icon: Home },
   { id: 'nutrition', key: 'nutrition', icon: Utensils },
   { id: 'food', key: 'foodStorage', icon: PackageOpen },
+  { id: 'medications', key: 'medications', icon: Pill },
   { id: 'water', key: 'water', icon: Droplets },
   { id: 'habits', key: 'habits', icon: Cigarette },
   { id: 'tasks', key: 'tasks', icon: ListTodo },
@@ -337,6 +382,9 @@ const empty = (user: AuthUser): Data => ({
   expenses: [],
   recurringPayments: [],
   organisers: [],
+  reminders: [],
+  medications: [],
+  medicationDoses: [],
   messages: [],
   habits: [],
   water: [],
@@ -465,6 +513,83 @@ function LanguageSwitch({
   );
 }
 
+function dueNotifications(data: Data, t: T, language: Language) {
+  const now = new Date();
+  const todayKey = dateKey(now);
+  const threeDaysFromNow = new Date(now);
+  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+  const paymentReminderKey = dateKey(threeDaysFromNow);
+  const events: DueNotification[] = [];
+
+  for (const medication of data.medications) {
+    if (
+      !medication.active ||
+      medication.startOn > todayKey ||
+      (medication.endOn && medication.endOn < todayKey)
+    )
+      continue;
+    for (const time of medication.scheduleTimes) {
+      const scheduledFor = `${todayKey}T${time}`;
+      if (
+        new Date(`${scheduledFor}:00`).getTime() > now.getTime() ||
+        data.medicationDoses.some(
+          (dose) =>
+            dose.medicationId === medication.id &&
+            dose.scheduledFor === scheduledFor,
+        )
+      )
+        continue;
+      events.push({
+        key: `medication:${medication.id}:${scheduledFor}`,
+        title: t('medicationDue'),
+        body: `${medication.name} · ${medication.dosage} · ${time}`,
+        section: 'medications',
+        dueAt: scheduledFor,
+        visibility: medication.visibility,
+      });
+    }
+  }
+
+  for (const payment of data.recurringPayments) {
+    if (!payment.active || payment.nextDueOn > paymentReminderKey) continue;
+    events.push({
+      key: `payment:${payment.id}:${payment.nextDueOn}`,
+      title: t('paymentDue'),
+      body: `${payment.label} · ${money(Number(payment.amount), language)} · ${formatMoneyDate(payment.nextDueOn, language)}`,
+      section: 'spending',
+      dueAt: `${payment.nextDueOn}T09:00`,
+      visibility: payment.visibility,
+    });
+  }
+
+  for (const task of data.tasks) {
+    if (task.status === 'done' || !task.dueOn || task.dueOn > todayKey)
+      continue;
+    events.push({
+      key: `task:${task.id}:${task.dueOn}`,
+      title: t('taskDue'),
+      body: task.title,
+      section: 'tasks',
+      dueAt: `${task.dueOn}T09:00`,
+      visibility: task.visibility,
+    });
+  }
+
+  for (const reminder of data.reminders) {
+    if (reminder.done || new Date(reminder.remindAt).getTime() > now.getTime())
+      continue;
+    events.push({
+      key: `reminder:${reminder.id}:${reminder.remindAt}`,
+      title: t('reminderDue'),
+      body: reminder.label,
+      section: 'organisers',
+      dueAt: reminder.remindAt,
+      visibility: reminder.visibility,
+    });
+  }
+  return events.sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+}
+
 export default function HouseholdApp({
   initialUser,
 }: {
@@ -475,8 +600,13 @@ export default function HouseholdApp({
   const [data, setData] = useState<Data>(empty(initialUser));
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | 'desktop' | 'in-app'
+  >('in-app');
   const lastMessageId = useRef<number | null>(null);
   const loadInProgress = useRef(false);
+  const deliveredNotificationKeys = useRef(new Set<string>());
   async function load(silent = false) {
     if (loadInProgress.current) return;
     loadInProgress.current = true;
@@ -515,6 +645,19 @@ export default function HouseholdApp({
     }
   }
   useEffect(() => {
+    const storageKey = `schwank-notifications:${initialUser.id}`;
+    try {
+      deliveredNotificationKeys.current = new Set(
+        JSON.parse(window.localStorage.getItem(storageKey) || '[]') as string[],
+      );
+    } catch {
+      deliveredNotificationKeys.current = new Set();
+    }
+    queueMicrotask(() => {
+      if (window.schwankDesktop) setNotificationPermission('desktop');
+      else if ('Notification' in window && window.isSecureContext)
+        setNotificationPermission(Notification.permission);
+    });
     void load();
     const interval = window.setInterval(() => void load(true), 30_000);
     const refreshVisible = () => {
@@ -525,7 +668,50 @@ export default function HouseholdApp({
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refreshVisible);
     };
-  }, []);
+  }, [initialUser.id]);
+  const notifications = useMemo(
+    () => dueNotifications(data, t, language),
+    [data, language, t],
+  );
+  useEffect(() => {
+    const unseen = notifications.filter(
+      (notification) =>
+        !deliveredNotificationKeys.current.has(notification.key),
+    );
+    if (!unseen.length) return;
+    for (const notification of unseen) {
+      deliveredNotificationKeys.current.add(notification.key);
+      const nativeTitle =
+        notification.visibility === 'private' ? 'schwank' : notification.title;
+      const nativeBody =
+        notification.visibility === 'private'
+          ? t('privateNotificationBody')
+          : notification.body;
+      if (window.schwankDesktop)
+        void window.schwankDesktop.notify(nativeTitle, nativeBody);
+      else if (
+        'Notification' in window &&
+        window.isSecureContext &&
+        Notification.permission === 'granted'
+      )
+        new Notification(nativeTitle, { body: nativeBody });
+    }
+    window.localStorage.setItem(
+      `schwank-notifications:${initialUser.id}`,
+      JSON.stringify(Array.from(deliveredNotificationKeys.current).slice(-250)),
+    );
+  }, [initialUser.id, notifications, t]);
+  async function enableNotifications() {
+    if (window.schwankDesktop) {
+      setNotificationPermission('desktop');
+      return;
+    }
+    if (!('Notification' in window) || !window.isSecureContext) {
+      setNotificationPermission('in-app');
+      return;
+    }
+    setNotificationPermission(await Notification.requestPermission());
+  }
   const post: Post = async (payload) => {
     setNotice(t('saving'));
     const response = await fetch('/api/schwank', {
@@ -581,6 +767,8 @@ export default function HouseholdApp({
       <NutritionView {...common} user={user} totals={totals} />
     ) : active === 'food' ? (
       <FoodStorageView {...common} />
+    ) : active === 'medications' ? (
+      <MedicationsView {...common} />
     ) : active === 'water' ? (
       <WaterView {...common} user={user} />
     ) : active === 'habits' ? (
@@ -614,9 +802,13 @@ export default function HouseholdApp({
             const count =
               item.id === 'tasks'
                 ? data.tasks.filter((task) => task.status !== 'done').length
-                : item.id === 'chat'
-                  ? Math.min(data.messages.length, 9)
-                  : 0;
+                : item.id === 'medications'
+                  ? notifications.filter(
+                      (notification) => notification.section === 'medications',
+                    ).length
+                  : item.id === 'chat'
+                    ? Math.min(data.messages.length, 9)
+                    : 0;
             return (
               <button
                 type="button"
@@ -687,6 +879,67 @@ export default function HouseholdApp({
           </span>
           <div className="topbar-actions">
             <LanguageSwitch language={language} setLanguage={setLanguage} />
+            <div className="notification-menu">
+              <button
+                className="icon-button notification-button"
+                aria-label={t('notifications')}
+                aria-expanded={notificationsOpen}
+                onClick={() => setNotificationsOpen((open) => !open)}
+              >
+                {notifications.length ? (
+                  <BellRing size={19} />
+                ) : (
+                  <Bell size={19} />
+                )}
+                {notifications.length > 0 && (
+                  <em>{Math.min(99, notifications.length)}</em>
+                )}
+              </button>
+              {notificationsOpen && (
+                <section className="notification-popover">
+                  <header>
+                    <div>
+                      <strong>{t('notifications')}</strong>
+                      <span>
+                        {t('dueNowCount', { count: notifications.length })}
+                      </span>
+                    </div>
+                    {notificationPermission === 'default' && (
+                      <button type="button" onClick={enableNotifications}>
+                        {t('enableNotifications')}
+                      </button>
+                    )}
+                  </header>
+                  {notifications.length ? (
+                    notifications.map((notification) => (
+                      <button
+                        type="button"
+                        className="notification-item"
+                        key={notification.key}
+                        onClick={() => {
+                          setActive(notification.section);
+                          setNotificationsOpen(false);
+                        }}
+                      >
+                        <span>
+                          <Clock3 size={15} />
+                        </span>
+                        <div>
+                          <strong>{notification.title}</strong>
+                          <small>{notification.body}</small>
+                        </div>
+                        <ArrowRight size={14} />
+                      </button>
+                    ))
+                  ) : (
+                    <Empty>{t('noNotifications')}</Empty>
+                  )}
+                  {notificationPermission === 'in-app' && (
+                    <p>{t('inAppNotificationsOnly')}</p>
+                  )}
+                </section>
+              )}
+            </div>
             <button
               className="icon-button"
               aria-label={t('addTask')}
@@ -867,7 +1120,11 @@ function Overview({
                   <span className="check" />
                   <div className="task-copy">
                     <strong>{task.title}</strong>
-                    <span>{task.due}</span>
+                    <span>
+                      {task.dueOn
+                        ? formatMoneyDate(task.dueOn, language)
+                        : task.due}
+                    </span>
                   </div>
                   <PrivacyBadge visibility={task.visibility} t={t} />
                 </div>
@@ -1980,8 +2237,7 @@ function WeeklyMealPlanner({
         };
         throw new Error(result.error || t('aiGenerationFailed'));
       }
-      if (!response.body)
-        throw new Error(t('aiOutputUnavailable'));
+      if (!response.body) throw new Error(t('aiOutputUnavailable'));
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -3099,16 +3355,240 @@ function HabitsView({
   );
 }
 
-function TasksView({
+function MedicationsView({
   data,
   post,
   t,
+  language,
 }: {
   data: Data;
   post: Post;
   t: T;
   language: Language;
 }) {
+  const todayKey = dateKey(new Date());
+  const activeToday = data.medications.filter(
+    (medication) =>
+      medication.active &&
+      medication.startOn <= todayKey &&
+      (!medication.endOn || medication.endOn >= todayKey),
+  );
+  const scheduledToday = activeToday.reduce(
+    (count, medication) => count + medication.scheduleTimes.length,
+    0,
+  );
+  const takenToday = data.medicationDoses.filter((dose) =>
+    dose.scheduledFor.startsWith(todayKey),
+  ).length;
+  return (
+    <>
+      <PageTitle
+        eyebrow={t('medicationEyebrow')}
+        title={t('medications')}
+        copy={t('medicationCopy')}
+      />
+      <div className="medication-summary-grid">
+        <article className="panel medication-summary">
+          <span className="tinted-icon violet">
+            <Pill size={19} />
+          </span>
+          <div>
+            <strong>{activeToday.length}</strong>
+            <span>{t('activeMedications')}</span>
+          </div>
+        </article>
+        <article className="panel medication-summary">
+          <span className="tinted-icon green">
+            <CheckCircle2 size={19} />
+          </span>
+          <div>
+            <strong>
+              {takenToday} / {scheduledToday}
+            </strong>
+            <span>{t('dosesToday')}</span>
+          </div>
+        </article>
+      </div>
+      <article className="panel medication-entry-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{t('addMedication')}</h2>
+            <span>{t('medicationFormHint')}</span>
+          </div>
+          <Pill size={19} />
+        </div>
+        <form
+          className="medication-form"
+          onSubmit={(event) => submitForm(event, post, 'medication')}
+        >
+          <Field
+            name="name"
+            label={t('medicationName')}
+            placeholder={t('medicationNamePlaceholder')}
+          />
+          <Field
+            name="dosage"
+            label={t('dosage')}
+            placeholder={t('dosagePlaceholder')}
+          />
+          <Field
+            name="scheduleTimes"
+            label={t('dailyTimes')}
+            placeholder="08:00, 20:00"
+          />
+          <Field
+            name="startOn"
+            label={t('startDate')}
+            type="date"
+            defaultValue={todayKey}
+          />
+          <label className="form-field">
+            <span>{t('endDateOptional')}</span>
+            <input name="endOn" type="date" min={todayKey} />
+          </label>
+          <PrivacySelect t={t} />
+          <label className="form-field medication-instructions">
+            <span>{t('instructionsOptional')}</span>
+            <textarea
+              name="instructions"
+              maxLength={500}
+              placeholder={t('medicationInstructionsPlaceholder')}
+            />
+          </label>
+          <button className="primary-button">
+            <Plus size={16} />
+            {t('addMedication')}
+          </button>
+        </form>
+      </article>
+      <div className="medication-card-grid">
+        {data.medications.length ? (
+          data.medications.map((medication) => {
+            const todayDoses = medication.scheduleTimes.map((time) => {
+              const scheduledFor = `${todayKey}T${time}`;
+              return {
+                time,
+                scheduledFor,
+                dose: data.medicationDoses.find(
+                  (candidate) =>
+                    candidate.medicationId === medication.id &&
+                    candidate.scheduledFor === scheduledFor,
+                ),
+              };
+            });
+            const inDateRange =
+              medication.startOn <= todayKey &&
+              (!medication.endOn || medication.endOn >= todayKey);
+            return (
+              <article
+                className={`panel medication-card${medication.active ? '' : ' paused'}`}
+                key={medication.id}
+              >
+                <header>
+                  <span className="medication-icon">
+                    <Pill size={18} />
+                  </span>
+                  <div>
+                    <strong>{medication.name}</strong>
+                    <span>{medication.dosage}</span>
+                  </div>
+                  <PrivacyBadge visibility={medication.visibility} t={t} />
+                </header>
+                {medication.instructions && <p>{medication.instructions}</p>}
+                <div className="medication-dates">
+                  <CalendarDays size={14} />
+                  {formatMoneyDate(medication.startOn, language)}
+                  {medication.endOn
+                    ? ` – ${formatMoneyDate(medication.endOn, language)}`
+                    : ''}
+                </div>
+                {!medication.owned && (
+                  <small>
+                    {t('sharedByName', { name: medication.ownerName })}
+                  </small>
+                )}
+                <div className="dose-list">
+                  {todayDoses.map(({ time, scheduledFor, dose }) => (
+                    <div className={dose ? 'taken' : ''} key={scheduledFor}>
+                      <span>
+                        <Clock3 size={14} /> {time}
+                      </span>
+                      {dose ? (
+                        <b>
+                          <Check size={13} /> {t('taken')}
+                        </b>
+                      ) : medication.owned &&
+                        medication.active &&
+                        inDateRange ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void post({
+                              type: 'medication-dose',
+                              id: medication.id,
+                              scheduledFor,
+                            })
+                          }
+                        >
+                          {t('markTaken')}
+                        </button>
+                      ) : (
+                        <b>{t('scheduled')}</b>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {medication.owned && (
+                  <footer>
+                    <button
+                      type="button"
+                      className="secondary-button compact-button"
+                      onClick={() =>
+                        void post({
+                          type: 'medication-toggle',
+                          id: medication.id,
+                          active: !medication.active,
+                        })
+                      }
+                    >
+                      {medication.active ? (
+                        <Pause size={14} />
+                      ) : (
+                        <Play size={14} />
+                      )}
+                      {medication.active ? t('pause') : t('resume')}
+                    </button>
+                  </footer>
+                )}
+              </article>
+            );
+          })
+        ) : (
+          <article className="panel">
+            <Empty>{t('noMedications')}</Empty>
+          </article>
+        )}
+      </div>
+      <p className="medical-disclaimer">
+        <Info size={14} /> {t('medicationDisclaimer')}
+      </p>
+    </>
+  );
+}
+
+function TasksView({
+  data,
+  post,
+  t,
+  language,
+}: {
+  data: Data;
+  post: Post;
+  t: T;
+  language: Language;
+}) {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
   const columns = [
     ['todo', t('toDo')],
     ['progress', t('inProgress')],
@@ -3131,7 +3611,12 @@ function TasksView({
           placeholder={t('whatNeedsDoing')}
         />
         <Field name="tag" label={t('group')} defaultValue="Home" />
-        <Field name="due" label={t('due')} defaultValue={t('thisWeek')} />
+        <Field
+          name="dueOn"
+          label={t('due')}
+          type="date"
+          defaultValue={dateKey(tomorrow)}
+        />
         <PrivacySelect t={t} />
         <button className="primary-button">
           <Plus size={16} />
@@ -3168,7 +3653,9 @@ function TasksView({
                     <h3>{task.title}</h3>
                     <footer>
                       <span>
-                        {task.due}
+                        {task.dueOn
+                          ? formatMoneyDate(task.dueOn, language)
+                          : task.due}
                         {!task.owned ? ` · ${t('sharedHousemate')}` : ''}
                       </span>
                       {Boolean(task.owned) && (
@@ -3366,9 +3853,7 @@ function SpendingView({
         </div>
         <form
           className="recurring-form"
-          onSubmit={(event) =>
-            submitForm(event, post, 'recurring-payment')
-          }
+          onSubmit={(event) => submitForm(event, post, 'recurring-payment')}
         >
           <label className="form-field">
             <span>{t('paymentType')}</span>
@@ -3518,7 +4003,9 @@ function SpendingView({
         <div className="panel-heading">
           <div>
             <h2>{t('recentExpenses')}</h2>
-            <span>{t('visibleEntries', { count: visibleExpenses.length })}</span>
+            <span>
+              {t('visibleEntries', { count: visibleExpenses.length })}
+            </span>
           </div>
           <div className="expense-controls">
             <label>
@@ -3581,6 +4068,7 @@ function OrganisersView({
   data,
   post,
   t,
+  language,
 }: {
   data: Data;
   post: Post;
@@ -3588,6 +4076,9 @@ function OrganisersView({
   language: Language;
 }) {
   const lists = Array.from(new Set(data.organisers.map((item) => item.list)));
+  const [reminderDefault] = useState(() =>
+    dateTimeKey(new Date(Date.now() + 60 * 60_000)),
+  );
   return (
     <>
       <PageTitle
@@ -3595,6 +4086,80 @@ function OrganisersView({
         title={t('organisers')}
         copy={t('organiserCopy')}
       />
+      <article className="panel reminder-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{t('reminders')}</h2>
+            <span>{t('remindersCopy')}</span>
+          </div>
+          <BellRing size={19} />
+        </div>
+        <form
+          className="quick-form privacy-form"
+          onSubmit={(event) => submitForm(event, post, 'reminder')}
+        >
+          <Field
+            name="label"
+            label={t('reminderName')}
+            placeholder={t('reminderPlaceholder')}
+          />
+          <Field
+            name="remindAt"
+            label={t('remindAt')}
+            type="datetime-local"
+            defaultValue={reminderDefault}
+          />
+          <PrivacySelect t={t} />
+          <button className="primary-button">
+            <Plus size={16} />
+            {t('addReminder')}
+          </button>
+        </form>
+        <div className="reminder-list">
+          {data.reminders.length ? (
+            data.reminders.map((reminder) => (
+              <div
+                className={reminder.done ? 'complete' : ''}
+                key={reminder.id}
+              >
+                {reminder.owned ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void post({
+                        type: 'reminder-toggle',
+                        id: reminder.id,
+                        done: !reminder.done,
+                      })
+                    }
+                  >
+                    <i>{reminder.done && <Check size={12} />}</i>
+                    <span>
+                      <strong>{reminder.label}</strong>
+                      <small>
+                        {formatDateTime(reminder.remindAt, language)}
+                      </small>
+                    </span>
+                  </button>
+                ) : (
+                  <span className="readonly-item">
+                    <Clock3 size={14} />
+                    <span>
+                      <strong>{reminder.label}</strong>
+                      <small>
+                        {formatDateTime(reminder.remindAt, language)}
+                      </small>
+                    </span>
+                  </span>
+                )}
+                <PrivacyBadge visibility={reminder.visibility} t={t} />
+              </div>
+            ))
+          ) : (
+            <Empty>{t('noReminders')}</Empty>
+          )}
+        </div>
+      </article>
       <form
         className="quick-form privacy-form panel"
         onSubmit={(event) => submitForm(event, post, 'organiser')}
@@ -4020,6 +4585,22 @@ function formatMoneyDate(value: string, language: Language) {
     year: 'numeric',
     timeZone: 'UTC',
   }).format(date);
+}
+function dateTimeKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+function formatDateTime(value: string, language: Language) {
+  return new Intl.DateTimeFormat(language === 'ru' ? 'ru-RU' : 'en-US', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 function resizeImage(
   file: File,

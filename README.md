@@ -50,6 +50,8 @@ The calculator uses the 2023 National Academies adult Estimated Energy Requireme
 
 The interface supports English and Russian, with the preference saved in the browser. The Home screen stores a shared household name, address, and photo, plus a private account-controlled avatar for each member. Images are resized in the browser and stored in the local database so they survive restarts.
 
+The medication tracker is private by default and supports explicit household sharing, daily dose times, optional treatment dates and instructions, pausing, and a per-dose taken log. General reminders follow the same privacy rule. The notification bell combines due medication doses, reminders, dated Kanban tasks, and payments due within three days. Electron uses native operating-system notifications while the app is in the background; secure browser contexts can opt into browser notifications, and the in-app bell remains available on plain LAN HTTP. Native alerts for private records use generic text so medication, task, and payment details are not exposed on a lock screen.
+
 ## Local development
 
 Requires Node.js 22.13 or newer.

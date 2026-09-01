@@ -58,6 +58,15 @@ export async function ensureDatabase() {
     db.prepare(
       'CREATE TABLE IF NOT EXISTS weekly_meal_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, week_start TEXT NOT NULL, day_index INTEGER NOT NULL, course TEXT NOT NULL, recipe_id INTEGER NOT NULL, servings INTEGER NOT NULL DEFAULT 3, created_by INTEGER NOT NULL, created_at TEXT NOT NULL)',
     ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, visibility TEXT NOT NULL DEFAULT 'private', label TEXT NOT NULL, remind_at TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS medications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, visibility TEXT NOT NULL DEFAULT 'private', name TEXT NOT NULL, dosage TEXT NOT NULL, instructions TEXT NOT NULL DEFAULT '', schedule_times TEXT NOT NULL, start_on TEXT NOT NULL, end_on TEXT, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)",
+    ),
+    db.prepare(
+      'CREATE TABLE IF NOT EXISTS medication_doses (id INTEGER PRIMARY KEY AUTOINCREMENT, medication_id INTEGER NOT NULL, user_id INTEGER NOT NULL, scheduled_for TEXT NOT NULL, taken_at TEXT NOT NULL)',
+    ),
   ]);
   await ensureColumn('users', 'avatar_data', 'TEXT');
   await ensureColumn('users', 'water_goal', 'INTEGER NOT NULL DEFAULT 2000');
@@ -78,6 +87,7 @@ export async function ensureDatabase() {
   );
   await ensureColumn('tasks', 'user_id', 'INTEGER');
   await ensureColumn('tasks', 'visibility', "TEXT NOT NULL DEFAULT 'private'");
+  await ensureColumn('tasks', 'due_on', 'TEXT');
   await ensureColumn('expenses', 'user_id', 'INTEGER');
   await ensureColumn(
     'expenses',
@@ -152,6 +162,18 @@ export async function ensureDatabase() {
     ),
     db.prepare(
       'CREATE INDEX IF NOT EXISTS idx_weekly_meal_plan_recipe ON weekly_meal_plan(recipe_id)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_reminders_user_visibility_due ON reminders(user_id,visibility,remind_at)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_medications_user_visibility_active ON medications(user_id,visibility,active)',
+    ),
+    db.prepare(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_medication_doses_unique ON medication_doses(medication_id,user_id,scheduled_for)',
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_medication_doses_user_date ON medication_doses(user_id,scheduled_for)',
     ),
     db
       .prepare(

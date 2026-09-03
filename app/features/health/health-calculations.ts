@@ -1,7 +1,7 @@
 import { dateKey } from '../../client/dates';
 import type {
   Medication,
-  MedicationDose,
+  MedicationAdherenceDose,
   WaterEntry,
   WaterHistoryDay,
 } from '../types';
@@ -60,7 +60,7 @@ export function waterDailyHistoryWindow(
 
 export function medicationAdherence(
   medications: Medication[],
-  doses: MedicationDose[],
+  doses: MedicationAdherenceDose[],
   days: number,
   now = new Date(),
 ) {

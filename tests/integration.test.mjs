@@ -2260,6 +2260,11 @@ void test(
     const restoredAliceId = legacyDatabase
       .prepare("SELECT id FROM users WHERE email='alice@example.test'")
       .get().id;
+    const restoredPrivateMedicationId = legacyDatabase
+      .prepare(
+        "SELECT id FROM medications WHERE user_id=? AND name='Alice private medication'",
+      )
+      .get(restoredAliceId).id;
     const insertLargeExpense = legacyDatabase.prepare(
       "INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on) VALUES (?,'private',?,?, 'groceries','Alice Test',?)",
     );
@@ -2268,6 +2273,12 @@ void test(
     );
     const insertLargeWater = legacyDatabase.prepare(
       'INSERT INTO water_entries (user_id,amount_ml,drunk_on,created_at) VALUES (?,25,?,?)',
+    );
+    const insertLargeMedicationDose = legacyDatabase.prepare(
+      'INSERT INTO medication_doses (medication_id,user_id,scheduled_for,taken_at) VALUES (?,?,?,?)',
+    );
+    const insertLargeHabit = legacyDatabase.prepare(
+      "INSERT INTO habit_entries (user_id,habit,occurrences,cost,occurred_on,created_at) VALUES (?,'vaping',1,25,?,?)",
     );
     legacyDatabase.exec('BEGIN');
     for (let index = 0; index < 250; index += 1) {
@@ -2294,6 +2305,20 @@ void test(
         restoredAliceId,
         historyDay,
         `${historyDay}T12:00:00.000Z`,
+      );
+      insertLargeMedicationDose.run(
+        restoredPrivateMedicationId,
+        restoredAliceId,
+        `${historyDay}T${index < 90 ? '09:00' : '10:00'}`,
+        `${historyDay}T12:00:00.000Z`,
+      );
+      const habitDate = new Date(`${today}T12:00:00.000Z`);
+      habitDate.setUTCDate(habitDate.getUTCDate() - (index % 84));
+      const habitDay = habitDate.toISOString().slice(0, 10);
+      insertLargeHabit.run(
+        restoredAliceId,
+        habitDay,
+        `${habitDay}T12:00:00.000Z`,
       );
     }
     legacyDatabase.exec('COMMIT');
@@ -2384,7 +2409,10 @@ void test(
       assert.equal(section.response.status, 200);
       assert.equal(section.body[history.itemsKey].length, 100);
       assert.equal(section.body[history.hasMoreKey], true);
-      assert.ok(section.body[history.countKey] >= 130);
+      assert.ok(
+        section.body[history.countKey] >= 130,
+        `${history.kind}: ${section.body[history.countKey]}`,
+      );
       assert.ok(
         section.body[history.daysKey].reduce(
           (total, day) => total + Number(day.entryCount),
@@ -2405,6 +2433,75 @@ void test(
       }
       assert.equal(loaded.length, section.body[history.countKey]);
       assert.equal(new Set(loaded.map((item) => item.id)).size, loaded.length);
+    }
+    for (const history of [
+      {
+        kind: 'medication-doses',
+        section: 'medications',
+        itemsKey: 'medicationDoseHistory',
+        countKey: 'medicationDoseHistoryCount',
+        hasMoreKey: 'medicationDoseHistoryHasMore',
+        daysKey: 'medicationAdherenceDoses',
+        dateKey: 'scheduledFor',
+        public: false,
+        pageSize: 24,
+      },
+      {
+        kind: 'habits',
+        section: 'habits',
+        itemsKey: 'habits',
+        countKey: 'habitHistoryCount',
+        hasMoreKey: 'habitHistoryHasMore',
+        daysKey: 'habitHistoryDays',
+        dateKey: 'occurredOn',
+        public: true,
+        pageSize: 24,
+      },
+    ]) {
+      const section = await jsonRequest(
+        `/api/data?sections=${history.section}`,
+        { headers: { cookie: restoredCookie } },
+      );
+      assert.equal(section.response.status, 200);
+      assert.equal(section.body[history.itemsKey].length, history.pageSize);
+      assert.equal(section.body[history.hasMoreKey], true);
+      assert.ok(
+        section.body[history.countKey] >= 130,
+        `${history.kind}: ${section.body[history.countKey]}`,
+      );
+      assert.ok(section.body[history.daysKey].length > 0);
+      const loaded = [...section.body[history.itemsKey]];
+      let hasMore = section.body[history.hasMoreKey];
+      while (hasMore) {
+        const oldest = loaded.at(-1);
+        const beforeDate = oldest[history.dateKey].slice(0, 10);
+        const page = await jsonRequest(
+          `/api/history?kind=${history.kind}&beforeDate=${beforeDate}&beforeId=${oldest.id}`,
+          { headers: { cookie: restoredCookie } },
+        );
+        assert.equal(page.response.status, 200);
+        loaded.push(...page.body.items);
+        hasMore = page.body.hasMore;
+      }
+      assert.equal(loaded.length, section.body[history.countKey]);
+      assert.equal(new Set(loaded.map((item) => item.id)).size, loaded.length);
+      const bobHistory = await jsonRequest(
+        `/api/history?kind=${history.kind}`,
+        {
+          headers: { cookie: bob.cookie },
+        },
+      );
+      assert.equal(bobHistory.response.status, 200);
+      assert.equal(
+        bobHistory.body.items.some(
+          (item) =>
+            item.userId === restoredAliceId ||
+            item.takenByName === 'Alice Test',
+        ),
+        history.public,
+      );
+      if (history.public)
+        assert.equal(bobHistory.body.count, section.body[history.countKey]);
     }
     const bobNutritionHistory = await jsonRequest(
       '/api/history?kind=nutrition',

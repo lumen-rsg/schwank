@@ -6,6 +6,7 @@ import {
   Cigarette,
   CircleDollarSign,
   Edit3,
+  History,
   Plus,
   Trash2,
   Users,
@@ -22,7 +23,7 @@ import {
   PageTitle,
 } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import type { Data, HabitEntry, HabitKind, Post, T } from '../types';
+import type { Data, HabitHistoryDay, HabitKind, Post, T } from '../types';
 
 function HabitHeatmap({
   habit,
@@ -31,7 +32,7 @@ function HabitHeatmap({
   language,
 }: {
   habit: HabitKind;
-  items: HabitEntry[];
+  items: HabitHistoryDay[];
   t: T;
   language: Language;
 }) {
@@ -39,8 +40,7 @@ function HabitHeatmap({
   const totals = items
     .filter((item) => item.habit === habit)
     .reduce<Record<string, number>>((all, item) => {
-      all[item.occurredOn] =
-        (all[item.occurredOn] || 0) + Number(item.occurrences);
+      all[item.day] = (all[item.day] || 0) + Number(item.occurrences);
       return all;
     }, {});
   const daysClear = dates.filter((date) => !totals[dateKey(date)]).length;
@@ -112,19 +112,23 @@ export function HabitsView({
   post,
   t,
   language,
+  habitHistoryLoading,
+  loadOlderHabitHistory,
 }: {
   data: Data;
   post: Post;
   t: T;
   language: Language;
+  habitHistoryLoading: boolean;
+  loadOlderHabitHistory: () => Promise<boolean>;
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const today = dateKey(new Date());
-  const spending = data.habits.reduce(
+  const spending = data.habitHistoryDays.reduce(
     (sum, item) => sum + Number(item.cost),
     0,
   );
-  const vapingSpend = data.habits
+  const vapingSpend = data.habitHistoryDays
     .filter((item) => item.habit === 'vaping')
     .reduce((sum, item) => sum + Number(item.cost), 0);
   const alcoholSpend = spending - vapingSpend;
@@ -145,13 +149,13 @@ export function HabitsView({
         <div className="habit-heatmaps">
           <HabitHeatmap
             habit="vaping"
-            items={data.habits}
+            items={data.habitHistoryDays}
             t={t}
             language={language}
           />
           <HabitHeatmap
             habit="alcohol"
-            items={data.habits}
+            items={data.habitHistoryDays}
             t={t}
             language={language}
           />
@@ -237,7 +241,7 @@ export function HabitsView({
           </div>
           {data.habits.length ? (
             <div className="habit-activity-list">
-              {data.habits.slice(0, 12).map((item) =>
+              {data.habits.map((item) =>
                 editingId === item.id ? (
                   <form
                     className="habit-edit-form"
@@ -341,6 +345,27 @@ export function HabitsView({
             </div>
           ) : (
             <Empty>{t('noHabitActivity')}</Empty>
+          )}
+          {data.habitHistoryHasMore && (
+            <div className="history-pagination" aria-live="polite">
+              <span>
+                {t('publicHistoryEntriesLoaded', {
+                  loaded: data.habits.length,
+                  total: data.habitHistoryCount,
+                })}
+              </span>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={habitHistoryLoading}
+                onClick={() => void loadOlderHabitHistory()}
+              >
+                <History size={14} aria-hidden="true" />
+                {habitHistoryLoading
+                  ? t('loadingOlderHistory')
+                  : t('loadOlderHistory')}
+              </button>
+            </div>
           )}
         </article>
       </div>

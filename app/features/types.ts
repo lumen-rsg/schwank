@@ -126,6 +126,10 @@ export type MedicationDose = {
   takenAt: string;
   takenByName: string;
 };
+export type MedicationAdherenceDose = Pick<
+  MedicationDose,
+  'medicationId' | 'scheduledFor'
+>;
 export type PurchaseIdea = {
   id: number;
   title: string;
@@ -194,6 +198,13 @@ export type HabitEntry = {
   color: string;
   avatar: string | null;
   mine: boolean | number;
+};
+export type HabitHistoryDay = {
+  day: string;
+  habit: HabitKind;
+  entryCount: number;
+  occurrences: number;
+  cost: number;
 };
 export type WaterEntry = {
   id: number;
@@ -319,6 +330,10 @@ export type Data = {
   reminders: Reminder[];
   medications: Medication[];
   medicationDoses: MedicationDose[];
+  medicationDoseHistory: MedicationDose[];
+  medicationDoseHistoryCount: number;
+  medicationDoseHistoryHasMore: boolean;
+  medicationAdherenceDoses: MedicationAdherenceDose[];
   purchaseIdeas: PurchaseIdea[];
   purchaseVotes: PurchaseVote[];
   messages: Message[];
@@ -328,6 +343,9 @@ export type Data = {
   notificationPreferences: NotificationPreferences;
   notificationStates: NotificationState[];
   habits: HabitEntry[];
+  habitHistoryCount: number;
+  habitHistoryHasMore: boolean;
+  habitHistoryDays: HabitHistoryDay[];
   water: WaterEntry[];
   waterHistoryCount: number;
   waterHistoryHasMore: boolean;

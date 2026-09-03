@@ -35,13 +35,21 @@ type ExpensePage = {
   hasMore: boolean;
 };
 
-type PrivateHistoryKind = 'nutrition' | 'water';
+type HistoryKind = 'nutrition' | 'water' | 'medication-doses' | 'habits';
 
-type PrivateHistoryPage = {
-  items: Data['nutritionHistory'] | Data['water'];
+type HistoryPage = {
+  items:
+    | Data['nutritionHistory']
+    | Data['water']
+    | Data['medicationDoseHistory']
+    | Data['habits'];
   count: number;
   hasMore: boolean;
-  daily: Data['nutritionHistoryDays'] | Data['waterHistoryDays'];
+  daily:
+    | Data['nutritionHistoryDays']
+    | Data['waterHistoryDays']
+    | Data['medicationAdherenceDoses']
+    | Data['habitHistoryDays'];
 };
 
 const householdSectionScopes = new Set([
@@ -81,6 +89,10 @@ function emptyHousehold(user: AuthUser): Data {
     reminders: [],
     medications: [],
     medicationDoses: [],
+    medicationDoseHistory: [],
+    medicationDoseHistoryCount: 0,
+    medicationDoseHistoryHasMore: false,
+    medicationAdherenceDoses: [],
     purchaseIdeas: [],
     purchaseVotes: [],
     messages: [],
@@ -102,6 +114,9 @@ function emptyHousehold(user: AuthUser): Data {
     },
     notificationStates: [],
     habits: [],
+    habitHistoryCount: 0,
+    habitHistoryHasMore: false,
+    habitHistoryDays: [],
     water: [],
     waterHistoryCount: 0,
     waterHistoryHasMore: false,
@@ -136,15 +151,13 @@ export function useHouseholdController({
   const [notificationClock, setNotificationClock] = useState(() => Date.now());
   const [chatRevision, setChatRevision] = useState(0);
   const [expenseHistoryLoading, setExpenseHistoryLoading] = useState(false);
-  const [privateHistoryLoading, setPrivateHistoryLoading] = useState<
-    PrivateHistoryKind | ''
-  >('');
+  const [historyLoading, setHistoryLoading] = useState<HistoryKind | ''>('');
   const loadInProgress = useRef(false);
   const dataGeneration = useRef(0);
   const pendingMutations = useRef(new Set<string>());
   const noticeTimer = useRef<number | null>(null);
   const claimSignature = useRef('');
-  const privateHistoryLoad = useRef(new Set<PrivateHistoryKind>());
+  const historyLoad = useRef(new Set<HistoryKind>());
 
   const load = useCallback(
     async (silent = false) => {
@@ -280,24 +293,41 @@ export function useHouseholdController({
     }
   }, [data.expenses, data.expensesHasMore, expenseHistoryLoading, t]);
 
-  const loadOlderPrivateHistory = useCallback(
-    async (kind: PrivateHistoryKind) => {
-      if (privateHistoryLoad.current.size) return false;
-      const items = kind === 'nutrition' ? data.nutritionHistory : data.water;
+  const loadOlderHistory = useCallback(
+    async (kind: HistoryKind) => {
+      if (historyLoad.current.size) return false;
+      const items =
+        kind === 'nutrition'
+          ? data.nutritionHistory
+          : kind === 'water'
+            ? data.water
+            : kind === 'medication-doses'
+              ? data.medicationDoseHistory
+              : data.habits;
       const hasMore =
         kind === 'nutrition'
           ? data.nutritionHistoryHasMore
-          : data.waterHistoryHasMore;
+          : kind === 'water'
+            ? data.waterHistoryHasMore
+            : kind === 'medication-doses'
+              ? data.medicationDoseHistoryHasMore
+              : data.habitHistoryHasMore;
       const oldest = items.at(-1);
       if (!hasMore || !oldest) return false;
       const beforeDate =
         kind === 'nutrition'
           ? (oldest as Data['nutritionHistory'][number]).eatenOn
-          : (oldest as Data['water'][number]).drunkOn;
-      privateHistoryLoad.current.add(kind);
-      setPrivateHistoryLoading(kind);
+          : kind === 'water'
+            ? (oldest as Data['water'][number]).drunkOn
+            : kind === 'medication-doses'
+              ? (
+                  oldest as Data['medicationDoseHistory'][number]
+                ).scheduledFor.slice(0, 10)
+              : (oldest as Data['habits'][number]).occurredOn;
+      historyLoad.current.add(kind);
+      setHistoryLoading(kind);
       try {
-        const page = await requestApiJson<PrivateHistoryPage>(
+        const page = await requestApiJson<HistoryPage>(
           `/api/history?kind=${kind}&beforeDate=${encodeURIComponent(beforeDate)}&beforeId=${oldest.id}`,
           { cache: 'no-store' },
           t,
@@ -319,6 +349,39 @@ export function useHouseholdController({
               nutritionHistoryCount: page.count,
               nutritionHistoryHasMore: page.hasMore,
               nutritionHistoryDays: page.daily as Data['nutritionHistoryDays'],
+            };
+          }
+          if (kind === 'medication-doses') {
+            const known = new Set(
+              current.medicationDoseHistory.map((item) => item.id),
+            );
+            return {
+              ...current,
+              medicationDoseHistory: [
+                ...current.medicationDoseHistory,
+                ...(page.items as Data['medicationDoseHistory']).filter(
+                  (item) => !known.has(item.id),
+                ),
+              ],
+              medicationDoseHistoryCount: page.count,
+              medicationDoseHistoryHasMore: page.hasMore,
+              medicationAdherenceDoses:
+                page.daily as Data['medicationAdherenceDoses'],
+            };
+          }
+          if (kind === 'habits') {
+            const known = new Set(current.habits.map((item) => item.id));
+            return {
+              ...current,
+              habits: [
+                ...current.habits,
+                ...(page.items as Data['habits']).filter(
+                  (item) => !known.has(item.id),
+                ),
+              ],
+              habitHistoryCount: page.count,
+              habitHistoryHasMore: page.hasMore,
+              habitHistoryDays: page.daily as Data['habitHistoryDays'],
             };
           }
           const known = new Set(current.water.map((item) => item.id));
@@ -343,13 +406,17 @@ export function useHouseholdController({
         });
         return false;
       } finally {
-        privateHistoryLoad.current.delete(kind);
-        setPrivateHistoryLoading('');
+        historyLoad.current.delete(kind);
+        setHistoryLoading('');
       }
     },
     [
       data.nutritionHistory,
       data.nutritionHistoryHasMore,
+      data.medicationDoseHistory,
+      data.medicationDoseHistoryHasMore,
+      data.habits,
+      data.habitHistoryHasMore,
       data.water,
       data.waterHistoryHasMore,
       t,
@@ -656,16 +723,20 @@ export function useHouseholdController({
     expenseHistoryLoading,
     loading,
     loadOlderExpenses,
-    loadOlderNutritionHistory: () => loadOlderPrivateHistory('nutrition'),
-    loadOlderWaterHistory: () => loadOlderPrivateHistory('water'),
+    loadOlderNutritionHistory: () => loadOlderHistory('nutrition'),
+    loadOlderWaterHistory: () => loadOlderHistory('water'),
+    loadOlderMedicationDoseHistory: () => loadOlderHistory('medication-doses'),
+    loadOlderHabitHistory: () => loadOlderHistory('habits'),
     logout,
     notificationPermission,
     notifications,
     notificationOpenTarget,
     notice,
     post,
-    nutritionHistoryLoading: privateHistoryLoading === 'nutrition',
-    waterHistoryLoading: privateHistoryLoading === 'water',
+    nutritionHistoryLoading: historyLoading === 'nutrition',
+    waterHistoryLoading: historyLoading === 'water',
+    medicationDoseHistoryLoading: historyLoading === 'medication-doses',
+    habitHistoryLoading: historyLoading === 'habits',
     clearNotificationOpenTarget,
   };
 }

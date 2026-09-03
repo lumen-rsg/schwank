@@ -121,11 +121,15 @@ export function MedicationsView({
   post,
   t,
   language,
+  medicationDoseHistoryLoading,
+  loadOlderMedicationDoseHistory,
 }: {
   data: Data;
   post: Post;
   t: T;
   language: Language;
+  medicationDoseHistoryLoading: boolean;
+  loadOlderMedicationDoseHistory: () => Promise<boolean>;
 }) {
   const todayKey = dateKey(new Date());
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -145,13 +149,12 @@ export function MedicationsView({
   const ownedMedications = data.medications.filter(
     (medication) => medication.owned,
   );
-  const ownedMedicationIds = new Set(
-    ownedMedications.map((medication) => medication.id),
+  const ownedDoses = data.medicationDoseHistory;
+  const adherence = medicationAdherence(
+    ownedMedications,
+    data.medicationAdherenceDoses,
+    14,
   );
-  const ownedDoses = data.medicationDoses.filter((dose) =>
-    ownedMedicationIds.has(dose.medicationId),
-  );
-  const adherence = medicationAdherence(ownedMedications, ownedDoses, 14);
   return (
     <>
       <PageTitle
@@ -433,7 +436,7 @@ export function MedicationsView({
         </div>
         <div className="medication-history-list">
           {ownedDoses.length ? (
-            ownedDoses.slice(0, 16).map((dose) => {
+            ownedDoses.map((dose) => {
               const medication = ownedMedications.find(
                 (candidate) => candidate.id === dose.medicationId,
               );
@@ -465,6 +468,27 @@ export function MedicationsView({
             <Empty>{t('noDoseHistory')}</Empty>
           )}
         </div>
+        {data.medicationDoseHistoryHasMore && (
+          <div className="history-pagination" aria-live="polite">
+            <span>
+              {t('historyEntriesLoaded', {
+                loaded: data.medicationDoseHistory.length,
+                total: data.medicationDoseHistoryCount,
+              })}
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={medicationDoseHistoryLoading}
+              onClick={() => void loadOlderMedicationDoseHistory()}
+            >
+              <History size={14} aria-hidden="true" />
+              {medicationDoseHistoryLoading
+                ? t('loadingOlderHistory')
+                : t('loadOlderHistory')}
+            </button>
+          </div>
+        )}
       </article>
       <p className="medical-disclaimer">
         <Info size={14} /> {t('medicationDisclaimer')}

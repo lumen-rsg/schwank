@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { isAiConfigured } from '../ai-config';
 import type { AuthUser } from '../auth';
 import { readChatSnapshot } from '../chat';
-import { readPrivateHistoryPage } from '../private-history';
+import { readHistoryPage } from '../history';
 import { readExpensePage } from '../spending';
 import { ensureDatabase } from '../setup';
 
@@ -73,7 +73,7 @@ async function readNutrition(user: AuthUser) {
       )
         .bind(user.id, today(), user.id)
         .all(),
-      readPrivateHistoryPage(user, 'nutrition'),
+      readHistoryPage(user, 'nutrition'),
       env.DB.prepare(
         'SELECT COUNT(*) AS count FROM users WHERE ai_consent=1 AND deleted_at IS NULL',
       ).first<{ count: number }>(),
@@ -145,24 +145,31 @@ async function readOrganisers(user: AuthUser) {
 }
 
 async function readMedications(user: AuthUser) {
-  const [medicationRows, medicationDoses] = await Promise.all([
-    env.DB.prepare(
-      "SELECT m.id,m.name,m.dosage,m.instructions,m.schedule_times AS scheduleTimes,m.start_on AS startOn,m.end_on AS endOn,m.supply_remaining AS supplyRemaining,m.refill_threshold AS refillThreshold,m.active,m.visibility,(m.user_id=?) AS owned,u.display_name AS ownerName FROM medications m JOIN users u ON u.id=m.user_id WHERE m.user_id=? OR m.visibility='shared' ORDER BY m.active DESC,m.name,m.id DESC",
-    )
-      .bind(user.id, user.id)
-      .all(),
-    env.DB.prepare(
-      "SELECT d.id,d.medication_id AS medicationId,d.scheduled_for AS scheduledFor,d.taken_at AS takenAt,u.display_name AS takenByName FROM medication_doses d JOIN medications m ON m.id=d.medication_id JOIN users u ON u.id=d.user_id WHERE (m.user_id=? OR m.visibility='shared') AND d.scheduled_for>=date('now','-89 days') ORDER BY d.scheduled_for DESC,d.id DESC",
-    )
-      .bind(user.id)
-      .all(),
-  ]);
+  const currentDay = today();
+  const [medicationRows, medicationDoses, medicationHistory] =
+    await Promise.all([
+      env.DB.prepare(
+        "SELECT m.id,m.name,m.dosage,m.instructions,m.schedule_times AS scheduleTimes,m.start_on AS startOn,m.end_on AS endOn,m.supply_remaining AS supplyRemaining,m.refill_threshold AS refillThreshold,m.active,m.visibility,(m.user_id=?) AS owned,u.display_name AS ownerName FROM medications m JOIN users u ON u.id=m.user_id WHERE m.user_id=? OR m.visibility='shared' ORDER BY m.active DESC,m.name,m.id DESC",
+      )
+        .bind(user.id, user.id)
+        .all(),
+      env.DB.prepare(
+        "SELECT d.id,d.medication_id AS medicationId,d.scheduled_for AS scheduledFor,d.taken_at AS takenAt,u.display_name AS takenByName FROM medication_doses d JOIN medications m ON m.id=d.medication_id JOIN users u ON u.id=d.user_id WHERE (m.user_id=? OR m.visibility='shared') AND substr(d.scheduled_for,1,10)=? ORDER BY d.scheduled_for DESC,d.id DESC",
+      )
+        .bind(user.id, currentDay)
+        .all(),
+      readHistoryPage(user, 'medication-doses'),
+    ]);
   return {
     medications: medicationRows.results.map((medication) => ({
       ...medication,
       scheduleTimes: JSON.parse(String(medication.scheduleTimes)) as string[],
     })),
     medicationDoses: medicationDoses.results,
+    medicationDoseHistory: medicationHistory.items,
+    medicationDoseHistoryCount: medicationHistory.count,
+    medicationDoseHistoryHasMore: medicationHistory.hasMore,
+    medicationAdherenceDoses: medicationHistory.daily,
   };
 }
 
@@ -217,20 +224,19 @@ async function readNotifications(user: AuthUser) {
 }
 
 async function readHabits(user: AuthUser) {
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - 83);
-  const rows = await env.DB.prepare(
-    'SELECT h.id,h.user_id AS userId,h.habit,h.occurrences,h.cost,h.occurred_on AS occurredOn,h.created_at AS createdAt,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar,(h.user_id=?) AS mine FROM habit_entries h JOIN users u ON u.id=h.user_id WHERE h.occurred_on>=? ORDER BY h.occurred_on DESC,h.id DESC',
-  )
-    .bind(user.id, since.toISOString().slice(0, 10))
-    .all();
-  return { habits: rows.results };
+  const history = await readHistoryPage(user, 'habits');
+  return {
+    habits: history.items,
+    habitHistoryCount: history.count,
+    habitHistoryHasMore: history.hasMore,
+    habitHistoryDays: history.daily,
+  };
 }
 
 async function readWater(user: AuthUser) {
   const [currentUser, history] = await Promise.all([
     readCurrentUser(user),
-    readPrivateHistoryPage(user, 'water'),
+    readHistoryPage(user, 'water'),
   ]);
   return {
     currentUser,

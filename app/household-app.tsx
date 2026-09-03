@@ -91,6 +91,8 @@ export default function HouseholdApp({
     loading,
     loadOlderExpenses,
     loadOlderNutritionHistory,
+    loadOlderMedicationDoseHistory,
+    loadOlderHabitHistory,
     loadOlderWaterHistory,
     logout,
     notificationPermission,
@@ -98,6 +100,8 @@ export default function HouseholdApp({
     notificationOpenTarget,
     notice,
     nutritionHistoryLoading,
+    medicationDoseHistoryLoading,
+    habitHistoryLoading,
     post,
     waterHistoryLoading,
     clearNotificationOpenTarget,
@@ -219,7 +223,11 @@ export default function HouseholdApp({
     ) : active === 'food' ? (
       <FoodStorageView {...common} />
     ) : active === 'medications' ? (
-      <MedicationsView {...common} />
+      <MedicationsView
+        {...common}
+        medicationDoseHistoryLoading={medicationDoseHistoryLoading}
+        loadOlderMedicationDoseHistory={loadOlderMedicationDoseHistory}
+      />
     ) : active === 'water' ? (
       <WaterView
         {...common}
@@ -228,7 +236,11 @@ export default function HouseholdApp({
         loadOlderWaterHistory={loadOlderWaterHistory}
       />
     ) : active === 'habits' ? (
-      <HabitsView {...common} />
+      <HabitsView
+        {...common}
+        habitHistoryLoading={habitHistoryLoading}
+        loadOlderHabitHistory={loadOlderHabitHistory}
+      />
     ) : active === 'tasks' ? (
       <TasksView {...common} />
     ) : active === 'wishlist' ? (

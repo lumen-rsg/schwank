@@ -34,7 +34,14 @@ only the pinned Wrangler runtime:
 ```sh
 cd /home/lumina/schwank-server
 npm ci --omit=dev
+mkdir -p .wrangler/state node_modules/.mf /home/lumina/.config/.wrangler
+chmod 700 /home/lumina/.config /home/lumina/.config/.wrangler
 ```
+
+The first transfer may copy `.dev.vars.example` to the private `.dev.vars`
+file. Replace its placeholder `AI_API_KEY` value locally on the board, keep the
+file at mode `600`, and restart `schwank`; the service command loads this exact
+file explicitly.
 
 ## Service installation
 

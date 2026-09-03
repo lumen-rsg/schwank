@@ -280,6 +280,10 @@ void test('provides a pinned minimal runtime and Fedora lumina service profile',
 
   assert.deepEqual(runtimePackage.dependencies, { wrangler: '4.127.1' });
   assert.equal(runtimeLock.packages[''].dependencies.wrangler, '4.127.1');
+  assert.match(runtimePackage.scripts.start, /--ip 0\.0\.0\.0/);
+  assert.match(runtimePackage.scripts.start, /--port 3000/);
+  assert.match(runtimePackage.scripts.start, /--persist-to \.wrangler\/state/);
+  assert.match(runtimePackage.scripts.start, /--env-file \.dev\.vars/);
   assert.match(service, /^User=lumina$/m);
   assert.match(service, /^WorkingDirectory=\/home\/lumina\/schwank-server$/m);
   assert.doesNotMatch(service, /orangepi/);

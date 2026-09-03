@@ -76,6 +76,12 @@ const serverRuntimeLock = join(
   'server-runtime',
   'package-lock.json',
 );
+const desktopWorkflow = join(
+  repositoryRoot,
+  '.github',
+  'workflows',
+  'desktop-builds.yml',
+);
 
 function run(command, arguments_, options = {}) {
   return spawnSync(command, arguments_, {
@@ -292,4 +298,18 @@ void test('provides a pinned minimal runtime and Fedora lumina service profile',
     backupService,
     /^Environment=SCHWANK_SERVER_DIR=\/home\/lumina\/schwank-server$/m,
   );
+});
+
+void test('publishes a complete tagged desktop release only after every native build', async () => {
+  const workflow = await readFile(desktopWorkflow, 'utf8');
+
+  assert.match(workflow, /^\s+- 'v\*'$/m);
+  assert.match(workflow, /command: desktop:dist:mac/);
+  assert.match(workflow, /command: desktop:dist:linux/);
+  assert.match(workflow, /command: desktop:dist:windows/);
+  assert.match(workflow, /needs: build/);
+  assert.match(workflow, /if: startsWith\(github\.ref, 'refs\/tags\/v'\)/);
+  assert.match(workflow, /permissions:\n\s+contents: write/);
+  assert.match(workflow, /gh release create "\$GITHUB_REF_NAME"/);
+  assert.match(workflow, /--notes-file "\$notes_file"/);
 });

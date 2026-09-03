@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - 'desktop-v*'
+      - 'v*'
 
 permissions:
   contents: read
@@ -50,3 +51,37 @@ jobs:
             release/desktop/*.exe
           if-no-files-found: error
           retention-days: 14
+
+  publish:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: schwank-*
+          path: release/desktop
+          merge-multiple: true
+      - name: Publish installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes_file="docs/releases/$version.md"
+          if [ -f "$notes_file" ]; then
+            gh release create "$GITHUB_REF_NAME" release/desktop/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "schwank $version" \
+              --notes-file "$notes_file"
+          else
+            gh release create "$GITHUB_REF_NAME" release/desktop/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "schwank $version" \
+              --generate-notes
+          fi

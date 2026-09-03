@@ -11,6 +11,9 @@ Electron does not run on iOS or Android. A future mobile client can reuse the sa
 The Pass 8 operations runbook covers versioned health checks, privacy-safe
 structured logs, bounded journals, encrypted scheduled backups, and restore
 drills in [`docs/operations.md`](docs/operations.md).
+Release candidates, synchronized version files, native desktop artifacts, and
+the final GitHub release procedure are documented in
+[`docs/releasing.md`](docs/releasing.md).
 
 ## Data layer
 

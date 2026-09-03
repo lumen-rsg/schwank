@@ -53,6 +53,31 @@ Each scheduled run performs this sequence:
 
 An off-device copy is still required for media failure protection.
 
+### First-time key setup
+
+Install `age` on a trusted workstation and generate the identity there. The
+private file must never be created or copied onto the Orange Pi:
+
+```sh
+install -d -m 700 /path/to/private/schwank
+age-keygen -o /path/to/private/schwank/backup-identity.txt
+chmod 600 /path/to/private/schwank/backup-identity.txt
+age-keygen -y /path/to/private/schwank/backup-identity.txt
+```
+
+The final command prints the non-secret `age1...` recipient. Put only that
+recipient in the board's owner-only `backup.env`:
+
+```dotenv
+SCHWANK_BACKUP_RECIPIENT=age1...
+```
+
+Keep a second protected copy of the identity in operator-controlled encrypted
+storage. Losing every copy of the identity makes all encrypted archives
+unrecoverable. Treat disclosure of the identity as a backup confidentiality
+incident: generate a new identity, replace the board recipient, and let old
+archives expire only after the required retention decision.
+
 ## Restore policy
 
 Run `restore-drill.sh` after first setup, after a migration change, and at least
@@ -65,3 +90,17 @@ archive. `restore-backup.sh` performs a cold replacement and retains the old
 state beside the restored state for rollback. Do not remove that rollback copy
 until users have signed in and checked private and shared records after a
 restart.
+
+The minimum commissioning evidence is:
+
+- backup service result is `success`;
+- server readiness returns after the cold snapshot;
+- encrypted archive exists with mode `600` and no plaintext peer remains;
+- an off-device copy passes `verify-encrypted-backup.sh`;
+- the same copy passes `restore-drill.sh` with `integrity=ok` and the expected
+  migration count;
+- the timer is enabled, active, and has a future trigger.
+
+Record the date, archive checksum, migration count, and operator identity
+fingerprint in the private operations log. Do not record the private identity
+contents.

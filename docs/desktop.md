@@ -63,7 +63,7 @@ npm run desktop:dist:windows
 
 Artifacts are written to `release/desktop`. Run each production build on its target operating system. macOS signing/notarization and Windows code signing require certificates owned by the publisher; unsigned local builds are suitable for household testing but will trigger OS warnings.
 
-The **Desktop builds** GitHub Actions workflow builds all three requested targets on native runners. Run it manually, or push a tag such as `desktop-v0.1.0`, then download the three artifacts from the workflow run.
+The **Desktop builds** GitHub Actions workflow builds all three requested targets on native runners. Push a release-candidate tag such as `desktop-v1.0.0-rc.1` to test and retain the matrix artifacts without publishing a release. A final tag such as `v1.0.0` runs the same matrix and publishes its installers to the GitHub Release only after every platform succeeds.
 
 ## Security boundary
 

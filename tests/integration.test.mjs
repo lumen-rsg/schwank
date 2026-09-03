@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -10,6 +10,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const packageVersion = JSON.parse(
+  await readFile(join(repositoryRoot, 'package.json'), 'utf8'),
+).version;
 const wranglerCli = join(
   repositoryRoot,
   'node_modules',
@@ -185,7 +188,7 @@ void test('reports versioned liveness and migration-aware readiness', async () =
   );
   assert.equal(live.body.ok, true);
   assert.equal(live.body.service, 'schwank-server');
-  assert.equal(live.body.version, '0.1.0');
+  assert.equal(live.body.version, packageVersion);
   assert.equal(live.body.apiVersion, 1);
   assert.match(live.body.serverTime, /^\d{4}-\d{2}-\d{2}T/);
 
@@ -198,6 +201,7 @@ void test('reports versioned liveness and migration-aware readiness', async () =
     'integration-ready-01',
   );
   assert.equal(ready.body.ok, true);
+  assert.equal(ready.body.version, packageVersion);
   assert.equal(ready.body.database, 'ready');
   assert.deepEqual(ready.body.schema, {
     appliedMigrations: 19,

@@ -16,6 +16,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const rootPackage = join(repositoryRoot, 'package.json');
+const rootLock = join(repositoryRoot, 'package-lock.json');
+const desktopPackage = join(repositoryRoot, 'desktop', 'package.json');
 const verifier = join(
   repositoryRoot,
   'deploy',
@@ -64,6 +67,7 @@ const fedoraBackupServiceUnit = join(
   'fedora',
   'schwank-backup.service',
 );
+const fedoraReadme = join(repositoryRoot, 'deploy', 'fedora', 'README.md');
 const serverRuntimePackage = join(
   repositoryRoot,
   'deploy',
@@ -283,6 +287,7 @@ void test('provides a pinned minimal runtime and Fedora lumina service profile',
   const runtimeLock = JSON.parse(await readFile(serverRuntimeLock, 'utf8'));
   const service = await readFile(fedoraServiceUnit, 'utf8');
   const backupService = await readFile(fedoraBackupServiceUnit, 'utf8');
+  const deploymentGuide = await readFile(fedoraReadme, 'utf8');
 
   assert.deepEqual(runtimePackage.dependencies, { wrangler: '4.127.1' });
   assert.equal(runtimeLock.packages[''].dependencies.wrangler, '4.127.1');
@@ -292,7 +297,15 @@ void test('provides a pinned minimal runtime and Fedora lumina service profile',
   assert.match(runtimePackage.scripts.start, /--env-file \.dev\.vars/);
   assert.match(service, /^User=lumina$/m);
   assert.match(service, /^WorkingDirectory=\/home\/lumina\/schwank-server$/m);
+  assert.match(
+    service,
+    /^ReadWritePaths=\/home\/lumina\/schwank-server\/node_modules\/\.mf$/m,
+  );
   assert.doesNotMatch(service, /orangepi/);
+  assert.match(
+    deploymentGuide,
+    /Every `npm ci` replaces `node_modules`[\s\S]+mkdir -p \/home\/lumina\/schwank-server\/node_modules\/\.mf/,
+  );
   assert.match(backupService, /^Environment=SCHWANK_BACKUP_USER=lumina$/m);
   assert.match(
     backupService,
@@ -312,4 +325,24 @@ void test('publishes a complete tagged desktop release only after every native b
   assert.match(workflow, /permissions:\n\s+contents: write/);
   assert.match(workflow, /gh release create "\$GITHUB_REF_NAME"/);
   assert.match(workflow, /--notes-file "\$notes_file"/);
+});
+
+void test('keeps server, runtime, lockfile, and desktop release versions synchronized', async () => {
+  const rootMetadata = JSON.parse(await readFile(rootPackage, 'utf8'));
+  const rootLockMetadata = JSON.parse(await readFile(rootLock, 'utf8'));
+  const desktopMetadata = JSON.parse(await readFile(desktopPackage, 'utf8'));
+  const runtimeMetadata = JSON.parse(
+    await readFile(serverRuntimePackage, 'utf8'),
+  );
+  const runtimeLockMetadata = JSON.parse(
+    await readFile(serverRuntimeLock, 'utf8'),
+  );
+
+  assert.match(rootMetadata.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(rootLockMetadata.version, rootMetadata.version);
+  assert.equal(rootLockMetadata.packages[''].version, rootMetadata.version);
+  assert.equal(desktopMetadata.version, rootMetadata.version);
+  assert.equal(runtimeMetadata.version, rootMetadata.version);
+  assert.equal(runtimeLockMetadata.version, rootMetadata.version);
+  assert.equal(runtimeLockMetadata.packages[''].version, rootMetadata.version);
 });

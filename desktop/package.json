@@ -1,7 +1,7 @@
 {
   "name": "schwank-desktop",
   "desktopName": "com.lumenrsg.schwank",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Desktop client for the schwank shared-home server",
   "author": "lumen-rsg",
   "private": true,

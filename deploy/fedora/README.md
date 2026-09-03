@@ -128,8 +128,16 @@ build and verified encrypted backup through household acceptance.
 If `deploy/server-runtime/package-lock.json` changed, stage its package files
 as well. After the backup and service stop, install them as the runtime
 `package.json` and `package-lock.json` and run `npm ci --omit=dev` from
-`/home/lumina/schwank-server` before starting the new build. Never transfer the
-development workstation's `node_modules` to the ARM64 board.
+`/home/lumina/schwank-server`. Every `npm ci` replaces `node_modules`, so
+recreate Wrangler's systemd-writable scratch directory before starting the new
+build:
+
+```sh
+mkdir -p /home/lumina/schwank-server/node_modules/.mf
+```
+
+Never transfer the development workstation's `node_modules` to the ARM64
+board.
 
 ## Rollback
 

@@ -17,7 +17,10 @@ import { submitForm } from '../../client/forms';
 import { Field } from '../../components/app-field';
 import { ConfirmAction, Empty, PageTitle } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import { waterHistoryWindow } from '../health/health-calculations';
+import {
+  waterDailyHistoryWindow,
+  waterHistoryWindow,
+} from '../health/health-calculations';
 import type { Data, Post, T } from '../types';
 
 type WaterRange = 7 | 30 | 90;
@@ -28,24 +31,27 @@ export function WaterView({
   post,
   t,
   language,
+  waterHistoryLoading,
+  loadOlderWaterHistory,
 }: {
   data: Data;
   user: AuthUser;
   post: Post;
   t: T;
   language: Language;
+  waterHistoryLoading: boolean;
+  loadOlderWaterHistory: () => Promise<boolean>;
 }) {
   const today = dateKey(new Date());
   const [range, setRange] = useState<WaterRange>(7);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const todayEntries = data.water.filter((item) => item.drunkOn === today);
-  const total = todayEntries.reduce(
-    (sum, item) => sum + Number(item.amountMl),
-    0,
+  const total = Number(
+    data.waterHistoryDays.find((day) => day.day === today)?.amountMl ?? 0,
   );
   const remaining = Math.max(0, user.waterGoal - total);
   const percent = Math.min(100, (total / user.waterGoal) * 100);
-  const history = waterHistoryWindow(data.water, range);
+  const loadedHistory = waterHistoryWindow(data.water, range);
+  const history = waterDailyHistoryWindow(data.waterHistoryDays, range);
   const maximum = Math.max(
     user.waterGoal,
     ...history.daily.map((day) => day.amountMl),
@@ -208,8 +214,8 @@ export function WaterView({
           </ul>
         </figure>
         <div className="water-entry-list water-history-list">
-          {history.visible.length ? (
-            history.visible.map((item) =>
+          {loadedHistory.visible.length ? (
+            loadedHistory.visible.map((item) =>
               editingId === item.id ? (
                 <form
                   className="water-edit-form"
@@ -290,6 +296,27 @@ export function WaterView({
             <Empty>{t('noWaterHistory')}</Empty>
           )}
         </div>
+        {data.waterHistoryHasMore && (
+          <div className="history-pagination" aria-live="polite">
+            <span>
+              {t('historyEntriesLoaded', {
+                loaded: data.water.length,
+                total: data.waterHistoryCount,
+              })}
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={waterHistoryLoading}
+              onClick={() => void loadOlderWaterHistory()}
+            >
+              <History size={14} aria-hidden="true" />
+              {waterHistoryLoading
+                ? t('loadingOlderHistory')
+                : t('loadOlderHistory')}
+            </button>
+          </div>
+        )}
       </article>
     </>
   );

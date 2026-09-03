@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { isAiConfigured } from '../ai-config';
 import type { AuthUser } from '../auth';
 import { readChatSnapshot } from '../chat';
+import { readPrivateHistoryPage } from '../private-history';
 import { readExpensePage } from '../spending';
 import { ensureDatabase } from '../setup';
 
@@ -72,11 +73,7 @@ async function readNutrition(user: AuthUser) {
       )
         .bind(user.id, today(), user.id)
         .all(),
-      env.DB.prepare(
-        "SELECT n.id,n.label,n.calories,n.protein,n.carbs,n.fat,n.eaten_on AS eatenOn,n.visibility,1 AS owned,u.id AS userId,u.display_name AS name,u.initials,u.color,u.avatar_data AS avatar FROM nutrition_entries n JOIN users u ON u.id=n.user_id WHERE n.user_id=? AND n.eaten_on>=date(?,'-89 days') ORDER BY n.eaten_on DESC,n.id DESC",
-      )
-        .bind(user.id, today())
-        .all(),
+      readPrivateHistoryPage(user, 'nutrition'),
       env.DB.prepare(
         'SELECT COUNT(*) AS count FROM users WHERE ai_consent=1 AND deleted_at IS NULL',
       ).first<{ count: number }>(),
@@ -84,7 +81,10 @@ async function readNutrition(user: AuthUser) {
   return {
     currentUser,
     nutrition: nutrition.results,
-    nutritionHistory: nutritionHistory.results,
+    nutritionHistory: nutritionHistory.items,
+    nutritionHistoryCount: nutritionHistory.count,
+    nutritionHistoryHasMore: nutritionHistory.hasMore,
+    nutritionHistoryDays: nutritionHistory.daily,
     aiConfigured: isAiConfigured(),
     aiConsentingMembers: Number(aiConsentCount?.count || 0),
   };
@@ -228,15 +228,17 @@ async function readHabits(user: AuthUser) {
 }
 
 async function readWater(user: AuthUser) {
-  const [currentUser, rows] = await Promise.all([
+  const [currentUser, history] = await Promise.all([
     readCurrentUser(user),
-    env.DB.prepare(
-      "SELECT id,amount_ml AS amountMl,drunk_on AS drunkOn,created_at AS createdAt FROM water_entries WHERE user_id=? AND drunk_on>=date(?,'-89 days') ORDER BY drunk_on DESC,id DESC",
-    )
-      .bind(user.id, today())
-      .all(),
+    readPrivateHistoryPage(user, 'water'),
   ]);
-  return { currentUser, water: rows.results };
+  return {
+    currentUser,
+    water: history.items,
+    waterHistoryCount: history.count,
+    waterHistoryHasMore: history.hasMore,
+    waterHistoryDays: history.daily,
+  };
 }
 
 async function readFood() {

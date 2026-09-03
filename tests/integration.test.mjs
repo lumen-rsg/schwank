@@ -962,6 +962,18 @@ void test(
       headers: { cookie: alice.cookie },
     });
     assert.equal(invalidSections.response.status, 400);
+    assert.equal(
+      (await jsonRequest('/api/history?kind=nutrition')).response.status,
+      401,
+    );
+    assert.equal(
+      (
+        await jsonRequest('/api/history?kind=nutrition&beforeDate=2026-09-01', {
+          headers: { cookie: alice.cookie },
+        })
+      ).response.status,
+      400,
+    );
     const bobTaskSection = await jsonRequest(
       '/api/data?sections=tasks,spending',
       { headers: { cookie: bob.cookie } },
@@ -2251,6 +2263,12 @@ void test(
     const insertLargeExpense = legacyDatabase.prepare(
       "INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on) VALUES (?,'private',?,?, 'groceries','Alice Test',?)",
     );
+    const insertLargeNutrition = legacyDatabase.prepare(
+      "INSERT INTO nutrition_entries (user_id,member_id,visibility,label,calories,protein,carbs,fat,eaten_on) VALUES (?,?,'private',?,100,10,12,4,?)",
+    );
+    const insertLargeWater = legacyDatabase.prepare(
+      'INSERT INTO water_entries (user_id,amount_ml,drunk_on,created_at) VALUES (?,25,?,?)',
+    );
     legacyDatabase.exec('BEGIN');
     for (let index = 0; index < 250; index += 1) {
       const day = String((index % 28) + 1).padStart(2, '0');
@@ -2260,6 +2278,22 @@ void test(
         `Large history expense ${String(index).padStart(3, '0')}`,
         index + 1,
         `2029-${month}-${day}`,
+      );
+    }
+    for (let index = 0; index < 130; index += 1) {
+      const historyDate = new Date(`${today}T12:00:00.000Z`);
+      historyDate.setUTCDate(historyDate.getUTCDate() - (index % 90));
+      const historyDay = historyDate.toISOString().slice(0, 10);
+      insertLargeNutrition.run(
+        restoredAliceId,
+        String(restoredAliceId),
+        `Large nutrition history ${String(index).padStart(3, '0')}`,
+        historyDay,
+      );
+      insertLargeWater.run(
+        restoredAliceId,
+        historyDay,
+        `${historyDay}T12:00:00.000Z`,
       );
     }
     legacyDatabase.exec('COMMIT');
@@ -2322,6 +2356,67 @@ void test(
       250,
     );
     assert.ok(performance.now() - pageStartedAt < 5_000);
+
+    for (const history of [
+      {
+        kind: 'nutrition',
+        section: 'nutrition',
+        itemsKey: 'nutritionHistory',
+        countKey: 'nutritionHistoryCount',
+        hasMoreKey: 'nutritionHistoryHasMore',
+        daysKey: 'nutritionHistoryDays',
+        dateKey: 'eatenOn',
+      },
+      {
+        kind: 'water',
+        section: 'water',
+        itemsKey: 'water',
+        countKey: 'waterHistoryCount',
+        hasMoreKey: 'waterHistoryHasMore',
+        daysKey: 'waterHistoryDays',
+        dateKey: 'drunkOn',
+      },
+    ]) {
+      const section = await jsonRequest(
+        `/api/data?sections=${history.section}`,
+        { headers: { cookie: restoredCookie } },
+      );
+      assert.equal(section.response.status, 200);
+      assert.equal(section.body[history.itemsKey].length, 100);
+      assert.equal(section.body[history.hasMoreKey], true);
+      assert.ok(section.body[history.countKey] >= 130);
+      assert.ok(
+        section.body[history.daysKey].reduce(
+          (total, day) => total + Number(day.entryCount),
+          0,
+        ) >= 130,
+      );
+      const loaded = [...section.body[history.itemsKey]];
+      let hasMore = section.body[history.hasMoreKey];
+      while (hasMore) {
+        const oldest = loaded.at(-1);
+        const page = await jsonRequest(
+          `/api/history?kind=${history.kind}&beforeDate=${oldest[history.dateKey]}&beforeId=${oldest.id}`,
+          { headers: { cookie: restoredCookie } },
+        );
+        assert.equal(page.response.status, 200);
+        loaded.push(...page.body.items);
+        hasMore = page.body.hasMore;
+      }
+      assert.equal(loaded.length, section.body[history.countKey]);
+      assert.equal(new Set(loaded.map((item) => item.id)).size, loaded.length);
+    }
+    const bobNutritionHistory = await jsonRequest(
+      '/api/history?kind=nutrition',
+      { headers: { cookie: bob.cookie } },
+    );
+    assert.equal(bobNutritionHistory.response.status, 200);
+    assert.equal(
+      bobNutritionHistory.body.items.some((item) =>
+        item.label.startsWith('Large nutrition history'),
+      ),
+      false,
+    );
     await stopServer();
     const repairedDatabase = new DatabaseSync(join(d1Directory, d1File), {
       readOnly: true,

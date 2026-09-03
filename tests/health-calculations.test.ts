@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   medicationAdherence,
+  waterDailyHistoryWindow,
   waterHistoryWindow,
 } from '../app/features/health/health-calculations';
 import type {
@@ -36,6 +37,20 @@ void test('aggregates private hydration entries across calendar days', () => {
   assert.equal(result.daily[0].day, '2026-08-26');
   assert.equal(result.daily.at(-1)?.amountMl, 700);
   assert.equal(result.totalMl, 1500);
+});
+
+void test('keeps hydration totals exact when editable rows are paginated', () => {
+  const result = waterDailyHistoryWindow(
+    [
+      { day: '2026-08-31', entryCount: 110, amountMl: 11_000 },
+      { day: '2026-09-01', entryCount: 3, amountMl: 750 },
+    ],
+    2,
+    new Date(2026, 8, 1, 12),
+  );
+  assert.equal(result.entryCount, 113);
+  assert.equal(result.totalMl, 11_750);
+  assert.equal(result.daily.at(-1)?.amountMl, 750);
 });
 
 void test('counts only elapsed scheduled doses inside an active course', () => {

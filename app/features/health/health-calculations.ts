@@ -1,5 +1,10 @@
 import { dateKey } from '../../client/dates';
-import type { Medication, MedicationDose, WaterEntry } from '../types';
+import type {
+  Medication,
+  MedicationDose,
+  WaterEntry,
+  WaterHistoryDay,
+} from '../types';
 
 function calendarDays(days: number, today: Date) {
   const anchor = new Date(today);
@@ -30,6 +35,25 @@ export function waterHistoryWindow(
   return {
     visible,
     daily,
+    totalMl: daily.reduce((total, day) => total + day.amountMl, 0),
+  };
+}
+
+export function waterDailyHistoryWindow(
+  items: WaterHistoryDay[],
+  days: number,
+  today = new Date(),
+) {
+  const dates = calendarDays(days, today);
+  const byDay = new Map(items.map((item) => [item.day, item]));
+  const daily = dates.map((day) => ({
+    day,
+    entryCount: Number(byDay.get(day)?.entryCount ?? 0),
+    amountMl: Number(byDay.get(day)?.amountMl ?? 0),
+  }));
+  return {
+    daily,
+    entryCount: daily.reduce((total, day) => total + day.entryCount, 0),
     totalMl: daily.reduce((total, day) => total + day.amountMl, 0),
   };
 }

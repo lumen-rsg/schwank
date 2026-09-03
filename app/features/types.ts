@@ -33,6 +33,14 @@ export type Nutrition = {
   color: string;
   avatar: string | null;
 };
+export type NutritionHistoryDay = {
+  day: string;
+  entryCount: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
 export type Task = {
   id: number;
   title: string;
@@ -193,6 +201,11 @@ export type WaterEntry = {
   drunkOn: string;
   createdAt: string;
 };
+export type WaterHistoryDay = {
+  day: string;
+  entryCount: number;
+  amountMl: number;
+};
 export type FoodUnit = 'g' | 'kg' | 'ml' | 'l' | 'pcs';
 export type RecipeCourse =
   | 'breakfast'
@@ -292,6 +305,9 @@ export type Data = {
   home: HomeProfile;
   nutrition: Nutrition[];
   nutritionHistory: Nutrition[];
+  nutritionHistoryCount: number;
+  nutritionHistoryHasMore: boolean;
+  nutritionHistoryDays: NutritionHistoryDay[];
   tasks: Task[];
   expenses: Expense[];
   expenseCount: number;
@@ -313,6 +329,9 @@ export type Data = {
   notificationStates: NotificationState[];
   habits: HabitEntry[];
   water: WaterEntry[];
+  waterHistoryCount: number;
+  waterHistoryHasMore: boolean;
+  waterHistoryDays: WaterHistoryDay[];
   foods: FoodItem[];
   recipes: Recipe[];
   weeklyPlan: WeeklyMeal[];

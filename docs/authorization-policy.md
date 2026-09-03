@@ -71,10 +71,11 @@ No application data is available to anonymous requests. The public enrollment-st
 - Password changes require the current password, rotate the current session token, and revoke every other session.
 - Same-origin validation is required for every state-changing route.
 - Live-update rows contain only a scope and cursor. Private mutations create a user-only row; shared/public/global mutations create a household row. No record ID, label, value, or author identity is exposed by the feed.
-- `/api/data` section responses and `/api/spending` history pages apply the same
-  row-level user/visibility predicates as the compatibility aggregate. Section
-  selection cannot broaden access, and expense cursors contain only a date and
-  numeric ID from an already authorized page.
+- `/api/data` section responses, `/api/spending` pages, and private
+  `/api/history` nutrition/water pages apply the same row-level user/visibility
+  predicates as the compatibility aggregate. Section selection cannot broaden
+  access, and cursors contain only a date and numeric ID from an already
+  authorized page. Nutrition and water daily summaries are owner-scoped in SQL.
 - Successful `/api/schwank` mutations return only the re-read section affected
   by that action. The response uses the same row-level policy as `/api/data`;
   it never derives a partial response by filtering an already over-broad read.

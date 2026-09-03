@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  nutritionDailyHistoryWindow,
   nutritionHistoryWindow,
   sumNutrition,
 } from '../app/features/nutrition/nutrition-calculations';
@@ -68,4 +69,32 @@ void test('builds an inclusive, calendar-day nutrition history window', () => {
     carbs: 30,
     fat: 15,
   });
+});
+
+void test('keeps nutrition summaries exact when editable rows are paginated', () => {
+  const result = nutritionDailyHistoryWindow(
+    [
+      {
+        day: '2026-08-31',
+        entryCount: 120,
+        calories: 24_000,
+        protein: 1_200,
+        carbs: 2_400,
+        fat: 600,
+      },
+      {
+        day: '2026-09-01',
+        entryCount: 2,
+        calories: 900,
+        protein: 70,
+        carbs: 80,
+        fat: 30,
+      },
+    ],
+    2,
+    new Date(2026, 8, 1, 12),
+  );
+  assert.equal(result.entryCount, 122);
+  assert.equal(result.totals.calories, 24_900);
+  assert.equal(result.daily.at(-1)?.totals.protein, 70);
 });

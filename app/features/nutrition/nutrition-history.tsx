@@ -14,8 +14,11 @@ import {
   PrivacySelect,
 } from '../../components/app-ui';
 import type { Language } from '../../i18n';
-import type { Nutrition, Post, T } from '../types';
-import { nutritionHistoryWindow } from './nutrition-calculations';
+import type { Nutrition, NutritionHistoryDay, Post, T } from '../types';
+import {
+  nutritionDailyHistoryWindow,
+  nutritionHistoryWindow,
+} from './nutrition-calculations';
 
 type HistoryRange = 1 | 7 | 30 | 90;
 
@@ -25,16 +28,30 @@ export function NutritionHistory({
   post,
   t,
   language,
+  historyDays,
+  historyCount,
+  hasMore,
+  historyLoading,
+  loadOlderHistory,
 }: {
   items: Nutrition[];
   user: AuthUser;
   post: Post;
   t: T;
   language: Language;
+  historyDays: NutritionHistoryDay[];
+  historyCount: number;
+  hasMore: boolean;
+  historyLoading: boolean;
+  loadOlderHistory: () => Promise<boolean>;
 }) {
   const [range, setRange] = useState<HistoryRange>(7);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const { visible, totals, daily } = nutritionHistoryWindow(items, range);
+  const { visible } = nutritionHistoryWindow(items, range);
+  const { totals, daily, entryCount } = nutritionDailyHistoryWindow(
+    historyDays,
+    range,
+  );
   const maximumCalories = Math.max(
     user.calorieGoal,
     ...daily.map((day) => day.totals.calories),
@@ -75,7 +92,7 @@ export function NutritionHistory({
         </span>
         <span>
           <small>{t('loggedMeals')}</small>
-          <strong>{visible.length}</strong>
+          <strong>{entryCount}</strong>
           <b>{t('entries')}</b>
         </span>
       </div>
@@ -228,6 +245,25 @@ export function NutritionHistory({
           <Empty>{t('noNutritionHistory')}</Empty>
         )}
       </div>
+      {hasMore && (
+        <div className="history-pagination" aria-live="polite">
+          <span>
+            {t('historyEntriesLoaded', {
+              loaded: items.length,
+              total: historyCount,
+            })}
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={historyLoading}
+            onClick={() => void loadOlderHistory()}
+          >
+            <History size={14} aria-hidden="true" />
+            {historyLoading ? t('loadingOlderHistory') : t('loadOlderHistory')}
+          </button>
+        </div>
+      )}
     </article>
   );
 }

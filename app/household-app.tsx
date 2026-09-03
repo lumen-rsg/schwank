@@ -90,12 +90,16 @@ export default function HouseholdApp({
     expenseHistoryLoading,
     loading,
     loadOlderExpenses,
+    loadOlderNutritionHistory,
+    loadOlderWaterHistory,
     logout,
     notificationPermission,
     notifications,
     notificationOpenTarget,
     notice,
+    nutritionHistoryLoading,
     post,
+    waterHistoryLoading,
     clearNotificationOpenTarget,
   } = useHouseholdController({ initialUser, language, t });
   const user = data.currentUser;
@@ -205,13 +209,24 @@ export default function HouseholdApp({
         setActive={setActive}
       />
     ) : active === 'nutrition' ? (
-      <NutritionView {...common} user={user} totals={totals} />
+      <NutritionView
+        {...common}
+        user={user}
+        totals={totals}
+        nutritionHistoryLoading={nutritionHistoryLoading}
+        loadOlderNutritionHistory={loadOlderNutritionHistory}
+      />
     ) : active === 'food' ? (
       <FoodStorageView {...common} />
     ) : active === 'medications' ? (
       <MedicationsView {...common} />
     ) : active === 'water' ? (
-      <WaterView {...common} user={user} />
+      <WaterView
+        {...common}
+        user={user}
+        waterHistoryLoading={waterHistoryLoading}
+        loadOlderWaterHistory={loadOlderWaterHistory}
+      />
     ) : active === 'habits' ? (
       <HabitsView {...common} />
     ) : active === 'tasks' ? (

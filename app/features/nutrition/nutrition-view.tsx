@@ -85,6 +85,8 @@ export function NutritionView({
   post,
   t,
   language,
+  nutritionHistoryLoading,
+  loadOlderNutritionHistory,
 }: {
   data: Data;
   user: AuthUser;
@@ -92,6 +94,8 @@ export function NutritionView({
   post: Post;
   t: T;
   language: Language;
+  nutritionHistoryLoading: boolean;
+  loadOlderNutritionHistory: () => Promise<boolean>;
 }) {
   const [scope, setScope] = useState<'mine' | 'calculator' | 'shared'>('mine');
   const shared = data.nutrition.filter((item) => !item.owned);
@@ -252,6 +256,11 @@ export function NutritionView({
             post={post}
             t={t}
             language={language}
+            historyDays={data.nutritionHistoryDays}
+            historyCount={data.nutritionHistoryCount}
+            hasMore={data.nutritionHistoryHasMore}
+            historyLoading={nutritionHistoryLoading}
+            loadOlderHistory={loadOlderNutritionHistory}
           />
         </>
       ) : scope === 'calculator' ? (

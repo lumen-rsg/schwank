@@ -212,6 +212,8 @@ void test(
     const anonymous = await jsonRequest('/api/schwank');
     assert.equal(anonymous.response.status, 401);
     assert.equal(anonymous.body.code, 'auth_required');
+    const anonymousSections = await jsonRequest('/api/data?sections=tasks');
+    assert.equal(anonymousSections.response.status, 401);
 
     const freshEnrollment = await jsonRequest('/api/auth/enrollment');
     assert.deepEqual(freshEnrollment.body, {
@@ -939,6 +941,36 @@ void test(
 
     const aliceData = await household(alice.cookie);
     const bobData = await household(bob.cookie);
+    const invalidSections = await jsonRequest('/api/data?sections=unknown', {
+      headers: { cookie: alice.cookie },
+    });
+    assert.equal(invalidSections.response.status, 400);
+    const bobTaskSection = await jsonRequest(
+      '/api/data?sections=tasks,spending',
+      { headers: { cookie: bob.cookie } },
+    );
+    assert.equal(bobTaskSection.response.status, 200);
+    assert.deepEqual(Object.keys(bobTaskSection.body).sort(), [
+      'expenseCount',
+      'expenseTotal',
+      'expenses',
+      'expensesHasMore',
+      'recurringPayments',
+      'spendingBudgets',
+      'tasks',
+    ]);
+    assert.equal(
+      bobTaskSection.body.tasks.some(
+        (task) => task.title === 'Alice private task',
+      ),
+      false,
+    );
+    assert.equal(
+      bobTaskSection.body.tasks.some(
+        (task) => task.title === 'Alice shared task',
+      ),
+      true,
+    );
     const bobSerialized = JSON.stringify(bobData);
 
     assert.deepEqual(
@@ -2196,6 +2228,24 @@ void test(
     const retainedTaskCount = legacyDatabase
       .prepare('SELECT COUNT(*) AS count FROM tasks')
       .get().count;
+    const restoredAliceId = legacyDatabase
+      .prepare("SELECT id FROM users WHERE email='alice@example.test'")
+      .get().id;
+    const insertLargeExpense = legacyDatabase.prepare(
+      "INSERT INTO expenses (user_id,visibility,label,amount,category,paid_by,spent_on) VALUES (?,'private',?,?, 'groceries','Alice Test',?)",
+    );
+    legacyDatabase.exec('BEGIN');
+    for (let index = 0; index < 250; index += 1) {
+      const day = String((index % 28) + 1).padStart(2, '0');
+      const month = String(12 - (Math.floor(index / 28) % 12)).padStart(2, '0');
+      insertLargeExpense.run(
+        restoredAliceId,
+        `Large history expense ${String(index).padStart(3, '0')}`,
+        index + 1,
+        `2029-${month}-${day}`,
+      );
+    }
+    legacyDatabase.exec('COMMIT');
     legacyDatabase.exec(`
       DROP INDEX idx_expenses_visibility_date_id;
       DROP INDEX idx_medication_doses_medication_date;
@@ -2222,6 +2272,39 @@ void test(
       repairedData.tasks.some((task) => task.title === 'Alice private task'),
       true,
     );
+    const pageStartedAt = performance.now();
+    const spendingSection = await jsonRequest('/api/data?sections=spending', {
+      headers: { cookie: restoredCookie },
+    });
+    assert.equal(spendingSection.response.status, 200);
+    assert.equal(spendingSection.body.expenses.length, 100);
+    assert.equal(spendingSection.body.expensesHasMore, true);
+    assert.ok(spendingSection.body.expenseCount >= 250);
+    assert.ok(spendingSection.body.expenseTotal > 31_000);
+    const loadedExpenses = [...spendingSection.body.expenses];
+    let hasMoreExpenses = spendingSection.body.expensesHasMore;
+    while (hasMoreExpenses) {
+      const oldestExpense = loadedExpenses.at(-1);
+      const nextPage = await jsonRequest(
+        `/api/spending?beforeDate=${oldestExpense.spentOn}&beforeId=${oldestExpense.id}`,
+        { headers: { cookie: restoredCookie } },
+      );
+      assert.equal(nextPage.response.status, 200);
+      loadedExpenses.push(...nextPage.body.expenses);
+      hasMoreExpenses = nextPage.body.hasMore;
+    }
+    assert.equal(loadedExpenses.length, spendingSection.body.expenseCount);
+    assert.equal(
+      new Set(loadedExpenses.map((expense) => expense.id)).size,
+      loadedExpenses.length,
+    );
+    assert.equal(
+      loadedExpenses.filter((expense) =>
+        expense.label.startsWith('Large history expense'),
+      ).length,
+      250,
+    );
+    assert.ok(performance.now() - pageStartedAt < 5_000);
     await stopServer();
     const repairedDatabase = new DatabaseSync(join(d1Directory, d1File), {
       readOnly: true,

@@ -1,0 +1,19 @@
+[Unit]
+Description=Create an encrypted schwank state backup
+After=schwank.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/home/lumina/schwank-server
+Environment=SCHWANK_SERVER_DIR=/home/lumina/schwank-server
+Environment=SCHWANK_BACKUP_DIR=/home/lumina/schwank-backups
+Environment=SCHWANK_BACKUP_USER=lumina
+Environment=SCHWANK_BACKUP_RETENTION_DAYS=30
+EnvironmentFile=/home/lumina/.config/schwank/backup.env
+ExecStart=/usr/local/libexec/schwank-backup-runner
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=schwank-backup

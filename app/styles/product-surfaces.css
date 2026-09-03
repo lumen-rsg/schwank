@@ -1161,6 +1161,19 @@ input[type='submit']:disabled {
   color: #454842;
   font: inherit;
 }
+
+.expense-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 0;
+  color: #777a73;
+  font-size: 0.82rem;
+}
+.expense-pagination .secondary-button {
+  flex: 0 0 auto;
+}
 .message-edit-form > span {
   display: flex;
   justify-content: flex-end;

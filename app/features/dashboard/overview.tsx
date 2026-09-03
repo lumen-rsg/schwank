@@ -137,9 +137,7 @@ export function Overview({
           </div>
           <div className="spend-total">
             <strong>{money(totalSpend, language)}</strong>
-            <span>
-              {t('recordedExpenses', { count: data.expenses.length })}
-            </span>
+            <span>{t('recordedExpenses', { count: data.expenseCount })}</span>
           </div>
           <div className="clean-summary">
             <WalletCards size={24} />

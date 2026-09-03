@@ -52,6 +52,30 @@ const backupServiceUnit = join(
   'orange-pi',
   'schwank-backup.service',
 );
+const fedoraServiceUnit = join(
+  repositoryRoot,
+  'deploy',
+  'fedora',
+  'schwank.service',
+);
+const fedoraBackupServiceUnit = join(
+  repositoryRoot,
+  'deploy',
+  'fedora',
+  'schwank-backup.service',
+);
+const serverRuntimePackage = join(
+  repositoryRoot,
+  'deploy',
+  'server-runtime',
+  'package.json',
+);
+const serverRuntimeLock = join(
+  repositoryRoot,
+  'deploy',
+  'server-runtime',
+  'package-lock.json',
+);
 
 function run(command, arguments_, options = {}) {
   return spawnSync(command, arguments_, {
@@ -243,5 +267,25 @@ void test('keeps persistent state and the replaceable server build writable', as
   assert.match(
     backupService,
     /^ExecStart=\/usr\/local\/libexec\/schwank-backup-runner$/m,
+  );
+});
+
+void test('provides a pinned minimal runtime and Fedora lumina service profile', async () => {
+  const runtimePackage = JSON.parse(
+    await readFile(serverRuntimePackage, 'utf8'),
+  );
+  const runtimeLock = JSON.parse(await readFile(serverRuntimeLock, 'utf8'));
+  const service = await readFile(fedoraServiceUnit, 'utf8');
+  const backupService = await readFile(fedoraBackupServiceUnit, 'utf8');
+
+  assert.deepEqual(runtimePackage.dependencies, { wrangler: '4.127.1' });
+  assert.equal(runtimeLock.packages[''].dependencies.wrangler, '4.127.1');
+  assert.match(service, /^User=lumina$/m);
+  assert.match(service, /^WorkingDirectory=\/home\/lumina\/schwank-server$/m);
+  assert.doesNotMatch(service, /orangepi/);
+  assert.match(backupService, /^Environment=SCHWANK_BACKUP_USER=lumina$/m);
+  assert.match(
+    backupService,
+    /^Environment=SCHWANK_SERVER_DIR=\/home\/lumina\/schwank-server$/m,
   );
 });

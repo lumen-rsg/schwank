@@ -16,7 +16,7 @@ drills in [`docs/operations.md`](docs/operations.md).
 
 All household records are stored in a durable local D1/SQLite database behind the stable `db/data.ts` facade. Reads, household mutations, food-planning mutations, and input validation live in separate repository/service modules. The browser only keeps temporary interface state; accounts, sessions, food batches, recipes, meals, water, habit activity, tasks, expenses, recurring payments, organiser items, and chat messages survive app and host restarts. Local database files live under `.wrangler/state`, which should be preserved or mounted as a volume on the Orange Pi.
 
-The schema lives in `db/schema.ts` and the checked-in SQL history in `drizzle/` is the single migration source of truth. `npm run db:generate` refreshes both that history and the Worker-compatible `db/runtime-migrations.json` bundle. Builds reject stale bundles. Fresh databases replay the versioned SQL; databases from before the runner are baselined once without replaying destructive historical statements. The API is exposed at `/api/schwank`.
+The schema lives in `db/schema.ts` and the checked-in SQL history in `drizzle/` is the single migration source of truth. `npm run db:generate` refreshes both that history and the Worker-compatible `db/runtime-migrations.json` bundle. Builds reject stale bundles. Fresh databases replay the versioned SQL; databases from before the runner are baselined once without replaying destructive historical statements. Initial bootstrap and mutations remain compatible through `/api/schwank`; live changes use privacy-scoped `/api/data` sections, chat uses `/api/chat`, and older spending history uses a stable date-and-ID cursor through `/api/spending`.
 
 ## Accounts and privacy
 
@@ -28,7 +28,7 @@ Each member can download a private JSON export containing only their profile, re
 
 ## Money tracking
 
-Expenses use stable categories and can be filtered or sorted by date and amount. The spending wheel shows the visible total split by category and doubles as a category filter. Rent, subscriptions, and loan payments can be scheduled monthly or yearly; loans may also include a remaining balance. Recording a scheduled payment creates its expense, advances the due date, and reduces the loan balance. Active yearly commitments are normalized to a monthly amount in the summary.
+Expenses use stable categories and can be filtered or sorted by date and amount. The spending wheel shows the loaded visible total split by category and doubles as a category filter. The newest 100 authorized expenses load initially; older pages are requested explicitly while the dashboard retains exact server-calculated count and total summaries. Rent, subscriptions, and loan payments can be scheduled monthly or yearly; loans may also include a remaining balance. Recording a scheduled payment creates its expense, advances the due date, and reduces the loan balance. Active yearly commitments are normalized to a monthly amount in the summary.
 
 ## Food storage and recipes
 
@@ -86,3 +86,7 @@ npm run server:start:lan
 ```
 
 The Git remote named `origin` points to `git@github.com:lumen-rsg/schwank.git`. Git is source control only; it is not used to host the running application.
+
+The current clean Fedora-family ARM64 board uses the deployment profile in
+[`deploy/fedora/README.md`](deploy/fedora/README.md). The older Ubuntu profile
+is retained for portability but must not be used for the `lumina` account.

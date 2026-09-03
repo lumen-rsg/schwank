@@ -73,11 +73,15 @@ export function SpendingView({
   post,
   t,
   language,
+  expenseHistoryLoading,
+  loadOlderExpenses,
 }: {
   data: Data;
   post: Post;
   t: T;
   language: Language;
+  expenseHistoryLoading: boolean;
+  loadOlderExpenses: () => Promise<boolean>;
 }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [expenseSort, setExpenseSort] = useState('newest');
@@ -939,6 +943,27 @@ export function SpendingView({
             </Empty>
           )}
         </div>
+        {data.expensesHasMore && (
+          <div className="expense-pagination" aria-live="polite">
+            <span>
+              {t('expenseHistoryLoaded', {
+                loaded: data.expenses.length,
+                total: data.expenseCount,
+              })}
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={expenseHistoryLoading}
+              onClick={() => void loadOlderExpenses()}
+            >
+              <History size={14} aria-hidden="true" />
+              {expenseHistoryLoading
+                ? t('loadingOlderExpenses')
+                : t('loadOlderExpenses')}
+            </button>
+          </div>
+        )}
       </article>
     </>
   );

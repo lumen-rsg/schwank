@@ -7,7 +7,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "wrangler dev --config dist/server/wrangler.json --assets dist/client --ip 0.0.0.0 --port 3000 --persist-to .wrangler/state --env-file .dev.vars"
+    "start": "wrangler dev --config dist/server/wrangler.json --assets dist/client --persist-to .wrangler/state"
   },
   "dependencies": {
     "wrangler": "4.127.1"

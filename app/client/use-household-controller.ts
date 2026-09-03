@@ -28,6 +28,29 @@ type LiveChatSnapshot = {
   unreadMessages: number;
 };
 
+type ExpensePage = {
+  expenses: Data['expenses'];
+  expenseCount: number;
+  expenseTotal: number;
+  hasMore: boolean;
+};
+
+const householdSectionScopes = new Set([
+  'account',
+  'food',
+  'habits',
+  'home',
+  'medications',
+  'members',
+  'notifications',
+  'nutrition',
+  'organisers',
+  'spending',
+  'tasks',
+  'wishlist',
+  'water',
+]);
+
 function emptyHousehold(user: AuthUser): Data {
   return {
     currentUser: user,
@@ -37,6 +60,9 @@ function emptyHousehold(user: AuthUser): Data {
     nutritionHistory: [],
     tasks: [],
     expenses: [],
+    expenseCount: 0,
+    expenseTotal: 0,
+    expensesHasMore: false,
     recurringPayments: [],
     spendingBudgets: [],
     organisers: [],
@@ -94,6 +120,7 @@ export function useHouseholdController({
   const [notificationOpenTarget, setNotificationOpenTarget] = useState('');
   const [notificationClock, setNotificationClock] = useState(() => Date.now());
   const [chatRevision, setChatRevision] = useState(0);
+  const [expenseHistoryLoading, setExpenseHistoryLoading] = useState(false);
   const loadInProgress = useRef(false);
   const dataGeneration = useRef(0);
   const pendingMutations = useRef(new Set<string>());
@@ -158,6 +185,82 @@ export function useHouseholdController({
     }
   }, [t]);
 
+  const loadSections = useCallback(
+    async (scopes: string[]) => {
+      if (scopes.includes('all')) return load(true);
+      const sections = Array.from(
+        new Set(scopes.filter((scope) => householdSectionScopes.has(scope))),
+      );
+      if (!sections.length) return true;
+      const generation = dataGeneration.current;
+      try {
+        const partial = await requestApiJson<Partial<Data>>(
+          `/api/data?sections=${encodeURIComponent(sections.join(','))}`,
+          { cache: 'no-store' },
+          t,
+          'storageFailed',
+        );
+        if (generation === dataGeneration.current)
+          setData((current) => ({ ...current, ...partial }));
+        setConnectionState('connected');
+        return true;
+      } catch {
+        setConnectionState('reconnecting');
+        return false;
+      }
+    },
+    [load, t],
+  );
+
+  const refreshScopes = useCallback(
+    async (scopes: string[]) => {
+      if (scopes.includes('all')) return load(true);
+      const [sectionsRefreshed, chatRefreshed] = await Promise.all([
+        loadSections(scopes),
+        scopes.includes('chat') ? loadChat() : Promise.resolve(true),
+      ]);
+      return sectionsRefreshed && chatRefreshed;
+    },
+    [load, loadChat, loadSections],
+  );
+
+  const loadOlderExpenses = useCallback(async () => {
+    if (expenseHistoryLoading || !data.expensesHasMore) return false;
+    const oldest = data.expenses.at(-1);
+    if (!oldest) return false;
+    setExpenseHistoryLoading(true);
+    try {
+      const page = await requestApiJson<ExpensePage>(
+        `/api/spending?beforeDate=${encodeURIComponent(oldest.spentOn)}&beforeId=${oldest.id}`,
+        { cache: 'no-store' },
+        t,
+        'storageFailed',
+      );
+      setData((current) => {
+        const known = new Set(current.expenses.map((expense) => expense.id));
+        return {
+          ...current,
+          expenses: [
+            ...current.expenses,
+            ...page.expenses.filter((expense) => !known.has(expense.id)),
+          ],
+          expenseCount: page.expenseCount,
+          expenseTotal: page.expenseTotal,
+          expensesHasMore: page.hasMore,
+        };
+      });
+      return true;
+    } catch (cause) {
+      setNotice({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : t('storageFailed'),
+      });
+      return false;
+    } finally {
+      setExpenseHistoryLoading(false);
+    }
+  }, [data.expenses, data.expensesHasMore, expenseHistoryLoading, t]);
+
   useEffect(() => {
     queueMicrotask(() => {
       if (window.schwankDesktop) setNotificationPermission('desktop');
@@ -214,8 +317,7 @@ export function useHouseholdController({
           'storageFailed',
         );
         if (updates.scopes.length) {
-          const chatOnly = updates.scopes.every((scope) => scope === 'chat');
-          const refreshed = chatOnly ? await loadChat() : await load(true);
+          const refreshed = await refreshScopes(updates.scopes);
           if (!refreshed) throw new Error('refresh_failed');
         }
         cursor = updates.cursor;
@@ -248,7 +350,7 @@ export function useHouseholdController({
       document.removeEventListener('visibilitychange', refreshVisible);
       window.removeEventListener('online', refreshOnline);
     };
-  }, [initialUser.id, load, loadChat, t]);
+  }, [initialUser.id, load, refreshScopes, t]);
 
   useEffect(() => {
     const interval = window.setInterval(
@@ -452,7 +554,9 @@ export function useHouseholdController({
     connectionState,
     chatRevision,
     enableNotifications,
+    expenseHistoryLoading,
     loading,
+    loadOlderExpenses,
     logout,
     notificationPermission,
     notifications,

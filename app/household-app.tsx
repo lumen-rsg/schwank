@@ -87,7 +87,9 @@ export default function HouseholdApp({
     chatRevision,
     connectionState,
     enableNotifications,
+    expenseHistoryLoading,
     loading,
+    loadOlderExpenses,
     logout,
     notificationPermission,
     notifications,
@@ -99,10 +101,7 @@ export default function HouseholdApp({
   const user = data.currentUser;
   const ownNutrition = data.nutrition.filter((item) => item.owned);
   const totals = sumNutrition(ownNutrition);
-  const totalSpend = data.expenses.reduce(
-    (sum, item) => sum + Number(item.amount),
-    0,
-  );
+  const totalSpend = data.expenseTotal;
   const completed = data.tasks.filter((item) => item.status === 'done').length;
   const taskPercent = data.tasks.length
     ? Math.round((completed / data.tasks.length) * 100)
@@ -220,7 +219,11 @@ export default function HouseholdApp({
     ) : active === 'wishlist' ? (
       <WishlistView {...common} />
     ) : active === 'spending' ? (
-      <SpendingView {...common} />
+      <SpendingView
+        {...common}
+        expenseHistoryLoading={expenseHistoryLoading}
+        loadOlderExpenses={loadOlderExpenses}
+      />
     ) : active === 'organisers' ? (
       <OrganisersView {...common} setActive={setActive} />
     ) : active === 'chat' ? (

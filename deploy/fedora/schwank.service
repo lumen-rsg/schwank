@@ -1,0 +1,33 @@
+[Unit]
+Description=schwank household server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lumina
+Group=lumina
+WorkingDirectory=/home/lumina/schwank-server
+Environment=NODE_ENV=production
+Environment=HOME=/home/lumina
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/usr/bin/npm start
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=schwank
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=200
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/lumina/schwank-server/.wrangler
+ReadWritePaths=/home/lumina/schwank-server/dist/server
+ReadWritePaths=/home/lumina/schwank-server/node_modules/.mf
+ReadWritePaths=/home/lumina/.config/.wrangler
+
+[Install]
+WantedBy=multi-user.target

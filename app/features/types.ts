@@ -294,6 +294,9 @@ export type Data = {
   nutritionHistory: Nutrition[];
   tasks: Task[];
   expenses: Expense[];
+  expenseCount: number;
+  expenseTotal: number;
+  expensesHasMore: boolean;
   recurringPayments: RecurringPayment[];
   spendingBudgets: SpendingBudget[];
   organisers: Organiser[];

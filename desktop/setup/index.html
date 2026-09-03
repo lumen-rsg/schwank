@@ -20,7 +20,7 @@
           <button type="button" data-language="ru">RU</button>
         </nav>
       </header>
-      <section>
+      <section id="setup-view">
         <span class="eyebrow" data-copy="eyebrow"></span>
         <h1 data-copy="title"></h1>
         <p class="intro" data-copy="intro"></p>
@@ -45,6 +45,41 @@
         <aside>
           <strong data-copy="privacyTitle"></strong>
           <p data-copy="privacyCopy"></p>
+        </aside>
+      </section>
+      <section id="offline-view" hidden>
+        <span class="eyebrow" data-copy="offlineEyebrow"></span>
+        <h1 data-copy="offlineTitle"></h1>
+        <p class="intro" data-copy="offlineIntro"></p>
+        <div class="server-card">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <small data-copy="savedServer"></small>
+            <strong id="saved-server"></strong>
+          </div>
+        </div>
+        <p class="offline-error" aria-live="polite"></p>
+        <div class="offline-actions">
+          <button
+            class="connect"
+            id="retry"
+            type="button"
+            data-copy="retry"
+          ></button>
+          <button
+            class="secondary"
+            id="change-server"
+            type="button"
+            data-copy="changeServer"
+          ></button>
+        </div>
+        <aside class="troubleshooting">
+          <strong data-copy="checkTitle"></strong>
+          <ul>
+            <li data-copy="checkPower"></li>
+            <li data-copy="checkNetwork"></li>
+            <li data-copy="checkAddress"></li>
+          </ul>
         </aside>
       </section>
       <footer>

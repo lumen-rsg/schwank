@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('schwankDesktop', {
   platform: process.platform,
   getState: () => ipcRenderer.invoke('desktop:get-state'),
   connect: (serverUrl) => ipcRenderer.invoke('desktop:connect', serverUrl),
+  retry: () => ipcRenderer.invoke('desktop:retry'),
   notify: (title, body, target) =>
     ipcRenderer.invoke('desktop:notify', title, body, target),
   setBadge: (count) => ipcRenderer.invoke('desktop:set-badge', count),

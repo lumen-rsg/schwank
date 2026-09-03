@@ -141,6 +141,20 @@ input:focus {
   opacity: 0.6;
   cursor: wait;
 }
+.secondary {
+  height: 48px;
+  padding: 0 19px;
+  border: 1px solid #d9d5cb;
+  border-radius: 11px;
+  background: #fffdf9;
+  color: #4f534b;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.secondary:hover {
+  background: #f7f4ee;
+}
 form small {
   display: block;
   margin-top: 7px;
@@ -177,6 +191,67 @@ aside p {
   font-size: 10px;
   line-height: 1.55;
 }
+.server-card {
+  margin-top: 28px;
+  padding: 15px 17px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #e4d7d0;
+  border-radius: 12px;
+  background: #fcf7f3;
+}
+.status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #c6513d;
+  box-shadow: 0 0 0 5px #c6513d14;
+}
+.server-card div {
+  min-width: 0;
+}
+.server-card small {
+  display: block;
+  margin-bottom: 3px;
+  color: #96988f;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.server-card strong {
+  display: block;
+  overflow: hidden;
+  color: #343832;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.offline-error {
+  min-height: 18px;
+  margin: 12px 2px 0;
+  color: #ae4637;
+  font-size: 11px;
+}
+.offline-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 9px;
+}
+.troubleshooting {
+  margin-top: 24px;
+  border-color: #dfddd6;
+  background: #f8f6f1;
+}
+.troubleshooting ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #777b72;
+  font-size: 10px;
+  line-height: 1.75;
+}
 footer {
   padding: 15px 28px;
   display: flex;
@@ -195,6 +270,10 @@ footer {
   }
   .address-row {
     grid-template-columns: 1fr;
+  }
+  .offline-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
   footer {
     align-items: flex-start;

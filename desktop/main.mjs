@@ -9,13 +9,15 @@ import {
   Tray,
 } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isAllowedApplicationUrl, normalizeServerUrl } from './server-url.mjs';
 import {
-  healthEndpoint,
-  isAllowedApplicationUrl,
-  normalizeServerUrl,
-} from './server-url.mjs';
+  checkSchwankServer,
+  connectionErrorCodes,
+  connectionFailureCode,
+} from './connection.mjs';
 import {
   attentionLabel,
   normalizeAttentionCount,
@@ -23,6 +25,7 @@ import {
 } from './background-state.mjs';
 
 const rootDirectory = import.meta.dirname;
+const desktopVersion = createRequire(import.meta.url)('./package.json').version;
 const setupPath = join(rootDirectory, 'setup', 'index.html');
 const setupUrl = pathToFileURL(setupPath).toString();
 const iconPath = app.isPackaged
@@ -36,6 +39,8 @@ let mainWindow = null;
 let serverUrl = null;
 let tray = null;
 let isQuitting = false;
+let connectionView = 'setup';
+let connectionError = null;
 
 app.enableSandbox();
 
@@ -45,8 +50,8 @@ function configPath() {
 
 async function readSavedServerUrl() {
   const override = cliServerUrl || process.env.SCHWANK_SERVER_URL;
-  if (override) return normalizeServerUrl(override);
   try {
+    if (override) return normalizeServerUrl(override);
     const config = JSON.parse(await readFile(configPath(), 'utf8'));
     return normalizeServerUrl(config.serverUrl);
   } catch {
@@ -60,24 +65,6 @@ async function saveServerUrl(nextServerUrl) {
     `${JSON.stringify({ serverUrl: nextServerUrl }, null, 2)}\n`,
     { mode: 0o600 },
   );
-}
-
-async function checkServer(candidate) {
-  const normalized = normalizeServerUrl(candidate);
-  const response = await fetch(healthEndpoint(normalized), {
-    headers: { accept: 'application/json' },
-    signal: AbortSignal.timeout(5_000),
-  });
-  if (!response.ok)
-    throw new Error(`The server returned HTTP ${response.status}.`);
-  const body = await response.json();
-  if (
-    body?.ok !== true ||
-    body?.service !== 'schwank-server' ||
-    body?.apiVersion !== 1
-  )
-    throw new Error('That address is not a compatible schwank server.');
-  return normalized;
 }
 
 function senderUrl(event) {
@@ -97,14 +84,23 @@ function isRemoteSender(event) {
   }
 }
 
-async function showSetup() {
+async function showConnectionView(view = 'setup', error = null) {
   if (!mainWindow) return;
+  connectionView = view;
+  connectionError = error;
   await mainWindow.loadFile(setupPath);
 }
 
 async function showApplication() {
   if (!mainWindow || !serverUrl) return;
-  await mainWindow.loadURL(`${serverUrl}/`);
+  connectionView = 'application';
+  connectionError = null;
+  try {
+    await mainWindow.loadURL(`${serverUrl}/`);
+  } catch {
+    if (connectionView === 'application')
+      await showConnectionView('offline', connectionErrorCodes.unreachable);
+  }
 }
 
 function showMainWindow() {
@@ -127,7 +123,10 @@ function installTray() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open schwank', click: showMainWindow },
-      { label: 'Server Settings…', click: () => void showSetup() },
+      {
+        label: 'Server Settings…',
+        click: () => void showConnectionView('setup'),
+      },
       { type: 'separator' },
       {
         label: 'Quit',
@@ -147,7 +146,9 @@ function installIpcHandlers() {
       throw new Error('Untrusted desktop request.');
     return {
       serverUrl,
-      version: app.getVersion(),
+      view: connectionView,
+      connectionError,
+      version: desktopVersion,
       platform: process.platform,
     };
   });
@@ -155,7 +156,7 @@ function installIpcHandlers() {
   ipcMain.handle('desktop:connect', async (event, candidate) => {
     if (!isSetupSender(event)) throw new Error('Untrusted connection request.');
     try {
-      const nextServerUrl = await checkServer(candidate);
+      const nextServerUrl = await checkSchwankServer(candidate);
       serverUrl = nextServerUrl;
       await saveServerUrl(nextServerUrl);
       setImmediate(() => void showApplication());
@@ -163,11 +164,23 @@ function installIpcHandlers() {
     } catch (error) {
       return {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'The schwank server could not be reached.',
+        error: connectionFailureCode(error),
       };
+    }
+  });
+
+  ipcMain.handle('desktop:retry', async (event) => {
+    if (!isSetupSender(event)) throw new Error('Untrusted retry request.');
+    if (!serverUrl)
+      return { ok: false, error: connectionErrorCodes.invalidAddress };
+    try {
+      serverUrl = await checkSchwankServer(serverUrl);
+      setImmediate(() => void showApplication());
+      return { ok: true };
+    } catch (error) {
+      connectionView = 'offline';
+      connectionError = connectionFailureCode(error);
+      return { ok: false, error: connectionError };
     }
   });
 
@@ -213,7 +226,7 @@ function installIpcHandlers() {
 
   ipcMain.handle('desktop:open-settings', async (event) => {
     if (!isRemoteSender(event)) throw new Error('Untrusted settings request.');
-    await showSetup();
+    await showConnectionView('setup');
     return true;
   });
 }
@@ -222,7 +235,7 @@ function installMenu() {
   const settingsItem = {
     label: 'Server Settings…',
     accelerator: 'CmdOrCtrl+,',
-    click: () => void showSetup(),
+    click: () => void showConnectionView('setup'),
   };
   const template =
     process.platform === 'darwin'
@@ -315,6 +328,24 @@ async function createWindow() {
   mainWindow.webContents.on('will-attach-webview', (event) =>
     event.preventDefault(),
   );
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, _description, validatedUrl, isMainFrame) => {
+      if (
+        !isMainFrame ||
+        errorCode === -3 ||
+        connectionView !== 'application' ||
+        !serverUrl
+      )
+        return;
+      try {
+        if (new URL(validatedUrl).origin !== serverUrl) return;
+      } catch {
+        return;
+      }
+      void showConnectionView('offline', connectionErrorCodes.unreachable);
+    },
+  );
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('close', (event) => {
     if (!shouldHideWindowOnClose(isQuitting)) return;
@@ -328,14 +359,16 @@ async function createWindow() {
   const savedServerUrl = await readSavedServerUrl();
   if (savedServerUrl) {
     try {
-      serverUrl = await checkServer(savedServerUrl);
+      serverUrl = await checkSchwankServer(savedServerUrl);
       await showApplication();
       return;
-    } catch {
+    } catch (error) {
       serverUrl = savedServerUrl;
+      await showConnectionView('offline', connectionFailureCode(error));
+      return;
     }
   }
-  await showSetup();
+  await showConnectionView('setup');
 }
 
 if (!app.requestSingleInstanceLock()) {

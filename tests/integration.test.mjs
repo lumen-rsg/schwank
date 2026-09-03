@@ -586,12 +586,23 @@ void test(
       },
     ];
 
+    const mutationShapes = {
+      nutrition: ['nutrition', 'nutrition'],
+      task: ['tasks', 'tasks'],
+      expense: ['spending', 'expenses'],
+      'recurring-payment': ['spending', 'recurringPayments'],
+      organiser: ['organisers', 'organisers'],
+      reminder: ['organisers', 'reminders'],
+      medication: ['medications', 'medications'],
+    };
     for (const record of records) {
       const created = await action(alice.cookie, record);
       assert.equal(created.response.status, 200, JSON.stringify(created.body));
       assert.equal(created.body.ok, true);
-      assert.equal(created.body.data.currentUser.email, 'alice@example.test');
-      assert.ok(Array.isArray(created.body.data.tasks));
+      const [scope, collection] = mutationShapes[record.type];
+      assert.deepEqual(created.body.scopes, [scope]);
+      assert.ok(Array.isArray(created.body.data[collection]));
+      assert.equal('messages' in created.body.data, false);
     }
 
     assert.equal(
@@ -642,6 +653,13 @@ void test(
       body: 'Alice household chat message',
     });
     assert.equal(firstChatMessage.response.status, 200);
+    assert.deepEqual(firstChatMessage.body.scopes, ['chat']);
+    assert.deepEqual(Object.keys(firstChatMessage.body.data).sort(), [
+      'messageCount',
+      'messages',
+      'messagesHasMore',
+      'unreadMessages',
+    ]);
     const firstChatMessageId = firstChatMessage.body.data.messages.at(-1).id;
     for (let index = 1; index <= 51; index += 1) {
       const createdMessage = await action(alice.cookie, {
@@ -917,15 +935,14 @@ void test(
 
     const onePixelPng =
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-    assert.equal(
-      (
-        await action(alice.cookie, {
-          type: 'avatar',
-          avatar: onePixelPng,
-        })
-      ).response.status,
-      200,
-    );
+    const avatarUpdate = await action(alice.cookie, {
+      type: 'avatar',
+      avatar: onePixelPng,
+    });
+    assert.equal(avatarUpdate.response.status, 200);
+    assert.deepEqual(avatarUpdate.body.scopes, ['account']);
+    assert.equal(avatarUpdate.body.data.currentUser.avatar, onePixelPng);
+    assert.ok(Array.isArray(avatarUpdate.body.data.members));
     const spoofedImage = await action(alice.cookie, {
       type: 'avatar',
       avatar: onePixelPng.replace('image/png', 'image/jpeg'),

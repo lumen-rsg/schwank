@@ -75,6 +75,9 @@ No application data is available to anonymous requests. The public enrollment-st
   row-level user/visibility predicates as the compatibility aggregate. Section
   selection cannot broaden access, and expense cursors contain only a date and
   numeric ID from an already authorized page.
+- Successful `/api/schwank` mutations return only the re-read section affected
+  by that action. The response uses the same row-level policy as `/api/data`;
+  it never derives a partial response by filtering an already over-broad read.
 
 ## Error contract
 

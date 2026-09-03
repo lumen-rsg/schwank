@@ -506,7 +506,11 @@ export function useHouseholdController({
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
     if (!options?.quiet) setNotice({ kind: 'progress', message: t('saving') });
     try {
-      const response = await requestApiJson<{ ok: true; data: Data }>(
+      const response = await requestApiJson<{
+        ok: true;
+        data: Partial<Data>;
+        scopes: string[];
+      }>(
         '/api/schwank',
         {
           method: 'POST',
@@ -516,7 +520,7 @@ export function useHouseholdController({
         t,
         'saveFailed',
       );
-      setData(response.data);
+      setData((current) => ({ ...current, ...response.data }));
       setConnectionState('connected');
       if (!options?.quiet) {
         setNotice({

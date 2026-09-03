@@ -103,6 +103,16 @@ function actionType(action: DataAction) {
   return typeof action.type === 'string' ? action.type : '';
 }
 
+export function mutationResponseScopes(
+  action: DataAction,
+  update: PreparedLiveUpdate,
+): LiveUpdateScope[] {
+  // Avatar changes are household-visible through the members feed, but the
+  // author also needs the private currentUser representation immediately.
+  if (actionType(action) === 'avatar') return ['account'];
+  return [update.scope];
+}
+
 function actionId(action: DataAction) {
   const id = Number(action.id);
   return Number.isSafeInteger(id) && id > 0 ? id : null;

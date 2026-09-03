@@ -4,7 +4,13 @@ import {
   type DataAction,
 } from '@/db/data';
 import { assertSameOrigin, getRequestUser } from '@/db/auth';
-import { prepareDataLiveUpdate, recordLiveUpdate } from '@/db/live-updates';
+import { readChatSnapshot } from '@/db/chat';
+import {
+  mutationResponseScopes,
+  prepareDataLiveUpdate,
+  recordLiveUpdate,
+} from '@/db/live-updates';
+import { readHouseholdSections } from '@/db/repositories/household-reader';
 import { ApiError, apiErrorResponse } from '@/lib/api-errors';
 import { errorName, requestId, structuredLog } from '@/lib/structured-logs';
 
@@ -37,7 +43,18 @@ export async function POST(request: Request) {
         error: errorName(error),
       }),
     );
-    const data = await readHouseholdData(user);
+    const scopes = mutationResponseScopes(action, liveUpdate);
+    const data = scopes.includes('chat')
+      ? await readChatSnapshot(user).then((chat) => ({
+          messages: chat.messages,
+          messageCount: chat.messageCount,
+          messagesHasMore: chat.hasMore,
+          unreadMessages: chat.unreadMessages,
+        }))
+      : await readHouseholdSections(
+          user,
+          scopes.filter((scope) => scope !== 'chat'),
+        );
     structuredLog('info', 'api.mutation', {
       requestId: id,
       action: actionType,
@@ -46,7 +63,7 @@ export async function POST(request: Request) {
       durationMs: Math.round(performance.now() - startedAt),
     });
     return Response.json(
-      { ok: true, data },
+      { ok: true, data, scopes },
       { headers: { 'x-request-id': id } },
     );
   } catch (error) {

@@ -45,7 +45,8 @@ export function Overview({
   const today = dateKey(new Date());
   const taskSummary = overviewTasks(data.tasks, today);
   const grocerySummary = overviewGroceries(data.organisers);
-  const done = data.tasks.filter((task) => task.status === 'done').length;
+  const done = data.completedTaskCount;
+  const taskCount = taskSummary.active.length + done;
   return (
     <>
       <PageTitle
@@ -156,9 +157,7 @@ export function Overview({
           </div>
           <div className="progress-number">
             <strong>{taskPercent}%</strong>
-            <span>
-              {t('tasksComplete', { done, total: data.tasks.length })}
-            </span>
+            <span>{t('tasksComplete', { done, total: taskCount })}</span>
           </div>
           <div className="big-progress">
             <i style={{ width: `${taskPercent}%` }} />

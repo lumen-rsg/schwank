@@ -77,6 +77,8 @@ No application data is available to anonymous requests. The public enrollment-st
   a date and numeric ID from an already authorized page. Nutrition, water, and
   medication histories and summaries are owner-scoped in SQL. Habit pages and
   aggregates are intentionally household-public, while edits remain author-only.
+  Completed task, organiser-item, and reminder pages retain each domain's
+  private/shareable predicate and never use section selection to broaden it.
 - Successful `/api/schwank` mutations return only the re-read section affected
   by that action. The response uses the same row-level policy as `/api/data`;
   it never derives a partial response by filtering an already over-broad read.

@@ -377,6 +377,7 @@ const copy = {
     loadingOlderExpenses: 'Loading older expenses…',
     historyEntriesLoaded: 'Loaded {loaded} of {total} private entries',
     publicHistoryEntriesLoaded: 'Loaded {loaded} of {total} public entries',
+    completedEntriesLoaded: 'Loaded {loaded} of {total} completed entries',
     loadOlderHistory: 'Load older history',
     loadingOlderHistory: 'Loading older history…',
     editExpense: 'Edit expense {expense}',
@@ -1202,6 +1203,8 @@ const copy = {
     loadingOlderExpenses: 'Загружаем старые расходы…',
     historyEntriesLoaded: 'Загружено личных записей: {loaded} из {total}',
     publicHistoryEntriesLoaded: 'Загружено общих записей: {loaded} из {total}',
+    completedEntriesLoaded:
+      'Загружено выполненных записей: {loaded} из {total}',
     loadOlderHistory: 'Загрузить старую историю',
     loadingOlderHistory: 'Загружаем старую историю…',
     editExpense: 'Редактировать расход «{expense}»',

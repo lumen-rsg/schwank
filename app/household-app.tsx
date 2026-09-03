@@ -93,6 +93,9 @@ export default function HouseholdApp({
     loadOlderNutritionHistory,
     loadOlderMedicationDoseHistory,
     loadOlderHabitHistory,
+    loadOlderTaskHistory,
+    loadOlderOrganiserHistory,
+    loadOlderReminderHistory,
     loadOlderWaterHistory,
     logout,
     notificationPermission,
@@ -102,6 +105,9 @@ export default function HouseholdApp({
     nutritionHistoryLoading,
     medicationDoseHistoryLoading,
     habitHistoryLoading,
+    taskHistoryLoading,
+    organiserHistoryLoading,
+    reminderHistoryLoading,
     post,
     waterHistoryLoading,
     clearNotificationOpenTarget,
@@ -110,9 +116,12 @@ export default function HouseholdApp({
   const ownNutrition = data.nutrition.filter((item) => item.owned);
   const totals = sumNutrition(ownNutrition);
   const totalSpend = data.expenseTotal;
-  const completed = data.tasks.filter((item) => item.status === 'done').length;
-  const taskPercent = data.tasks.length
-    ? Math.round((completed / data.tasks.length) * 100)
+  const activeTaskCount = data.tasks.filter(
+    (item) => item.status !== 'done',
+  ).length;
+  const taskTotal = activeTaskCount + data.completedTaskCount;
+  const taskPercent = taskTotal
+    ? Math.round((data.completedTaskCount / taskTotal) * 100)
     : 0;
   const common = { data, t, language, post };
 
@@ -242,7 +251,11 @@ export default function HouseholdApp({
         loadOlderHabitHistory={loadOlderHabitHistory}
       />
     ) : active === 'tasks' ? (
-      <TasksView {...common} />
+      <TasksView
+        {...common}
+        taskHistoryLoading={taskHistoryLoading}
+        loadOlderTaskHistory={loadOlderTaskHistory}
+      />
     ) : active === 'wishlist' ? (
       <WishlistView {...common} />
     ) : active === 'spending' ? (
@@ -252,7 +265,14 @@ export default function HouseholdApp({
         loadOlderExpenses={loadOlderExpenses}
       />
     ) : active === 'organisers' ? (
-      <OrganisersView {...common} setActive={setActive} />
+      <OrganisersView
+        {...common}
+        setActive={setActive}
+        organiserHistoryLoading={organiserHistoryLoading}
+        reminderHistoryLoading={reminderHistoryLoading}
+        loadOlderOrganiserHistory={loadOlderOrganiserHistory}
+        loadOlderReminderHistory={loadOlderReminderHistory}
+      />
     ) : active === 'chat' ? (
       <ChatView
         {...common}

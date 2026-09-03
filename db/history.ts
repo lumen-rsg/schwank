@@ -6,19 +6,33 @@ import { ensureDatabase } from './setup';
 export const HISTORY_PAGE_SIZE = 100;
 export const ACTIVITY_HISTORY_PAGE_SIZE = 24;
 
-export type HistoryKind = 'nutrition' | 'water' | 'medication-doses' | 'habits';
+export type HistoryKind =
+  | 'nutrition'
+  | 'water'
+  | 'medication-doses'
+  | 'habits'
+  | 'tasks'
+  | 'organiser-items'
+  | 'reminders';
 
 export type HistoryCursor = {
-  date: string;
+  date?: string;
   id: number;
 };
 
-function validateCursor(cursor: HistoryCursor | undefined) {
+function validateCursor(kind: HistoryKind, cursor: HistoryCursor | undefined) {
+  const dated =
+    kind === 'nutrition' ||
+    kind === 'water' ||
+    kind === 'medication-doses' ||
+    kind === 'habits';
   if (
     cursor &&
-    (!/^\d{4}-\d{2}-\d{2}$/.test(cursor.date) ||
-      !Number.isSafeInteger(cursor.id) ||
-      cursor.id < 1)
+    (!Number.isSafeInteger(cursor.id) ||
+      cursor.id < 1 ||
+      (dated
+        ? !cursor.date || !/^\d{4}-\d{2}-\d{2}$/.test(cursor.date)
+        : cursor.date !== undefined))
   )
     throw new ApiError(
       'Choose a valid history page.',
@@ -46,8 +60,8 @@ async function readNutritionHistory(user: AuthUser, cursor?: HistoryCursor) {
             user.id,
             today,
             today,
-            cursor.date,
-            cursor.date,
+            cursor.date!,
+            cursor.date!,
             cursor.id,
             HISTORY_PAGE_SIZE + 1,
           )
@@ -77,8 +91,8 @@ async function readWaterHistory(user: AuthUser, cursor?: HistoryCursor) {
             user.id,
             today,
             today,
-            cursor.date,
-            cursor.date,
+            cursor.date!,
+            cursor.date!,
             cursor.id,
             HISTORY_PAGE_SIZE + 1,
           )
@@ -111,8 +125,8 @@ async function readMedicationDoseHistory(
             user.id,
             today,
             today,
-            cursor.date,
-            cursor.date,
+            cursor.date!,
+            cursor.date!,
             cursor.id,
             ACTIVITY_HISTORY_PAGE_SIZE + 1,
           )
@@ -154,8 +168,8 @@ async function readHabitHistory(user: AuthUser, cursor?: HistoryCursor) {
             user.id,
             today,
             today,
-            cursor.date,
-            cursor.date,
+            cursor.date!,
+            cursor.date!,
             cursor.id,
             ACTIVITY_HISTORY_PAGE_SIZE + 1,
           )
@@ -170,6 +184,95 @@ async function readHabitHistory(user: AuthUser, cursor?: HistoryCursor) {
       .all(),
   ]);
   return historyPage(page.results, daily.results, ACTIVITY_HISTORY_PAGE_SIZE);
+}
+
+const taskFields =
+  't.id,t.title,t.status,t.tag,t.due,t.due_on AS dueOn,t.source_reminder_id AS sourceReminderId,t.visibility,(t.user_id=?) AS owned,(CAST(t.assignee_id AS INTEGER)=?) AS assignedToMe,CAST(t.assignee_id AS INTEGER) AS assigneeId,a.display_name AS assigneeName,a.initials AS assigneeInitials,a.color AS assigneeColor,a.avatar_data AS assigneeAvatar';
+
+async function readCompletedTaskHistory(
+  user: AuthUser,
+  cursor?: HistoryCursor,
+) {
+  const cursorCondition = cursor ? 'AND t.id<?' : '';
+  const statement = env.DB.prepare(
+    `SELECT ${taskFields} FROM tasks t LEFT JOIN users a ON a.id=CAST(t.assignee_id AS INTEGER) AND a.deleted_at IS NULL WHERE t.status='done' AND (t.user_id=? OR t.visibility='shared') ${cursorCondition} ORDER BY t.id DESC LIMIT ?`,
+  );
+  const [page, count] = await Promise.all([
+    cursor
+      ? statement
+          .bind(
+            user.id,
+            user.id,
+            user.id,
+            cursor.id,
+            ACTIVITY_HISTORY_PAGE_SIZE + 1,
+          )
+          .all()
+      : statement
+          .bind(user.id, user.id, user.id, ACTIVITY_HISTORY_PAGE_SIZE + 1)
+          .all(),
+    env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM tasks WHERE status='done' AND (user_id=? OR visibility='shared')",
+    )
+      .bind(user.id)
+      .first<{ count: number }>(),
+  ]);
+  return workflowPage(page.results, count?.count);
+}
+
+async function readCompletedOrganiserHistory(
+  user: AuthUser,
+  cursor?: HistoryCursor,
+) {
+  const cursorCondition = cursor ? 'AND id<?' : '';
+  const statement = env.DB.prepare(
+    `SELECT id,list,label,done,visibility,(user_id=?) AS owned FROM organiser_items WHERE done=1 AND (user_id=? OR visibility='shared') ${cursorCondition} ORDER BY id DESC LIMIT ?`,
+  );
+  const [page, count] = await Promise.all([
+    cursor
+      ? statement
+          .bind(user.id, user.id, cursor.id, ACTIVITY_HISTORY_PAGE_SIZE + 1)
+          .all()
+      : statement.bind(user.id, user.id, ACTIVITY_HISTORY_PAGE_SIZE + 1).all(),
+    env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM organiser_items WHERE done=1 AND (user_id=? OR visibility='shared')",
+    )
+      .bind(user.id)
+      .first<{ count: number }>(),
+  ]);
+  return workflowPage(page.results, count?.count);
+}
+
+async function readCompletedReminderHistory(
+  user: AuthUser,
+  cursor?: HistoryCursor,
+) {
+  const cursorCondition = cursor ? 'AND r.id<?' : '';
+  const statement = env.DB.prepare(
+    `SELECT r.id,r.label,r.remind_at AS remindAt,r.recurrence,r.done,r.visibility,(r.user_id=?) AS owned,t.id AS convertedTaskId FROM reminders r LEFT JOIN tasks t ON t.source_reminder_id=r.id WHERE r.done=1 AND (r.user_id=? OR r.visibility='shared') ${cursorCondition} ORDER BY r.id DESC LIMIT ?`,
+  );
+  const [page, count] = await Promise.all([
+    cursor
+      ? statement
+          .bind(user.id, user.id, cursor.id, ACTIVITY_HISTORY_PAGE_SIZE + 1)
+          .all()
+      : statement.bind(user.id, user.id, ACTIVITY_HISTORY_PAGE_SIZE + 1).all(),
+    env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM reminders WHERE done=1 AND (user_id=? OR visibility='shared')",
+    )
+      .bind(user.id)
+      .first<{ count: number }>(),
+  ]);
+  return workflowPage(page.results, count?.count);
+}
+
+function workflowPage(items: Record<string, unknown>[], count = 0) {
+  return {
+    items: items.slice(0, ACTIVITY_HISTORY_PAGE_SIZE),
+    hasMore: items.length > ACTIVITY_HISTORY_PAGE_SIZE,
+    count: Number(count),
+    daily: [],
+  };
 }
 
 function historyPage(
@@ -191,10 +294,14 @@ export async function readHistoryPage(
   cursor?: HistoryCursor,
 ) {
   await ensureDatabase();
-  validateCursor(cursor);
+  validateCursor(kind, cursor);
   if (kind === 'nutrition') return readNutritionHistory(user, cursor);
   if (kind === 'water') return readWaterHistory(user, cursor);
   if (kind === 'medication-doses')
     return readMedicationDoseHistory(user, cursor);
-  return readHabitHistory(user, cursor);
+  if (kind === 'habits') return readHabitHistory(user, cursor);
+  if (kind === 'tasks') return readCompletedTaskHistory(user, cursor);
+  if (kind === 'organiser-items')
+    return readCompletedOrganiserHistory(user, cursor);
+  return readCompletedReminderHistory(user, cursor);
 }

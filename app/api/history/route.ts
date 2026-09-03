@@ -12,12 +12,23 @@ export async function GET(request: Request) {
       kind !== 'nutrition' &&
       kind !== 'water' &&
       kind !== 'medication-doses' &&
-      kind !== 'habits'
+      kind !== 'habits' &&
+      kind !== 'tasks' &&
+      kind !== 'organiser-items' &&
+      kind !== 'reminders'
     )
       throw new ApiError('Choose a valid history.', 400, 'validation_failed');
     const beforeDate = search.get('beforeDate');
     const beforeId = search.get('beforeId');
-    if ((beforeDate === null) !== (beforeId === null))
+    const datedHistory =
+      kind === 'nutrition' ||
+      kind === 'water' ||
+      kind === 'medication-doses' ||
+      kind === 'habits';
+    if (
+      (datedHistory && (beforeDate === null) !== (beforeId === null)) ||
+      (!datedHistory && beforeDate !== null)
+    )
       throw new ApiError(
         'Choose a complete history cursor.',
         400,
@@ -27,9 +38,12 @@ export async function GET(request: Request) {
       await readHistoryPage(
         user,
         kind as HistoryKind,
-        beforeDate === null
+        beforeId === null
           ? undefined
-          : { date: beforeDate, id: Number(beforeId) },
+          : {
+              ...(beforeDate === null ? {} : { date: beforeDate }),
+              id: Number(beforeId),
+            },
       ),
       { headers: { 'cache-control': 'no-store' } },
     );

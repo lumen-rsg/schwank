@@ -1,6 +1,14 @@
 'use client';
 
-import { ArrowRight, Check, Edit3, Plus, Search, Trash2 } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  Edit3,
+  History,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { dateKey } from '../../client/dates';
 import { formatDate } from '../../client/format';
@@ -22,11 +30,15 @@ export function TasksView({
   post,
   t,
   language,
+  taskHistoryLoading,
+  loadOlderTaskHistory,
 }: {
   data: Data;
   post: Post;
   t: T;
   language: Language;
+  taskHistoryLoading: boolean;
+  loadOlderTaskHistory: () => Promise<boolean>;
 }) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'active' | 'completed' | 'all'>('active');
@@ -370,6 +382,28 @@ export function TasksView({
                 })}
             </section>
           ))}
+        </div>
+      )}
+      {view !== 'active' && data.completedTasksHasMore && (
+        <div className="history-pagination panel" aria-live="polite">
+          <span>
+            {t('completedEntriesLoaded', {
+              loaded: data.tasks.filter((task) => task.status === 'done')
+                .length,
+              total: data.completedTaskCount,
+            })}
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={taskHistoryLoading}
+            onClick={() => void loadOlderTaskHistory()}
+          >
+            <History size={14} aria-hidden="true" />
+            {taskHistoryLoading
+              ? t('loadingOlderHistory')
+              : t('loadOlderHistory')}
+          </button>
         </div>
       )}
     </>

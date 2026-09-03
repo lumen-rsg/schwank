@@ -320,6 +320,8 @@ export type Data = {
   nutritionHistoryHasMore: boolean;
   nutritionHistoryDays: NutritionHistoryDay[];
   tasks: Task[];
+  completedTaskCount: number;
+  completedTasksHasMore: boolean;
   expenses: Expense[];
   expenseCount: number;
   expenseTotal: number;
@@ -327,7 +329,11 @@ export type Data = {
   recurringPayments: RecurringPayment[];
   spendingBudgets: SpendingBudget[];
   organisers: Organiser[];
+  completedOrganiserCount: number;
+  completedOrganisersHasMore: boolean;
   reminders: Reminder[];
+  completedReminderCount: number;
+  completedRemindersHasMore: boolean;
   medications: Medication[];
   medicationDoses: MedicationDose[];
   medicationDoseHistory: MedicationDose[];

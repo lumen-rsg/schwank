@@ -35,14 +35,24 @@ type ExpensePage = {
   hasMore: boolean;
 };
 
-type HistoryKind = 'nutrition' | 'water' | 'medication-doses' | 'habits';
+type HistoryKind =
+  | 'nutrition'
+  | 'water'
+  | 'medication-doses'
+  | 'habits'
+  | 'tasks'
+  | 'organiser-items'
+  | 'reminders';
 
 type HistoryPage = {
   items:
     | Data['nutritionHistory']
     | Data['water']
     | Data['medicationDoseHistory']
-    | Data['habits'];
+    | Data['habits']
+    | Data['tasks']
+    | Data['organisers']
+    | Data['reminders'];
   count: number;
   hasMore: boolean;
   daily:
@@ -79,6 +89,8 @@ function emptyHousehold(user: AuthUser): Data {
     nutritionHistoryHasMore: false,
     nutritionHistoryDays: [],
     tasks: [],
+    completedTaskCount: 0,
+    completedTasksHasMore: false,
     expenses: [],
     expenseCount: 0,
     expenseTotal: 0,
@@ -86,7 +98,11 @@ function emptyHousehold(user: AuthUser): Data {
     recurringPayments: [],
     spendingBudgets: [],
     organisers: [],
+    completedOrganiserCount: 0,
+    completedOrganisersHasMore: false,
     reminders: [],
+    completedReminderCount: 0,
+    completedRemindersHasMore: false,
     medications: [],
     medicationDoses: [],
     medicationDoseHistory: [],
@@ -303,7 +319,13 @@ export function useHouseholdController({
             ? data.water
             : kind === 'medication-doses'
               ? data.medicationDoseHistory
-              : data.habits;
+              : kind === 'habits'
+                ? data.habits
+                : kind === 'tasks'
+                  ? data.tasks.filter((item) => item.status === 'done')
+                  : kind === 'organiser-items'
+                    ? data.organisers.filter((item) => item.done)
+                    : data.reminders.filter((item) => item.done);
       const hasMore =
         kind === 'nutrition'
           ? data.nutritionHistoryHasMore
@@ -311,7 +333,13 @@ export function useHouseholdController({
             ? data.waterHistoryHasMore
             : kind === 'medication-doses'
               ? data.medicationDoseHistoryHasMore
-              : data.habitHistoryHasMore;
+              : kind === 'habits'
+                ? data.habitHistoryHasMore
+                : kind === 'tasks'
+                  ? data.completedTasksHasMore
+                  : kind === 'organiser-items'
+                    ? data.completedOrganisersHasMore
+                    : data.completedRemindersHasMore;
       const oldest = items.at(-1);
       if (!hasMore || !oldest) return false;
       const beforeDate =
@@ -323,12 +351,17 @@ export function useHouseholdController({
               ? (
                   oldest as Data['medicationDoseHistory'][number]
                 ).scheduledFor.slice(0, 10)
-              : (oldest as Data['habits'][number]).occurredOn;
+              : kind === 'habits'
+                ? (oldest as Data['habits'][number]).occurredOn
+                : '';
       historyLoad.current.add(kind);
       setHistoryLoading(kind);
       try {
+        const cursor = beforeDate
+          ? `&beforeDate=${encodeURIComponent(beforeDate)}&beforeId=${oldest.id}`
+          : `&beforeId=${oldest.id}`;
         const page = await requestApiJson<HistoryPage>(
-          `/api/history?kind=${kind}&beforeDate=${encodeURIComponent(beforeDate)}&beforeId=${oldest.id}`,
+          `/api/history?kind=${kind}${cursor}`,
           { cache: 'no-store' },
           t,
           'storageFailed',
@@ -384,6 +417,48 @@ export function useHouseholdController({
               habitHistoryDays: page.daily as Data['habitHistoryDays'],
             };
           }
+          if (kind === 'tasks') {
+            const known = new Set(current.tasks.map((item) => item.id));
+            return {
+              ...current,
+              tasks: [
+                ...current.tasks,
+                ...(page.items as Data['tasks']).filter(
+                  (item) => !known.has(item.id),
+                ),
+              ],
+              completedTaskCount: page.count,
+              completedTasksHasMore: page.hasMore,
+            };
+          }
+          if (kind === 'organiser-items') {
+            const known = new Set(current.organisers.map((item) => item.id));
+            return {
+              ...current,
+              organisers: [
+                ...current.organisers,
+                ...(page.items as Data['organisers']).filter(
+                  (item) => !known.has(item.id),
+                ),
+              ],
+              completedOrganiserCount: page.count,
+              completedOrganisersHasMore: page.hasMore,
+            };
+          }
+          if (kind === 'reminders') {
+            const known = new Set(current.reminders.map((item) => item.id));
+            return {
+              ...current,
+              reminders: [
+                ...current.reminders,
+                ...(page.items as Data['reminders']).filter(
+                  (item) => !known.has(item.id),
+                ),
+              ],
+              completedReminderCount: page.count,
+              completedRemindersHasMore: page.hasMore,
+            };
+          }
           const known = new Set(current.water.map((item) => item.id));
           return {
             ...current,
@@ -417,6 +492,12 @@ export function useHouseholdController({
       data.medicationDoseHistoryHasMore,
       data.habits,
       data.habitHistoryHasMore,
+      data.tasks,
+      data.completedTasksHasMore,
+      data.organisers,
+      data.completedOrganisersHasMore,
+      data.reminders,
+      data.completedRemindersHasMore,
       data.water,
       data.waterHistoryHasMore,
       t,
@@ -727,6 +808,9 @@ export function useHouseholdController({
     loadOlderWaterHistory: () => loadOlderHistory('water'),
     loadOlderMedicationDoseHistory: () => loadOlderHistory('medication-doses'),
     loadOlderHabitHistory: () => loadOlderHistory('habits'),
+    loadOlderTaskHistory: () => loadOlderHistory('tasks'),
+    loadOlderOrganiserHistory: () => loadOlderHistory('organiser-items'),
+    loadOlderReminderHistory: () => loadOlderHistory('reminders'),
     logout,
     notificationPermission,
     notifications,
@@ -737,6 +821,9 @@ export function useHouseholdController({
     waterHistoryLoading: historyLoading === 'water',
     medicationDoseHistoryLoading: historyLoading === 'medication-doses',
     habitHistoryLoading: historyLoading === 'habits',
+    taskHistoryLoading: historyLoading === 'tasks',
+    organiserHistoryLoading: historyLoading === 'organiser-items',
+    reminderHistoryLoading: historyLoading === 'reminders',
     clearNotificationOpenTarget,
   };
 }

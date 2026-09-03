@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   Clock3,
   Edit3,
+  History,
   ListTodo,
   Plus,
   Repeat2,
@@ -37,12 +38,20 @@ export function OrganisersView({
   setActive,
   t,
   language,
+  organiserHistoryLoading,
+  reminderHistoryLoading,
+  loadOlderOrganiserHistory,
+  loadOlderReminderHistory,
 }: {
   data: Data;
   post: Post;
   setActive: (section: string) => void;
   t: T;
   language: Language;
+  organiserHistoryLoading: boolean;
+  reminderHistoryLoading: boolean;
+  loadOlderOrganiserHistory: () => Promise<boolean>;
+  loadOlderReminderHistory: () => Promise<boolean>;
 }) {
   const lists = Array.from(new Set(data.organisers.map((item) => item.list)));
   const [reminderDefault] = useState(() =>
@@ -136,6 +145,28 @@ export function OrganisersView({
             </Empty>
           )}
         </div>
+        {reminderView !== 'active' && data.completedRemindersHasMore && (
+          <div className="history-pagination" aria-live="polite">
+            <span>
+              {t('completedEntriesLoaded', {
+                loaded: data.reminders.filter((reminder) => reminder.done)
+                  .length,
+                total: data.completedReminderCount,
+              })}
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={reminderHistoryLoading}
+              onClick={() => void loadOlderReminderHistory()}
+            >
+              <History size={14} aria-hidden="true" />
+              {reminderHistoryLoading
+                ? t('loadingOlderHistory')
+                : t('loadOlderHistory')}
+            </button>
+          </div>
+        )}
       </article>
       <form
         className="quick-form privacy-form panel"
@@ -209,6 +240,27 @@ export function OrganisersView({
         <article className="panel">
           <Empty>{t('noLists')}</Empty>
         </article>
+      )}
+      {data.completedOrganisersHasMore && (
+        <div className="history-pagination panel" aria-live="polite">
+          <span>
+            {t('completedEntriesLoaded', {
+              loaded: data.organisers.filter((item) => item.done).length,
+              total: data.completedOrganiserCount,
+            })}
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={organiserHistoryLoading}
+            onClick={() => void loadOlderOrganiserHistory()}
+          >
+            <History size={14} aria-hidden="true" />
+            {organiserHistoryLoading
+              ? t('loadingOlderHistory')
+              : t('loadOlderHistory')}
+          </button>
+        </div>
       )}
     </>
   );

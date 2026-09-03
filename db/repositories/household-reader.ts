@@ -91,12 +91,19 @@ async function readNutrition(user: AuthUser) {
 }
 
 async function readTasks(user: AuthUser) {
-  const rows = await env.DB.prepare(
-    "SELECT t.id,t.title,t.status,t.tag,t.due,t.due_on AS dueOn,t.source_reminder_id AS sourceReminderId,t.visibility,(t.user_id=?) AS owned,(CAST(t.assignee_id AS INTEGER)=?) AS assignedToMe,CAST(t.assignee_id AS INTEGER) AS assigneeId,a.display_name AS assigneeName,a.initials AS assigneeInitials,a.color AS assigneeColor,a.avatar_data AS assigneeAvatar FROM tasks t LEFT JOIN users a ON a.id=CAST(t.assignee_id AS INTEGER) AND a.deleted_at IS NULL WHERE t.user_id=? OR t.visibility='shared' ORDER BY t.id DESC",
-  )
-    .bind(user.id, user.id, user.id)
-    .all();
-  return { tasks: rows.results };
+  const [activeTasks, completedTasks] = await Promise.all([
+    env.DB.prepare(
+      "SELECT t.id,t.title,t.status,t.tag,t.due,t.due_on AS dueOn,t.source_reminder_id AS sourceReminderId,t.visibility,(t.user_id=?) AS owned,(CAST(t.assignee_id AS INTEGER)=?) AS assignedToMe,CAST(t.assignee_id AS INTEGER) AS assigneeId,a.display_name AS assigneeName,a.initials AS assigneeInitials,a.color AS assigneeColor,a.avatar_data AS assigneeAvatar FROM tasks t LEFT JOIN users a ON a.id=CAST(t.assignee_id AS INTEGER) AND a.deleted_at IS NULL WHERE t.status!='done' AND (t.user_id=? OR t.visibility='shared') ORDER BY t.id DESC",
+    )
+      .bind(user.id, user.id, user.id)
+      .all(),
+    readHistoryPage(user, 'tasks'),
+  ]);
+  return {
+    tasks: [...activeTasks.results, ...completedTasks.items],
+    completedTaskCount: completedTasks.count,
+    completedTasksHasMore: completedTasks.hasMore,
+  };
 }
 
 async function readSpending(user: AuthUser) {
@@ -124,23 +131,37 @@ async function readSpending(user: AuthUser) {
 }
 
 async function readOrganisers(user: AuthUser) {
-  const [organisers, reminders, tasks] = await Promise.all([
+  const [
+    organisers,
+    completedOrganisers,
+    reminders,
+    completedReminders,
+    tasks,
+  ] = await Promise.all([
     env.DB.prepare(
-      "SELECT id,list,label,done,visibility,(user_id=?) AS owned FROM organiser_items WHERE user_id=? OR visibility='shared' ORDER BY id DESC",
+      "SELECT id,list,label,done,visibility,(user_id=?) AS owned FROM organiser_items WHERE done=0 AND (user_id=? OR visibility='shared') ORDER BY id DESC",
     )
       .bind(user.id, user.id)
       .all(),
+    readHistoryPage(user, 'organiser-items'),
     env.DB.prepare(
-      "SELECT r.id,r.label,r.remind_at AS remindAt,r.recurrence,r.done,r.visibility,(r.user_id=?) AS owned,t.id AS convertedTaskId FROM reminders r LEFT JOIN tasks t ON t.source_reminder_id=r.id WHERE r.user_id=? OR r.visibility='shared' ORDER BY r.done,r.remind_at,r.id DESC",
+      "SELECT r.id,r.label,r.remind_at AS remindAt,r.recurrence,r.done,r.visibility,(r.user_id=?) AS owned,t.id AS convertedTaskId FROM reminders r LEFT JOIN tasks t ON t.source_reminder_id=r.id WHERE r.done=0 AND (r.user_id=? OR r.visibility='shared') ORDER BY r.remind_at,r.id DESC",
     )
       .bind(user.id, user.id)
       .all(),
+    readHistoryPage(user, 'reminders'),
     readTasks(user),
   ]);
   return {
-    organisers: organisers.results,
-    reminders: reminders.results,
+    organisers: [...organisers.results, ...completedOrganisers.items],
+    completedOrganiserCount: completedOrganisers.count,
+    completedOrganisersHasMore: completedOrganisers.hasMore,
+    reminders: [...reminders.results, ...completedReminders.items],
+    completedReminderCount: completedReminders.count,
+    completedRemindersHasMore: completedReminders.hasMore,
     tasks: tasks.tasks,
+    completedTaskCount: tasks.completedTaskCount,
+    completedTasksHasMore: tasks.completedTasksHasMore,
   };
 }
 

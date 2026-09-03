@@ -980,6 +980,8 @@ void test(
     );
     assert.equal(bobTaskSection.response.status, 200);
     assert.deepEqual(Object.keys(bobTaskSection.body).sort(), [
+      'completedTaskCount',
+      'completedTasksHasMore',
       'expenseCount',
       'expenseTotal',
       'expenses',
@@ -2280,6 +2282,15 @@ void test(
     const insertLargeHabit = legacyDatabase.prepare(
       "INSERT INTO habit_entries (user_id,habit,occurrences,cost,occurred_on,created_at) VALUES (?,'vaping',1,25,?,?)",
     );
+    const insertCompletedTask = legacyDatabase.prepare(
+      "INSERT INTO tasks (user_id,visibility,title,status,assignee_id,tag,due,due_on) VALUES (?,?,?,'done',?,'Pass 8','Completed',?)",
+    );
+    const insertCompletedOrganiser = legacyDatabase.prepare(
+      'INSERT INTO organiser_items (user_id,visibility,list,label,done) VALUES (?,?,?,?,1)',
+    );
+    const insertCompletedReminder = legacyDatabase.prepare(
+      "INSERT INTO reminders (user_id,visibility,label,remind_at,recurrence,done,created_at) VALUES (?,?,?,?,'none',1,?)",
+    );
     legacyDatabase.exec('BEGIN');
     for (let index = 0; index < 250; index += 1) {
       const day = String((index % 28) + 1).padStart(2, '0');
@@ -2319,6 +2330,28 @@ void test(
         restoredAliceId,
         habitDay,
         `${habitDay}T12:00:00.000Z`,
+      );
+      const workflowVisibility = index < 5 ? 'shared' : 'private';
+      const workflowSuffix = String(index).padStart(3, '0');
+      insertCompletedTask.run(
+        restoredAliceId,
+        workflowVisibility,
+        `Large completed task ${workflowSuffix}`,
+        String(restoredAliceId),
+        historyDay,
+      );
+      insertCompletedOrganiser.run(
+        restoredAliceId,
+        workflowVisibility,
+        'Large completed list',
+        `Large completed item ${workflowSuffix}`,
+      );
+      insertCompletedReminder.run(
+        restoredAliceId,
+        workflowVisibility,
+        `Large completed reminder ${workflowSuffix}`,
+        `${historyDay}T12:00`,
+        `${historyDay}T12:00:00.000Z`,
       );
     }
     legacyDatabase.exec('COMMIT');
@@ -2514,6 +2547,95 @@ void test(
       ),
       false,
     );
+    for (const history of [
+      {
+        kind: 'tasks',
+        section: 'tasks',
+        itemsKey: 'tasks',
+        countKey: 'completedTaskCount',
+        hasMoreKey: 'completedTasksHasMore',
+        completed: (item) => item.status === 'done',
+        label: (item) => item.title,
+        prefix: 'Large completed task',
+      },
+      {
+        kind: 'organiser-items',
+        section: 'organisers',
+        itemsKey: 'organisers',
+        countKey: 'completedOrganiserCount',
+        hasMoreKey: 'completedOrganisersHasMore',
+        completed: (item) => Boolean(item.done),
+        label: (item) => item.label,
+        prefix: 'Large completed item',
+      },
+      {
+        kind: 'reminders',
+        section: 'organisers',
+        itemsKey: 'reminders',
+        countKey: 'completedReminderCount',
+        hasMoreKey: 'completedRemindersHasMore',
+        completed: (item) => Boolean(item.done),
+        label: (item) => item.label,
+        prefix: 'Large completed reminder',
+      },
+    ]) {
+      const section = await jsonRequest(
+        `/api/data?sections=${history.section}`,
+        { headers: { cookie: restoredCookie } },
+      );
+      assert.equal(section.response.status, 200);
+      const initialCompleted = section.body[history.itemsKey].filter(
+        history.completed,
+      );
+      assert.equal(initialCompleted.length, 24);
+      assert.equal(section.body[history.hasMoreKey], true);
+      assert.ok(section.body[history.countKey] >= 130);
+      const loaded = [...initialCompleted];
+      let hasMore = section.body[history.hasMoreKey];
+      while (hasMore) {
+        const page = await jsonRequest(
+          `/api/history?kind=${history.kind}&beforeId=${loaded.at(-1).id}`,
+          { headers: { cookie: restoredCookie } },
+        );
+        assert.equal(page.response.status, 200);
+        loaded.push(...page.body.items);
+        hasMore = page.body.hasMore;
+      }
+      assert.equal(loaded.length, section.body[history.countKey]);
+      assert.equal(new Set(loaded.map((item) => item.id)).size, loaded.length);
+      assert.equal(
+        loaded.filter((item) => history.label(item).startsWith(history.prefix))
+          .length,
+        130,
+      );
+      const bobHistory = await jsonRequest(
+        `/api/history?kind=${history.kind}`,
+        {
+          headers: { cookie: bob.cookie },
+        },
+      );
+      assert.equal(bobHistory.response.status, 200);
+      assert.equal(
+        bobHistory.body.items.filter((item) =>
+          history.label(item).startsWith(history.prefix),
+        ).length,
+        5,
+      );
+      assert.equal(
+        bobHistory.body.items.some((item) =>
+          history.label(item).endsWith('129'),
+        ),
+        false,
+      );
+    }
+    assert.equal(
+      (
+        await jsonRequest('/api/history?kind=tasks&beforeDate=2026-09-01', {
+          headers: { cookie: restoredCookie },
+        })
+      ).response.status,
+      400,
+    );
     await stopServer();
     const repairedDatabase = new DatabaseSync(join(d1Directory, d1File), {
       readOnly: true,
@@ -2521,7 +2643,7 @@ void test(
     assert.equal(
       repairedDatabase.prepare('SELECT COUNT(*) AS count FROM tasks').get()
         .count,
-      retainedTaskCount,
+      retainedTaskCount + 130,
     );
     assert.equal(
       repairedDatabase
